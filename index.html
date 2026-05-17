@@ -39,84 +39,46 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
 .suggestion-item:hover { background: var(--accent); color: #000; }
 
-#alertBar {
-    background: rgba(160, 48, 48, 0.15); border-bottom: 1px solid var(--danger);
-    padding: 8px 30px; display: none; align-items: center; gap: 15px; font-size: 0.75rem;
-}
-
-/* ─── BODEGA VISUAL ─── */
+/* ─── BODEGA VISUAL (CORRECCIÓN DE FILAS) ─── */
 #whWrap { padding: 25px 30px; }
 .row-container { 
     margin-bottom: 30px; background: var(--surface); border-radius: 12px; 
     border: 1px solid var(--border); padding: 20px; position: relative;
 }
-.row-header { 
-    display:flex; justify-content:space-between; align-items:center; 
-    margin-bottom:12px; font-size:0.75rem; color:var(--muted);
-}
+.row-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:0.75rem; color:var(--muted); }
 .row-info b { color: var(--accent); font-family: 'Bebas Neue'; font-size: 1.5rem; }
 
 .wh-row {
   height:100px; background:var(--bg); border:1px solid var(--border);
   border-radius:8px; display:flex; align-items:center; 
-  position:relative; 
-  overflow: visible !important; /* Para que el cartel no se corte */
+  position:relative; overflow: visible !important; 
 }
 
 .product {
   height:85px; border-radius:4px; display:flex; flex-direction:column; justify-content:center;
   padding:5px; cursor:pointer; position:relative; flex-shrink:0;
-  transition: all 0.2s; border:1px solid rgba(255,255,255,0.05);
-  margin-right: 1px;
+  transition: all 0.2s; border:1px solid rgba(255,255,255,0.05); margin-right: 1px;
   overflow: visible !important;
 }
 
-/* OCULTAMOS EL TEXTO INTERNO PARA EVITAR EL "DESORDEN" DE LA IMAGEN */
-.product-name, .product-sku { 
-    display: none !important; 
-}
+/* OCULTAMOS TEXTO QUE SE AMONTONABA */
+.product-name, .product-sku { display: none !important; }
+.product-pos { font-family: 'DM Mono'; font-size: 0.8rem; color: var(--accent); font-weight: bold; text-align: center; }
 
-.product-pos { 
-    font-family: 'DM Mono'; 
-    font-size: 0.8rem; 
-    color: var(--accent); 
-    font-weight: bold; 
-    text-align: center;
-}
-
-/* EL CARTELITO (TOOLTIP) CORREGIDO */
+/* CARTEL FLOTANTE (TOOLTIP) */
 .product:hover::after {
     content: attr(data-info);
-    position: absolute;
-    bottom: 115%; /* Aparece arriba del cuadro */
-    left: 50%;
-    transform: translateX(-50%);
-    background: #1e1c18;
-    color: #fff;
-    padding: 12px;
-    border: 1px solid var(--accent);
-    border-radius: 8px;
-    font-size: 0.8rem;
-    line-height: 1.4;
-    white-space: pre;
-    z-index: 99999 !important; /* POR ENCIMA DE TODO */
-    box-shadow: 0 10px 30px rgba(0,0,0,0.9);
-    pointer-events: none;
-    text-align: left;
-    min-width: 200px;
+    position: absolute; bottom: 115%; left: 50%; transform: translateX(-50%);
+    background: #1e1c18; color: #fff; padding: 12px; border: 1px solid var(--accent);
+    border-radius: 8px; font-size: 0.8rem; line-height: 1.4; white-space: pre;
+    z-index: 99999 !important; box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+    pointer-events: none; text-align: left; min-width: 200px;
 }
 
-.product:hover {
-    background: rgba(200, 168, 75, 0.15) !important;
-    border: 1px solid var(--accent) !important;
-    z-index: 10;
-}
-
-/* MODALES Y TABLAS */
+/* MODALES Y UI */
 .modal { position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; z-index:2000; }
 .modal.open { display:flex; }
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
-#productModal .modal-content { width: 850px; }
 .editor-grid { display: grid; grid-template-columns: 1fr 320px; }
 .db-table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); margin-top: 15px; }
 .db-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -158,28 +120,26 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </div>
 </div>
 
-<div id="alertBar"><strong style="color:var(--danger)">⚠️ ALERTAS:</strong> <span id="alertText"></span></div>
-
 <div id="whWrap"></div>
 
 <div id="productModal" class="modal">
   <div class="modal-content">
     <div class="editor-grid">
         <div style="padding: 40px;">
-            <h2 id="pTitle" style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:25px;">Editor de Producto</h2>
+            <h2 id="pTitle" style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:25px;">Editor</h2>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
                 <div class="field"><label>SKU</label><input id="pSku" type="text"></div>
                 <div class="field"><label>Nombre</label><input id="pName" type="text"></div>
             </div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-                <div class="field"><label>Ancho (Metros)</label><input id="pWidth" type="number" step="0.01"></div>
+                <div class="field"><label>Ancho</label><input id="pWidth" type="number" step="0.01"></div>
                 <div class="field"><label>Color</label><input id="pColor" type="color" value="#c8a84b"></div>
             </div>
             <div class="field"><label>Fila</label><select id="pRowSelect"></select></div>
             <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; background:var(--surface2); padding:20px; border-radius:8px;">
-                <div class="field" style="margin:0;"><label>Stock</label><input id="pCurrent" type="number"></div>
-                <div class="field" style="margin:0;"><label>Mín.</label><input id="pMin" type="number"></div>
-                <div class="field" style="margin:0;"><label>Máx.</label><input id="pMax" type="number"></div>
+                <div class="field"><label>Stock</label><input id="pCurrent" type="number"></div>
+                <div class="field"><label>Mín.</label><input id="pMin" type="number"></div>
+                <div class="field"><label>Máx.</label><input id="pMax" type="number"></div>
             </div>
             <div style="margin-top:30px; display:flex; gap:10px;">
                 <button class="btn btn-primary" style="flex:2" onclick="saveProduct()">Guardar</button>
@@ -198,32 +158,23 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </div>
 </div>
 
-<div id="rowModal" class="modal">
-    <div class="modal-content" style="width:400px; padding:30px;">
-      <h2 style="font-family:'Bebas Neue'; color:var(--accent); margin-bottom:20px;">Configurar Fila</h2>
-      <input type="hidden" id="rId">
-      <div class="field"><label>Nombre</label><input id="rName" type="text"></div>
-      <div class="field"><label>Metros Totales</label><input id="rSize" type="number" step="0.1"></div>
-      <div style="display:flex; gap:10px; flex-direction:column;">
-        <button class="btn btn-primary" onclick="saveRow()">Guardar</button>
-        <button id="btnDelRow" class="btn btn-danger" style="display:none" onclick="deleteRow()">Eliminar</button>
-        <button class="btn btn-secondary" onclick="closeModals()">Cancelar</button>
-      </div>
-    </div>
-</div>
-
 <div id="dbModal" class="modal">
     <div class="modal-content" style="width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
             <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Inventario</h2>
+            <div class="search-container" style="flex:1">
+                <input type="text" id="dbSearch" placeholder="🔍 Buscar en tabla..." oninput="filterDB(this.value)">
+            </div>
             <button class="btn btn-secondary" onclick="toggleSapSection()">📋 Importar SAP</button>
             <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes</button>
             <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
         </div>
+        
         <div id="sapImportSection" style="display:none; background:var(--surface2); padding:15px; border-radius:8px; margin-top:15px; border:1px solid var(--border);">
-            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none;" placeholder="SKU | Nombre | Cantidad"></textarea>
-            <button class="btn btn-primary" style="margin-top:10px;" onclick="processSapPaste()">Procesar SAP</button>
+            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none;" placeholder="Pega: SKU | Nombre | Cantidad"></textarea>
+            <button class="btn btn-primary" style="margin-top:10px;" onclick="processSapPaste()">Procesar Carga SAP</button>
         </div>
+
         <div class="db-table-container">
             <table class="db-table">
                 <thead><tr><th>Ubicación</th><th>SKU</th><th>Vino</th><th>Stock</th><th>Mín.</th><th>Acción</th></tr></thead>
@@ -233,12 +184,23 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     </div>
 </div>
 
+<div id="rowModal" class="modal">
+    <div class="modal-content" style="width:400px; padding:30px;">
+      <h2 style="font-family:'Bebas Neue'; color:var(--accent); margin-bottom:20px;">Configurar Fila</h2>
+      <input type="hidden" id="rId">
+      <div class="field"><label>Nombre</label><input id="rName" type="text"></div>
+      <div class="field"><label>Metros</label><input id="rSize" type="number" step="0.1"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="saveRow()">Guardar</button>
+      <button class="btn btn-secondary" style="width:100%; margin-top:10px;" onclick="closeModals()">Cancelar</button>
+    </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
 <script>
-// TU CONFIGURACIÓN (NO TOCAR)
+// CONFIGURACIÓN ORIGINAL
 const firebaseConfig = {
   apiKey: "AIzaSyARv7i6uHqYHiuRfA7jkx8MdzmVKwWqxAo",
   authDomain: "bodega-concha-toro.firebaseapp.com",
@@ -251,10 +213,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-let ROWS = [];
-let PRODUCTS = [];
-let DB_CHANGES = {};
-let tempImg = null;
+let ROWS = [], PRODUCTS = [], DB_CHANGES = {}, tempImg = null;
 
 firebase.auth().onAuthStateChanged(user => {
     if(user) {
@@ -265,15 +224,13 @@ firebase.auth().onAuthStateChanged(user => {
             PRODUCTS = data.products || [];
             render();
         });
-    } else {
-        document.getElementById('loginScreen').style.display = 'flex';
-    }
+    } else { document.getElementById('loginScreen').style.display = 'flex'; }
 });
 
 function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const pass = document.getElementById('loginPass').value;
-    firebase.auth().signInWithEmailAndPassword(email, pass).catch(() => alert("Error de acceso"));
+    firebase.auth().signInWithEmailAndPassword(email, pass).catch(() => alert("Acceso denegado"));
 }
 
 function sync() { db.ref('bodega').set({ rows: ROWS, products: PRODUCTS }); }
@@ -281,102 +238,50 @@ function sync() { db.ref('bodega').set({ rows: ROWS, products: PRODUCTS }); }
 function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
-    let alerts = [];
-
     ROWS.forEach(row => {
         const rowProds = PRODUCTS.filter(p => p.rowId === row.id);
-        const used = rowProds.reduce((s, p) => s + (parseFloat(p.widthM) || 0.4), 0);
-        const perc = ((used / row.sizeM) * 100).toFixed(1);
-
         const container = document.createElement('div');
         container.className = 'row-container';
-        container.innerHTML = `
-            <div class="row-header">
-                <div class="row-info"><b>${row.name}</b> <span>${used.toFixed(2)}m / ${row.sizeM}m (${perc}%)</span></div>
-                <button class="btn btn-secondary" style="padding:4px 8px; font-size:0.6rem" onclick="openRowModal('${row.id}')">⚙️ Config</button>
-            </div>
-            <div class="wh-row" id="${row.id}"></div>
-        `;
+        container.innerHTML = `<div class="row-header"><div class="row-info"><b>${row.name}</b></div><button class="btn btn-secondary" style="padding:4px 8px" onclick="openRowModal('${row.id}')">⚙️</button></div><div class="wh-row" id="${row.id}"></div>`;
         const rowEl = container.querySelector('.wh-row');
-        
         rowProds.forEach((p, index) => {
-            if(p.current < p.min) alerts.push(p.name);
             const posLabel = `${row.name.split(' ').pop()}${index + 1}`;
             const pEl = document.createElement('div');
             pEl.className = 'product';
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
-            pEl.style.background = p.color + '22';
             pEl.style.borderTop = `4px solid ${p.color}`;
-            
-            // LA INFORMACIÓN PARA EL TOOLTIP
-            const info = `UBICACIÓN: ${posLabel}\nPRODUCTO: ${p.name}\nSKU: ${p.sku}\nSTOCK: ${p.current}`;
-            pEl.setAttribute('data-info', info);
+            pEl.setAttribute('data-info', `UBICACIÓN: ${posLabel}\nPRODUCTO: ${p.name}\nSKU: ${p.sku}\nSTOCK: ${p.current}`);
             pEl.onclick = () => openProductModal(p.sku);
-            
-            // SOLO DIBUJAMOS LA POSICIÓN Y EL PUNTO (Limpieza total)
-            pEl.innerHTML = `
-                <div class="product-pos">${posLabel}</div>
-                <span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>
-            `;
+            pEl.innerHTML = `<div class="product-pos">${posLabel}</div><span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>`;
             rowEl.appendChild(pEl);
         });
         wrap.appendChild(container);
     });
-
-    const ab = document.getElementById('alertBar');
-    if(alerts.length) { ab.style.display='flex'; document.getElementById('alertText').innerText = alerts.join(', '); }
-    else ab.style.display='none';
 }
 
-/* TODAS LAS FUNCIONES ADICIONALES (Búsqueda, SAP, Imagen, etc.) SE MANTENDRÍAN AQUÍ IGUAL QUE LAS TENÍAS */
-
-function handleSearch(v, boxId, isDB) {
+// FUNCIONES RESTAURADAS
+function handleSearch(v, boxId) {
     const s = document.getElementById(boxId);
     if(!v) { s.style.display='none'; return; }
     const m = PRODUCTS.filter(p => p.sku.toLowerCase().includes(v.toLowerCase()) || p.name.toLowerCase().includes(v.toLowerCase()));
     s.style.display = m.length ? 'block' : 'none';
-    s.innerHTML = m.map(p => `<div class="suggestion-item" onclick="selectSuggestion('${p.sku}', '${boxId}')"><b>${p.sku}</b> - ${p.name}</div>`).join('');
+    s.innerHTML = m.map(p => `<div class="suggestion-item" onclick="openProductModal('${p.sku}')"><b>${p.sku}</b> - ${p.name}</div>`).join('');
 }
 
-function selectSuggestion(sku, boxId) {
-    document.getElementById(boxId).style.display = 'none';
-    openProductModal(sku);
-}
-
-function openProductModal(sku = null) {
-    document.getElementById('pRowSelect').innerHTML = ROWS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-    if(sku) {
-        const p = PRODUCTS.find(x => x.sku === sku);
-        document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
-        document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
-        document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
-        document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
-        document.getElementById('pMax').value = p.max;
-        document.getElementById('btnDelProd').style.display = 'block';
-        document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}" style="width:100%">` : '<span>Sin Imagen</span>';
-    } else {
-        document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false;
-        document.getElementById('pName').value = ''; document.getElementById('btnDelProd').style.display = 'none';
-        document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>';
-    }
-    document.getElementById('productModal').classList.add('open');
-}
-
-function saveProduct() {
-    const sku = document.getElementById('pSku').value;
-    const data = {
-        sku, name: document.getElementById('pName').value, 
-        widthM: parseFloat(document.getElementById('pWidth').value) || 0.4,
-        color: document.getElementById('pColor').value, 
-        rowId: document.getElementById('pRowSelect').value,
-        current: parseInt(document.getElementById('pCurrent').value) || 0, 
-        min: parseInt(document.getElementById('pMin').value) || 0,
-        max: parseInt(document.getElementById('pMax').value) || 0,
-        photo: tempImg
-    };
-    const idx = PRODUCTS.findIndex(p => p.sku === sku);
-    if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
-    sync(); closeModals();
+function processSapPaste() {
+    const input = document.getElementById('sapPasteInput').value.trim();
+    if(!input) return;
+    const lines = input.split('\n');
+    lines.forEach(line => {
+        const cols = line.split(/\t|,|;/);
+        if(cols.length >= 3) {
+            const sku = cols[0].trim(), name = cols[1].trim(), qty = parseInt(cols[2].trim()) || 0;
+            const p = PRODUCTS.find(x => x.sku.toLowerCase() === sku.toLowerCase());
+            if(p) { p.current = qty; p.name = name; }
+            else { PRODUCTS.push({sku, name, widthM: 0.4, color: "#c8a84b", rowId: ROWS[0].id, current: qty, min: 0, max: 0}); }
+        }
+    });
+    sync(); alert("Carga completada");
 }
 
 function processImage(input) {
@@ -393,13 +298,44 @@ function processImage(input) {
 function openInventoryDB() { DB_CHANGES = {}; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
 function filterDB(q) {
     const b = document.getElementById('dbTableBody'); b.innerHTML = '';
-    PRODUCTS.forEach(p => {
+    PRODUCTS.filter(p => p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())).forEach(p => {
         b.innerHTML += `<tr><td>S/N</td><td>${p.sku}</td><td>${p.name}</td><td><input type="number" value="${p.current}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value)"></td><td>${p.min}</td><td><button class="btn btn-secondary" onclick="openProductModal('${p.sku}')">Ver</button></td></tr>`;
     });
 }
 
 function applyDBChanges() {
     Object.keys(DB_CHANGES).forEach(sku => { const p = PRODUCTS.find(x => x.sku === sku); if(p) p.current = DB_CHANGES[sku]; });
+    sync(); closeModals();
+}
+
+function openProductModal(sku = null) {
+    document.getElementById('pRowSelect').innerHTML = ROWS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+    if(sku) {
+        const p = PRODUCTS.find(x => x.sku === sku);
+        document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
+        document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
+        document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
+        document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
+        document.getElementById('pMax').value = p.max;
+        document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}" style="width:100%">` : '<span>Sin Imagen</span>';
+        document.getElementById('btnDelProd').style.display = 'block';
+    } else {
+        document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false;
+        document.getElementById('btnDelProd').style.display = 'none';
+    }
+    document.getElementById('productModal').classList.add('open');
+}
+
+function saveProduct() {
+    const sku = document.getElementById('pSku').value;
+    const data = {
+        sku, name: document.getElementById('pName').value, widthM: parseFloat(document.getElementById('pWidth').value) || 0.4,
+        color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
+        current: parseInt(document.getElementById('pCurrent').value) || 0, min: parseInt(document.getElementById('pMin').value) || 0,
+        max: parseInt(document.getElementById('pMax').value) || 0, photo: tempImg
+    };
+    const idx = PRODUCTS.findIndex(p => p.sku === sku);
+    if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
     sync(); closeModals();
 }
 
