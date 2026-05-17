@@ -31,6 +31,14 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     padding:10px 15px; border-radius:6px; color:#fff; outline:none;
 }
 
+.suggestions-box {
+    position: absolute; top: 100%; left: 0; right: 0; background: var(--surface2);
+    border: 1px solid var(--accent); border-top:none; border-radius: 0 0 8px 8px; 
+    display: none; z-index: 600; max-height: 250px; overflow-y: auto;
+}
+.suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.suggestion-item:hover { background: var(--accent); color: #000; }
+
 #alertBar {
     background: rgba(160, 48, 48, 0.15); border-bottom: 1px solid var(--danger);
     padding: 8px 30px; display: none; align-items: center; gap: 15px; font-size: 0.75rem;
@@ -52,7 +60,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   height:100px; background:var(--bg); border:1px solid var(--border);
   border-radius:8px; display:flex; align-items:center; 
   position:relative; 
-  overflow: visible; /* IMPORTANTE: Permite que el tooltip flote fuera de la fila */
+  overflow: visible !important; /* Para que el cartel no se corte */
 }
 
 .product {
@@ -60,12 +68,12 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   padding:5px; cursor:pointer; position:relative; flex-shrink:0;
   transition: all 0.2s; border:1px solid rgba(255,255,255,0.05);
   margin-right: 1px;
-  overflow: visible; /* Para que el tooltip no se corte */
+  overflow: visible !important;
 }
 
-/* OCULTAMOS EL TEXTO PARA EVITAR EL DESORDEN DE LA IMAGEN */
+/* OCULTAMOS EL TEXTO INTERNO PARA EVITAR EL "DESORDEN" DE LA IMAGEN */
 .product-name, .product-sku { 
-    display: none; 
+    display: none !important; 
 }
 
 .product-pos { 
@@ -76,11 +84,11 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     text-align: center;
 }
 
-/* EL TOOLTIP CORREGIDO */
+/* EL CARTELITO (TOOLTIP) CORREGIDO */
 .product:hover::after {
     content: attr(data-info);
     position: absolute;
-    bottom: 110%;
+    bottom: 115%; /* Aparece arriba del cuadro */
     left: 50%;
     transform: translateX(-50%);
     background: #1e1c18;
@@ -91,35 +99,25 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     font-size: 0.8rem;
     line-height: 1.4;
     white-space: pre;
-    z-index: 9999 !important; /* MÁXIMA PRIORIDAD PARA ESTAR AL FRENTE */
-    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    z-index: 99999 !important; /* POR ENCIMA DE TODO */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.9);
     pointer-events: none;
     text-align: left;
-    min-width: 180px;
-}
-
-/* Pequeña flecha del tooltip */
-.product:hover::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 8px solid transparent;
-    border-top-color: var(--accent);
-    z-index: 10000;
+    min-width: 200px;
 }
 
 .product:hover {
-    background: rgba(200, 168, 75, 0.2) !important;
+    background: rgba(200, 168, 75, 0.15) !important;
     border: 1px solid var(--accent) !important;
+    z-index: 10;
 }
 
-/* ESTILOS DE MODALES Y TABLAS SE MANTIENEN IGUAL */
+/* MODALES Y TABLAS */
 .modal { position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; z-index:2000; }
 .modal.open { display:flex; }
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
 #productModal .modal-content { width: 850px; }
+.editor-grid { display: grid; grid-template-columns: 1fr 320px; }
 .db-table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); margin-top: 15px; }
 .db-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .db-table th { position: sticky; top: 0; background: var(--surface2); padding: 15px; text-align: left; border-bottom: 2px solid var(--accent); }
@@ -160,15 +158,13 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </div>
 </div>
 
-<div id="alertBar">
-    <strong style="color:var(--danger)">⚠️ ALERTAS:</strong> <span id="alertText"></span>
-</div>
+<div id="alertBar"><strong style="color:var(--danger)">⚠️ ALERTAS:</strong> <span id="alertText"></span></div>
 
 <div id="whWrap"></div>
 
 <div id="productModal" class="modal">
   <div class="modal-content">
-    <div style="display: grid; grid-template-columns: 1fr 320px;">
+    <div class="editor-grid">
         <div style="padding: 40px;">
             <h2 id="pTitle" style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:25px;">Editor de Producto</h2>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
@@ -219,14 +215,14 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <div id="dbModal" class="modal">
     <div class="modal-content" style="width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
-            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Ajuste de Inventario</h2>
-            <button class="btn btn-secondary" onclick="toggleSapSection()">📋 Importar desde SAP</button>
+            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Inventario</h2>
+            <button class="btn btn-secondary" onclick="toggleSapSection()">📋 Importar SAP</button>
             <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes</button>
             <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
         </div>
         <div id="sapImportSection" style="display:none; background:var(--surface2); padding:15px; border-radius:8px; margin-top:15px; border:1px solid var(--border);">
-            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none;" placeholder="Pega SKU | Nombre | Cantidad"></textarea>
-            <button class="btn btn-primary" style="margin-top:10px;" onclick="processSapPaste()">Procesar Carga SAP</button>
+            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none;" placeholder="SKU | Nombre | Cantidad"></textarea>
+            <button class="btn btn-primary" style="margin-top:10px;" onclick="processSapPaste()">Procesar SAP</button>
         </div>
         <div class="db-table-container">
             <table class="db-table">
@@ -242,6 +238,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
 <script>
+// TU CONFIGURACIÓN (NO TOCAR)
 const firebaseConfig = {
   apiKey: "AIzaSyARv7i6uHqYHiuRfA7jkx8MdzmVKwWqxAo",
   authDomain: "bodega-concha-toro.firebaseapp.com",
@@ -257,6 +254,7 @@ const db = firebase.database();
 let ROWS = [];
 let PRODUCTS = [];
 let DB_CHANGES = {};
+let tempImg = null;
 
 firebase.auth().onAuthStateChanged(user => {
     if(user) {
@@ -278,9 +276,7 @@ function handleLogin() {
     firebase.auth().signInWithEmailAndPassword(email, pass).catch(() => alert("Error de acceso"));
 }
 
-function sync() {
-    db.ref('bodega').set({ rows: ROWS, products: PRODUCTS });
-}
+function sync() { db.ref('bodega').set({ rows: ROWS, products: PRODUCTS }); }
 
 function render() {
     const wrap = document.getElementById('whWrap');
@@ -289,7 +285,7 @@ function render() {
 
     ROWS.forEach(row => {
         const rowProds = PRODUCTS.filter(p => p.rowId === row.id);
-        const used = rowProds.reduce((s, p) => s + (p.widthM || 0.4), 0);
+        const used = rowProds.reduce((s, p) => s + (parseFloat(p.widthM) || 0.4), 0);
         const perc = ((used / row.sizeM) * 100).toFixed(1);
 
         const container = document.createElement('div');
@@ -310,15 +306,14 @@ function render() {
             pEl.className = 'product';
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
             pEl.style.background = p.color + '22';
-            pEl.style.borderTop = `3px solid ${p.color}`;
+            pEl.style.borderTop = `4px solid ${p.color}`;
             
-            // DATOS DEL TOOLTIP (Lo que aparece al pasar el mouse)
+            // LA INFORMACIÓN PARA EL TOOLTIP
             const info = `UBICACIÓN: ${posLabel}\nPRODUCTO: ${p.name}\nSKU: ${p.sku}\nSTOCK: ${p.current}`;
             pEl.setAttribute('data-info', info);
-            
             pEl.onclick = () => openProductModal(p.sku);
             
-            // SOLO DIBUJAMOS LA POSICIÓN Y EL PUNTO DE STOCK
+            // SOLO DIBUJAMOS LA POSICIÓN Y EL PUNTO (Limpieza total)
             pEl.innerHTML = `
                 <div class="product-pos">${posLabel}</div>
                 <span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>
@@ -333,7 +328,21 @@ function render() {
     else ab.style.display='none';
 }
 
-// FUNCIONES DE MODALES Y APOYO
+/* TODAS LAS FUNCIONES ADICIONALES (Búsqueda, SAP, Imagen, etc.) SE MANTENDRÍAN AQUÍ IGUAL QUE LAS TENÍAS */
+
+function handleSearch(v, boxId, isDB) {
+    const s = document.getElementById(boxId);
+    if(!v) { s.style.display='none'; return; }
+    const m = PRODUCTS.filter(p => p.sku.toLowerCase().includes(v.toLowerCase()) || p.name.toLowerCase().includes(v.toLowerCase()));
+    s.style.display = m.length ? 'block' : 'none';
+    s.innerHTML = m.map(p => `<div class="suggestion-item" onclick="selectSuggestion('${p.sku}', '${boxId}')"><b>${p.sku}</b> - ${p.name}</div>`).join('');
+}
+
+function selectSuggestion(sku, boxId) {
+    document.getElementById(boxId).style.display = 'none';
+    openProductModal(sku);
+}
+
 function openProductModal(sku = null) {
     document.getElementById('pRowSelect').innerHTML = ROWS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
     if(sku) {
@@ -344,9 +353,11 @@ function openProductModal(sku = null) {
         document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
         document.getElementById('pMax').value = p.max;
         document.getElementById('btnDelProd').style.display = 'block';
+        document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}" style="width:100%">` : '<span>Sin Imagen</span>';
     } else {
         document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false;
         document.getElementById('pName').value = ''; document.getElementById('btnDelProd').style.display = 'none';
+        document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>';
     }
     document.getElementById('productModal').classList.add('open');
 }
@@ -360,23 +371,30 @@ function saveProduct() {
         rowId: document.getElementById('pRowSelect').value,
         current: parseInt(document.getElementById('pCurrent').value) || 0, 
         min: parseInt(document.getElementById('pMin').value) || 0,
-        max: parseInt(document.getElementById('pMax').value) || 0
+        max: parseInt(document.getElementById('pMax').value) || 0,
+        photo: tempImg
     };
     const idx = PRODUCTS.findIndex(p => p.sku === sku);
     if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
     sync(); closeModals();
 }
 
+function processImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            tempImg = e.target.result;
+            document.getElementById('pImgPreview').innerHTML = `<img src="${tempImg}" style="width:100%">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
 function openInventoryDB() { DB_CHANGES = {}; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
 function filterDB(q) {
     const b = document.getElementById('dbTableBody'); b.innerHTML = '';
     PRODUCTS.forEach(p => {
-        b.innerHTML += `<tr>
-            <td>${p.sku}</td><td>${p.name}</td>
-            <td><input type="number" value="${p.current}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value)"></td>
-            <td>${p.min}</td>
-            <td><button class="btn btn-secondary" onclick="openProductModal('${p.sku}')">Ver</button></td>
-        </tr>`;
+        b.innerHTML += `<tr><td>S/N</td><td>${p.sku}</td><td>${p.name}</td><td><input type="number" value="${p.current}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value)"></td><td>${p.min}</td><td><button class="btn btn-secondary" onclick="openProductModal('${p.sku}')">Ver</button></td></tr>`;
     });
 }
 
