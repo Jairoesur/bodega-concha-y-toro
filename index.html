@@ -448,7 +448,7 @@ function applyDBChanges() {
     sync(); closeModals();
 }
 
-/* MODIFICADO: Nuevas funciones exclusivas para Importación Masiva desde SAP */
+/* FUNCIONES DE IMPORTACIÓN DESDE SAP */
 function toggleSapSection() {
     const section = document.getElementById('sapImportSection');
     section.style.display = section.style.display === 'none' ? 'block' : 'none';
@@ -463,31 +463,28 @@ function processSapPaste() {
     let createdCount = 0;
 
     lines.forEach(line => {
-        // Separa por tabulaciones (Excel/SAP estándar) o comas/puntos y comas
         const columns = line.split(/\t|,|;/);
         if (columns.length >= 3) {
             const sku = columns[0].trim();
             const name = columns[1].trim();
             const quantity = parseInt(columns[2].trim()) || 0;
 
-            if (!sku) return; // Salta líneas vacías
+            if (!sku) return;
 
             const existingIdx = PRODUCTS.findIndex(p => p.sku.toLowerCase() === sku.toLowerCase());
 
             if (existingIdx >= 0) {
-                // Producto existente: Actualiza automáticamente el stock actual
                 PRODUCTS[existingIdx].current = quantity;
-                if (name) PRODUCTS[existingIdx].name = name; // Actualiza nombre opcionalmente
+                if (name) PRODUCTS[existingIdx].name = name;
                 updatedCount++;
             } else {
-                // Producto Nuevo: Lo crea con los 3 parámetros de SAP y valores de configuración por defecto
                 const defaultRow = ROWS[0] ? ROWS[0].id : '';
                 const newProduct = {
                     sku: sku,
                     name: name || "Producto Importado SAP",
-                    widthM: 0.4, // Ancho por defecto inicial
-                    color: "#c8a84b", // Color de marca base por defecto
-                    rowId: defaultRow, // Se asigna automáticamente a la primera fila disponible
+                    widthM: 0.4,
+                    color: "#c8a84b",
+                    rowId: defaultRow,
                     current: quantity,
                     min: 0,
                     max: 0,
@@ -499,11 +496,11 @@ function processSapPaste() {
         }
     });
 
-    alert(`¡Proceso completado con éxito!\n\n• Stock actualizado en: ${updatedCount} productos.\n• Nuevos productos agregados: ${createdCount}.`);
+    alert(`¡Proceso completado!\n\n• Stock actualizado en: ${updatedCount} productos.\n• Nuevos agregados: ${createdCount}.`);
     document.getElementById('sapPasteInput').value = '';
     document.getElementById('sapImportSection').style.display = 'none';
-    sync(); // Guarda e impacta directamente en la base de datos de Firebase
-    filterDB(''); // Recarga el listado de la tabla
+    sync();
+    filterDB('');
 }
 
 function deleteProduct() { 
