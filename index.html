@@ -23,7 +23,6 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   border-bottom:1px solid var(--border);
   padding:12px 30px; display:flex; align-items:center; justify-content:space-between; gap:20px;
 }
-#topbar h1{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:3px;color:var(--accent);}
 
 .search-container { position: relative; flex: 1; max-width: 400px; }
 #searchInput, #dbSearch {
@@ -59,7 +58,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .wh-row {
   height:100px; background:var(--bg); border:1px solid var(--border);
   border-radius:8px; display:flex; align-items:center; position:relative; 
-  overflow: visible !important; /* IMPORTANTE: Para que el cartel no se corte */
+  overflow: visible !important;
 }
 
 .product {
@@ -116,7 +115,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 <div id="loginScreen" style="position:fixed; inset:0; background:#0a0a09; z-index:9999; display:flex; align-items:center; justify-content:center;">
     <div style="background:var(--surface); padding:40px; border-radius:16px; width:350px; border:1px solid var(--accent); text-align:center;">
-        <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:20px;">Acceso Bodega</h2>
+        <img src="logo.png" alt="Logo" style="height: 60px; margin-bottom: 20px;">
         <div class="field" style="text-align:left;"><label>Correo</label><input type="email" id="loginEmail"></div>
         <div class="field" style="text-align:left;"><label>Contraseña</label><input type="password" id="loginPass"></div>
         <button class="btn btn-primary" style="width:100%" onclick="handleLogin()">Entrar</button>
@@ -127,7 +126,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <div id="alertBar"><strong style="color:var(--danger)">⚠️ ALERTAS:</strong> <span id="alertText"></span></div>
 
 <div id="topbar">
-  <h1>Bodega Concha y Toro</h1>
+  <img src="logo.png" alt="Logo Bodega" style="height: 45px; object-fit: contain;">
+  
   <div class="search-container">
       <input type="text" id="searchInput" placeholder="Buscar producto..." oninput="handleSearch(this.value, 'searchSuggestions', false)">
       <div id="searchSuggestions" class="suggestions-box"></div>
@@ -135,7 +135,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   <div style="display:flex; gap:10px;">
     <button class="btn btn-secondary" onclick="openInventoryDB()">📊 Base de Datos</button>
     <button class="btn btn-secondary" onclick="openRowModal()">+ Nueva Fila</button>
-    <button class="btn btn-primary" onclick="openProductModal()">+ Agregar Producto</button>
+    <button class="btn btn-primary" onclick="openProductModal(null)">+ Agregar Producto</button>
     <button class="btn btn-danger" onclick="firebase.auth().signOut()">Cerrar Sesión</button>
   </div>
 </div>
@@ -277,14 +277,15 @@ function render() {
             if(p.current < p.min) alerts.push(p.name);
             const posLabel = `${row.name.split(' ').pop()}${index + 1}`;
             const pEl = document.createElement('div');
-            pEl.className = `product ${currentH === p.sku ? 'is-highlighted' : ''}`;
+            
+            // Corrección aquí: Convertir a texto para garantizar que se resalte
+            pEl.className = `product ${String(currentH) === String(p.sku) ? 'is-highlighted' : ''}`;
             pEl.id = `p-${p.sku}`;
             pEl.draggable = true;
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
             pEl.style.borderTop = `4px solid ${p.color}`;
             pEl.style.background = p.color + '15';
             
-            // TOOLTIP DATA
             pEl.setAttribute('data-info', `UBICACIÓN: ${posLabel}\nSKU: ${p.sku}\nPRODUCTO: ${p.name}\nSTOCK: ${p.current}`);
             
             pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
@@ -300,17 +301,16 @@ function render() {
     else ab.style.display='none';
 }
 
-// ─── LOGICA DE MOVIMIENTO (DRAG & DROP) ───
+// ─── LOGICA DE MOVIMIENTO CORREGIDA ───
 function drop(e) {
     e.preventDefault();
-    const sku = e.dataTransfer.getData("sku");
+    const sku = String(e.dataTransfer.getData("sku")); // Asegurar formato texto
     const targetRowId = e.currentTarget.id;
-    const p = PRODUCTS.find(x => x.sku === sku);
+    const p = PRODUCTS.find(x => String(x.sku) === sku);
+    if (!p) return; // Evitar fallos si no encuentra el producto
     
-    // Cambiar de fila manteniendo posición
     p.rowId = targetRowId;
     
-    // Reordenar según donde se soltó
     const rowEl = document.getElementById(targetRowId);
     const children = Array.from(rowEl.children);
     let insertIdx = children.length;
@@ -319,15 +319,13 @@ function drop(e) {
         if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx;
     });
 
-    const otherProds = PRODUCTS.filter(x => x.sku !== sku);
-    const rowProds = PRODUCTS.filter(x => x.rowId === targetRowId && x.sku !== sku);
+    const rowProds = PRODUCTS.filter(x => x.rowId === targetRowId && String(x.sku) !== sku);
     rowProds.splice(insertIdx, 0, p);
     
-    PRODUCTS = [...PRODUCTS.filter(x => x.rowId !== targetRowId && x.sku !== sku), ...rowProds];
+    PRODUCTS = [...PRODUCTS.filter(x => x.rowId !== targetRowId && String(x.sku) !== sku), ...rowProds];
     sync();
 }
 
-// ─── LOGICA DE IMAGENES ───
 function processImage(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
@@ -346,11 +344,11 @@ function processImage(input) {
     }
 }
 
-// ─── BUSCADOR, SAP Y MODALES ───
 function handleSearch(v, boxId, isDB) {
     const s = document.getElementById(boxId);
     if(!v) { s.style.display='none'; if(isDB) filterDB(''); return; }
-    const m = PRODUCTS.filter(p => p.sku.toLowerCase().includes(v.toLowerCase()) || p.name.toLowerCase().includes(v.toLowerCase()));
+    // Convertir a texto para búsqueda segura
+    const m = PRODUCTS.filter(p => String(p.sku).toLowerCase().includes(v.toLowerCase()) || String(p.name).toLowerCase().includes(v.toLowerCase()));
     s.style.display = m.length ? 'block' : 'none';
     s.innerHTML = m.map(p => `<div class="suggestion-item" onclick="selectSuggestion('${p.sku}', '${boxId}', ${isDB})"><b>${p.sku}</b> - ${p.name}</div>`).join('');
     if(isDB) filterDB(v);
@@ -359,41 +357,74 @@ function handleSearch(v, boxId, isDB) {
 function selectSuggestion(sku, boxId, isDB) {
     document.getElementById(boxId).style.display = 'none';
     if(isDB) filterDB(sku);
-    else { currentH = sku; render(); document.getElementById(`p-${sku}`)?.scrollIntoView({behavior:'smooth', block:'center'}); }
+    else { 
+        currentH = String(sku); // Solo guarda el valor a resaltar
+        render(); // Al renderizar, aplicará la clase amarilla
+        document.getElementById(`p-${sku}`)?.scrollIntoView({behavior:'smooth', block:'center'}); 
+    }
 }
 
 function openProductModal(sku = null) {
     const sel = document.getElementById('pRowSelect');
     sel.innerHTML = ROWS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-    tempImg = null;
-    if(sku) {
-        const p = PRODUCTS.find(x => x.sku === sku);
-        document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
-        document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
-        document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
-        document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
-        document.getElementById('pMax').value = p.max; tempImg = p.photo;
-        document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}">` : '<span>Sin Imagen</span>';
-        document.getElementById('btnDelProd').style.display = 'block';
+    
+    if(sku !== null && sku !== undefined) {
+        const p = PRODUCTS.find(x => String(x.sku) === String(sku));
+        if(p) {
+            document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
+            document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
+            document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
+            document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
+            document.getElementById('pMax').value = p.max; tempImg = p.photo;
+            document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}">` : '<span>Sin Imagen</span>';
+            document.getElementById('btnDelProd').style.display = 'block';
+        }
     } else {
+        // Limpia todos los campos correctamente para permitir crear uno nuevo
         document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false;
-        document.getElementById('pName').value = ''; document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>';
+        document.getElementById('pName').value = ''; document.getElementById('pWidth').value = '0.4';
+        document.getElementById('pColor').value = '#c8a84b'; document.getElementById('pCurrent').value = '0';
+        document.getElementById('pMin').value = '0'; document.getElementById('pMax').value = '0';
+        tempImg = null;
+        document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>';
         document.getElementById('btnDelProd').style.display = 'none';
     }
     document.getElementById('productModal').classList.add('open');
 }
 
+// ─── LÓGICA DE GUARDAR Y ELIMINAR CORREGIDA ───
 function saveProduct() {
-    const sku = document.getElementById('pSku').value;
+    const sku = String(document.getElementById('pSku').value).trim();
+    if(!sku) return alert("Por favor ingresa un SKU válido.");
+    
     const data = {
-        sku, name: document.getElementById('pName').value, widthM: parseFloat(document.getElementById('pWidth').value) || 0.4,
-        color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
-        current: parseInt(document.getElementById('pCurrent').value) || 0, min: parseInt(document.getElementById('pMin').value) || 0,
-        max: parseInt(document.getElementById('pMax').value) || 0, photo: tempImg
+        sku: sku, 
+        name: document.getElementById('pName').value, 
+        widthM: parseFloat(document.getElementById('pWidth').value) || 0.4,
+        color: document.getElementById('pColor').value, 
+        rowId: document.getElementById('pRowSelect').value || ROWS[0].id,
+        current: parseInt(document.getElementById('pCurrent').value) || 0, 
+        min: parseInt(document.getElementById('pMin').value) || 0,
+        max: parseInt(document.getElementById('pMax').value) || 0, 
+        photo: tempImg
     };
-    const idx = PRODUCTS.findIndex(p => p.sku === sku);
-    if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
+    
+    const idx = PRODUCTS.findIndex(p => String(p.sku) === sku);
+    if(idx >= 0) {
+        PRODUCTS[idx] = data; // Actualiza el existente
+    } else {
+        PRODUCTS.push(data); // Agrega el nuevo
+    }
     sync(); closeModals();
+}
+
+function deleteProduct() { 
+    const sku = String(document.getElementById('pSku').value);
+    if(confirm("¿Estás seguro que deseas eliminar este producto?")) { 
+        PRODUCTS = PRODUCTS.filter(p => String(p.sku) !== sku); 
+        sync(); 
+        closeModals(); 
+    } 
 }
 
 function processSapPaste() {
@@ -402,10 +433,10 @@ function processSapPaste() {
     lines.forEach(line => {
         const cols = line.split(/\t|,|;/);
         if (cols.length >= 3) {
-            const sku = cols[0].trim(), name = cols[1].trim(), qty = parseInt(cols[2]) || 0;
-            const p = PRODUCTS.find(x => x.sku === sku);
+            const sku = String(cols[0]).trim(), name = cols[1].trim(), qty = parseInt(cols[2]) || 0;
+            const p = PRODUCTS.find(x => String(x.sku) === sku);
             if(p) { p.current = qty; if(name) p.name = name; }
-            else { PRODUCTS.push({sku, name, widthM: 0.4, color: "#c8a84b", rowId: ROWS[0].id, current: qty, min: 0, max: 0, photo: null}); }
+            else { PRODUCTS.push({sku: sku, name: name, widthM: 0.4, color: "#c8a84b", rowId: ROWS[0].id, current: qty, min: 0, max: 0, photo: null}); }
         }
     });
     sync(); alert("SAP Procesado");
@@ -413,7 +444,7 @@ function processSapPaste() {
 
 function filterDB(q) {
     const b = document.getElementById('dbTableBody'); b.innerHTML = '';
-    PRODUCTS.filter(p => p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())).forEach(p => {
+    PRODUCTS.filter(p => String(p.sku).toLowerCase().includes(q.toLowerCase()) || String(p.name).toLowerCase().includes(q.toLowerCase())).forEach(p => {
         b.innerHTML += `<tr><td>${p.rowId}</td><td>${p.sku}</td><td>${p.name}</td>
             <td><input type="number" value="${DB_CHANGES[p.sku] ?? p.current}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0"></td>
             <td>${p.min}</td><td><button onclick="openProductModal('${p.sku}')">Ver</button></td></tr>`;
@@ -421,7 +452,7 @@ function filterDB(q) {
 }
 
 function applyDBChanges() {
-    Object.keys(DB_CHANGES).forEach(sku => { const p = PRODUCTS.find(x => x.sku === sku); if(p) p.current = DB_CHANGES[sku]; });
+    Object.keys(DB_CHANGES).forEach(sku => { const p = PRODUCTS.find(x => String(x.sku) === String(sku)); if(p) p.current = DB_CHANGES[sku]; });
     sync(); closeModals();
 }
 
@@ -439,8 +470,7 @@ function saveRow() {
     sync(); closeModals();
 }
 
-function deleteProduct() { if(confirm("¿Eliminar?")) { PRODUCTS = PRODUCTS.filter(p => p.sku !== document.getElementById('pSku').value); sync(); closeModals(); } }
-function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos."); if(confirm("¿Eliminar?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
+function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("No puedes eliminar una fila que tiene productos."); if(confirm("¿Eliminar?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 function openInventoryDB() { DB_CHANGES = {}; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
