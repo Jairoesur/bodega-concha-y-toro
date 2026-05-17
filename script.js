@@ -1,13 +1,43 @@
-let ROWS = JSON.parse(localStorage.getItem('bod_final_v10')) || [{id:'R1', name:'Fila A', sizeM:15}];
-let PRODUCTS = JSON.parse(localStorage.getItem('bod_p_final_v10')) || [];
-let tempImg = null, currentH = null;
+// CONFIGURACIÓN FIREBASE CON TUS LLAVES
+const firebaseConfig = {
+  apiKey: "AIzaSyARv7i6uHqYHiuRfA7jkx8MdzmVKwWqxAo",
+  authDomain: "bodega-concha-toro.firebaseapp.com",
+  databaseURL: "https://bodega-concha-toro-default-rtdb.firebaseio.com/", // Ajustado para Realtime Database
+  projectId: "bodega-concha-toro",
+  storageBucket: "bodega-concha-toro.firebasestorage.app",
+  messagingSenderId: "292866536059",
+  appId: "1:292866536059:web:4b69d406debf25d8d468de"
+};
+
+// Inicializar
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let ROWS = [];
+let PRODUCTS = [];
+let tempImg = null;
+let currentH = null;
 let DB_CHANGES = {};
 
-// Sincronización y Renderizado
-function sync() {
-    localStorage.setItem('bod_final_v10', JSON.stringify(ROWS));
-    localStorage.setItem('bod_p_final_v10', JSON.stringify(PRODUCTS));
+// ESCUCHAR CAMBIOS EN TIEMPO REAL (La Pizarra)
+db.ref('bodega').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+        ROWS = data.rows || [{id:'R1', name:'Fila A', sizeM:15}];
+        PRODUCTS = data.products || [];
+    } else {
+        ROWS = [{id:'R1', name:'Fila A', sizeM:15}];
+        PRODUCTS = [];
+    }
     render();
+});
+
+// GUARDAR EN LA NUBE
+function sync() {
+    db.ref('bodega').set({
+        rows: ROWS,
+        products: PRODUCTS
+    });
 }
 
 function render() {
@@ -55,7 +85,6 @@ function render() {
     else ab.style.display='none';
 }
 
-// Lógica de Movimiento
 function drop(e) {
     e.preventDefault();
     const sku = e.dataTransfer.getData("sku");
@@ -79,7 +108,6 @@ function drop(e) {
     sync();
 }
 
-// Buscadores y Sugerencias
 function handleSearch(v, boxId, isDB) {
     const s = document.getElementById(boxId);
     if(!v) { s.style.display='none'; if(isDB) filterDB(''); return; }
@@ -95,7 +123,6 @@ function selectSuggestion(sku, boxId, isDB) {
     else { currentH = sku; render(); document.getElementById(`p-${sku}`)?.scrollIntoView({behavior:'smooth', block:'center'}); }
 }
 
-// Modal Producto (Editor)
 function openProductModal(sku = null) {
     const sel = document.getElementById('pRowSelect');
     sel.innerHTML = ROWS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
@@ -120,7 +147,7 @@ function openProductModal(sku = null) {
 
 function saveProduct() {
     const sku = document.getElementById('pSku').value;
-    if(!sku) return alert("SKU requerido");
+    if(!sku) return;
     const data = {
         sku, name: document.getElementById('pName').value, widthM: parseFloat(document.getElementById('pWidth').value) || 0.8,
         color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
@@ -132,7 +159,6 @@ function saveProduct() {
     sync(); closeProductModalOnly();
 }
 
-// Base de Datos
 function openInventoryDB() { DB_CHANGES = {}; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
 
 function filterDB(q) {
@@ -158,7 +184,6 @@ function applyDBChanges() {
     sync(); closeModals();
 }
 
-// Gestión de Filas
 function openRowModal(id = null) {
     const r = id ? ROWS.find(x => x.id === id) : {id:'', name:'', sizeM:15};
     document.getElementById('rId').value = r.id; document.getElementById('rName').value = r.name; document.getElementById('rSize').value = r.sizeM;
@@ -173,15 +198,14 @@ function saveRow() {
     sync(); closeModals();
 }
 
-function deleteRow() { 
-    const id = document.getElementById('rId').value; 
-    if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos. Vacíela primero."); 
-    if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } 
+function deleteRow() {
+    const id = document.getElementById('rId').value;
+    if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos.");
+    if(confirm("¿Eliminar?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); }
 }
 
-function deleteProduct() { if(confirm("¿Eliminar producto?")) { PRODUCTS = PRODUCTS.filter(p => p.sku !== document.getElementById('pSku').value); sync(); closeProductModalOnly(); } }
+function deleteProduct() { if(confirm("¿Eliminar?")) { PRODUCTS = PRODUCTS.filter(p => p.sku !== document.getElementById('pSku').value); sync(); closeProductModalOnly(); } }
 
-// Imagen y Utilidades
 function processImage(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
@@ -202,6 +226,3 @@ function processImage(input) {
 
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
-
-// Inicio
-sync();
