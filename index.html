@@ -70,53 +70,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .product-name { font-size:0.75rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .product-pos { font-family: 'DM Mono'; font-size: 0.6rem; color: var(--accent); font-weight: bold; margin-bottom: 2px; }
 .product-sku { font-family: 'DM Mono'; font-size: 0.6rem; opacity: 0.6; }
-/* ─── NUEVO TOOLTIP ─── */
 
-.product-tooltip{
-    position:absolute;
-    bottom:105%;
-    left:50%;
-    transform:translateX(-50%);
-    background:rgba(15,15,15,0.98);
-    border:1px solid var(--accent);
-    color:#fff;
-    padding:10px 12px;
-    border-radius:8px;
-    min-width:180px;
-    pointer-events:none;
-    opacity:0;
-    transition:0.2s;
-    z-index:9999;
-    box-shadow:0 10px 30px rgba(0,0,0,0.5);
-}
-
-.product:hover .product-tooltip{
-    opacity:1;
-}
-
-.product-tooltip .tt-title{
-    font-weight:700;
-    color:var(--accent);
-    font-size:0.8rem;
-    margin-bottom:4px;
-}
-
-.product-tooltip .tt-sku{
-    font-family:'DM Mono';
-    font-size:0.7rem;
-    opacity:0.7;
-}
-
-.product.compact .product-name,
-.product.compact .product-sku{
-    display:none;
-}
-
-.product.compact{
-    justify-content:flex-start;
-    padding-top:8px;
-    align-items:center;
-}
 .is-highlighted {
     box-shadow: 0 0 25px var(--accent);
     border: 2px solid var(--accent) !important;
@@ -359,60 +313,16 @@ function render() {
             if(p.current < p.min) alerts.push(p.name);
             const posLabel = `${row.name.split(' ').pop()}${index + 1}`;
             const pEl = document.createElement('div');
-           pEl.className = `product ${currentH === p.sku ? 'is-highlighted' : ''}`;
-pEl.id = `p-${p.sku}`;
-pEl.draggable = true;
-
-const productWidth = (p.widthM / row.sizeM * 100);
-
-pEl.style.width = productWidth + '%';
-pEl.style.background = p.color + '22';
-pEl.style.borderTop = `4px solid ${p.color}`;
-
-if(productWidth < 8){
-    pEl.classList.add('compact');
-}
-
-pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
-pEl.onclick = () => openProductModal(p.sku);
-
-pEl.innerHTML = `
-    <div class="product-pos">${posLabel}</div>
-
-    <div class="product-name">
-        <span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>
-        ${p.name}
-    </div>
-
-    <div class="product-sku">${p.sku}</div>
-
-    <div class="product-tooltip">
-        <div class="tt-title">${p.name}</div>
-        <div class="tt-sku">${p.sku}</div>
-
-        <div style="margin-top:6px; font-size:0.7rem;">
-            Stock: ${p.current}
-        </div>
-    </div>
-`;
-    <div class="product-pos">${posLabel}</div>
-
-    <div class="product-name">
-        <span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>
-        ${p.name}
-    </div>
-
-    <div class="product-sku">${p.sku}</div>
-
-    <div class="product-tooltip">
-        <div class="tt-title">${p.name}</div>
-        <div class="tt-sku">${p.sku}</div>
-
-        <div style="margin-top:6px; font-size:0.7rem;">
-            Stock: ${p.current}
-        </div>
-    </div>
-`;       
+            pEl.className = `product ${currentH === p.sku ? 'is-highlighted' : ''}`;
+            pEl.id = `p-${p.sku}`;
+            pEl.draggable = true;
+            pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
+            pEl.style.background = p.color + '22';
+            pEl.style.borderTop = `4px solid ${p.color}`;
+            pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
+            pEl.onclick = () => openProductModal(p.sku);
+            pEl.innerHTML = `<div class="product-pos">${posLabel}</div><div class="product-name"><span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>${p.name}</div><div class="product-sku">${p.sku}</div>`;
+            rowEl.appendChild(pEl);
         });
         wrap.appendChild(container);
     });
