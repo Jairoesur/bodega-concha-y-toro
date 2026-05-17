@@ -58,18 +58,39 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 .wh-row {
   height:100px; background:var(--bg); border:1px solid var(--border);
-  border-radius:8px; display:flex; align-items:center; position:relative; overflow:hidden;
+  border-radius:8px; display:flex; align-items:center; position:relative; overflow-x: auto; overflow-y: visible;
 }
 
 .product {
-  height:85px; border-radius:4px; display:flex; flex-direction:column; justify-content:center;
-  padding:10px; cursor:grab; position:relative; flex-shrink:0;
+  height:85px; border-radius:4px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:5px; cursor:grab; position:relative; flex-shrink:0;
   transition: transform 0.2s, box-shadow 0.3s; border:1px solid rgba(255,255,255,0.05);
   margin-right: 1px;
 }
-.product-name { font-size:0.75rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.product-pos { font-family: 'DM Mono'; font-size: 0.6rem; color: var(--accent); font-weight: bold; margin-bottom: 2px; }
-.product-sku { font-family: 'DM Mono'; font-size: 0.6rem; opacity: 0.6; }
+
+/* FIX PARA EVITAR AMONTONAMIENTO DE TEXTO */
+.product-pos { font-family: 'DM Mono'; font-size: 0.7rem; color: var(--accent); font-weight: bold; margin-bottom: 4px; }
+
+/* TOOLTIP ESTILO CONCHA Y TORO */
+.product:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--accent);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    z-index: 1000;
+    width: max-content;
+    max-width: 250px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+    pointer-events: none;
+}
 
 .is-highlighted {
     box-shadow: 0 0 25px var(--accent);
@@ -78,7 +99,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     z-index: 100;
 }
 
-/* ─── MODALES (CAPAS DE PROFUNDIDAD) ─── */
+/* ─── MODALES ─── */
 .modal {
   position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px);
   display:none; align-items:center; justify-content:center; z-index:1000;
@@ -117,7 +138,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 .img-preview { width: 100%; height: 240px; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px dashed var(--muted); }
 .img-preview img { width: 100%; height: 100%; object-fit: contain; }
-.stock-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.stock-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 </style>
 </head>
 <body>
@@ -216,8 +237,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
         </div>
 
         <div id="sapImportSection" style="display:none; background:var(--surface2); padding:15px; border-radius:8px; margin-top:15px; border:1px solid var(--border);">
-            <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:8px; font-weight:700;">PEGA AQUÍ LAS COLUMNAS DE TU HOJA DE CÁLCULO / SAP (Formatos válidos: SKU | Nombre | Cantidad)</label>
-            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none; font-family:monospace; font-size:0.8rem;" placeholder="Ejemplo:&#10;SKU100    Vino Casillero Cabernet    150&#10;SKU200    Vino Trio Merlot           85"></textarea>
+            <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:8px; font-weight:700;">PEGA AQUÍ LAS COLUMNAS DE TU HOJA DE CÁLCULO / SAP</label>
+            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none; font-family:monospace; font-size:0.8rem;" placeholder="SKU | Nombre | Cantidad"></textarea>
             <button class="btn btn-primary" style="margin-top:10px; padding:8px 16px; font-size:0.8rem;" onclick="processSapPaste()">Procesar Carga e Integrar Masivamente</button>
         </div>
 
@@ -319,9 +340,18 @@ function render() {
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
             pEl.style.background = p.color + '22';
             pEl.style.borderTop = `4px solid ${p.color}`;
+            
+            // AGREGAMOS EL TOOLTIP CON LOS DATOS
+            pEl.setAttribute('data-tooltip', `SKU: ${p.sku}\nProducto: ${p.name}\nStock: ${p.current}`);
+            
             pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
             pEl.onclick = () => openProductModal(p.sku);
-            pEl.innerHTML = `<div class="product-pos">${posLabel}</div><div class="product-name"><span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>${p.name}</div><div class="product-sku">${p.sku}</div>`;
+            
+            // MODIFICACIÓN: Solo mostramos la posición y el punto para que no se encime el texto
+            pEl.innerHTML = `
+                <div class="product-pos">${posLabel}</div>
+                <span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>
+            `;
             rowEl.appendChild(pEl);
         });
         wrap.appendChild(container);
@@ -448,7 +478,6 @@ function applyDBChanges() {
     sync(); closeModals();
 }
 
-/* FUNCIONES DE IMPORTACIÓN DESDE SAP */
 function toggleSapSection() {
     const section = document.getElementById('sapImportSection');
     section.style.display = section.style.display === 'none' ? 'block' : 'none';
@@ -456,7 +485,7 @@ function toggleSapSection() {
 
 function processSapPaste() {
     const inputData = document.getElementById('sapPasteInput').value.trim();
-    if (!inputData) return alert("Por favor, pega primero los datos copiados de SAP/Excel.");
+    if (!inputData) return alert("Por favor, pega primero los datos.");
 
     const lines = inputData.split('\n');
     let updatedCount = 0;
@@ -468,39 +497,24 @@ function processSapPaste() {
             const sku = columns[0].trim();
             const name = columns[1].trim();
             const quantity = parseInt(columns[2].trim()) || 0;
-
             if (!sku) return;
-
             const existingIdx = PRODUCTS.findIndex(p => p.sku.toLowerCase() === sku.toLowerCase());
-
             if (existingIdx >= 0) {
                 PRODUCTS[existingIdx].current = quantity;
                 if (name) PRODUCTS[existingIdx].name = name;
                 updatedCount++;
             } else {
                 const defaultRow = ROWS[0] ? ROWS[0].id : '';
-                const newProduct = {
-                    sku: sku,
-                    name: name || "Producto Importado SAP",
-                    widthM: 0.4,
-                    color: "#c8a84b",
-                    rowId: defaultRow,
-                    current: quantity,
-                    min: 0,
-                    max: 0,
-                    photo: null
-                };
-                PRODUCTS.push(newProduct);
+                PRODUCTS.push({
+                    sku, name: name || "Importado", widthM: 0.4, color: "#c8a84b",
+                    rowId: defaultRow, current: quantity, min: 0, max: 0, photo: null
+                });
                 createdCount++;
             }
         }
     });
-
-    alert(`¡Proceso completado!\n\n• Stock actualizado en: ${updatedCount} productos.\n• Nuevos agregados: ${createdCount}.`);
-    document.getElementById('sapPasteInput').value = '';
-    document.getElementById('sapImportSection').style.display = 'none';
-    sync();
-    filterDB('');
+    alert(`Actualizados: ${updatedCount}. Nuevos: ${createdCount}.`);
+    sync(); filterDB('');
 }
 
 function deleteProduct() { 
