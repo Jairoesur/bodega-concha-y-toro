@@ -210,9 +210,17 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
                 <input type="text" id="dbSearch" placeholder="🔍 Buscar en tabla..." oninput="handleSearch(this.value, 'dbSuggestions', true)">
                 <div id="dbSuggestions" class="suggestions-box"></div>
             </div>
+            <button class="btn btn-secondary" onclick="toggleSapSection()">📋 Importar desde SAP</button>
             <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes</button>
             <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
         </div>
+
+        <div id="sapImportSection" style="display:none; background:var(--surface2); padding:15px; border-radius:8px; margin-top:15px; border:1px solid var(--border);">
+            <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:8px; font-weight:700;">PEGA AQUÍ LAS COLUMNAS DE TU HOJA DE CÁLCULO / SAP (Formatos válidos: SKU | Nombre | Cantidad)</label>
+            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none; font-family:monospace; font-size:0.8rem;" placeholder="Ejemplo:&#10;SKU100    Vino Casillero Cabernet    150&#10;SKU200    Vino Trio Merlot           85"></textarea>
+            <button class="btn btn-primary" style="margin-top:10px; padding:8px 16px; font-size:0.8rem;" onclick="processSapPaste()">Procesar Carga e Integrar Masivamente</button>
+        </div>
+
         <div class="db-table-container">
             <table class="db-table">
                 <thead><tr><th>Ubicación</th><th>SKU</th><th>Vino</th><th>Stock</th><th>Mín.</th><th>Acción</th></tr></thead>
@@ -402,7 +410,13 @@ function saveProduct() {
     sync(); closeProductModalOnly();
 }
 
-function openInventoryDB() { DB_CHANGES = {}; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
+function openInventoryDB() { 
+    DB_CHANGES = {}; 
+    document.getElementById('sapImportSection').style.display = 'none'; 
+    document.getElementById('sapPasteInput').value = '';
+    document.getElementById('dbModal').classList.add('open'); 
+    filterDB(''); 
+}
 
 function filterDB(q) {
     const b = document.getElementById('dbTableBody');
@@ -413,7 +427,6 @@ function filterDB(q) {
         const pos = row ? `${row.name.split(' ').pop()}${pIdx}` : 'S/N';
         const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
         
-        // MODIFICADO: Cálculo de estilo para resaltar stock bajo en DB
         const isLowStock = p.current < p.min;
         const rowStyle = isLowStock ? 'style="background: rgba(160, 48, 48, 0.15); border-left: 3px solid var(--danger);"' : '';
 
@@ -433,6 +446,64 @@ function applyDBChanges() {
         if(p) p.current = parseInt(DB_CHANGES[sku]) || 0; 
     });
     sync(); closeModals();
+}
+
+/* MODIFICADO: Nuevas funciones exclusivas para Importación Masiva desde SAP */
+function toggleSapSection() {
+    const section = document.getElementById('sapImportSection');
+    section.style.display = section.style.display === 'none' ? 'block' : 'none';
+}
+
+function processSapPaste() {
+    const inputData = document.getElementById('sapPasteInput').value.trim();
+    if (!inputData) return alert("Por favor, pega primero los datos copiados de SAP/Excel.");
+
+    const lines = inputData.split('\n');
+    let updatedCount = 0;
+    let createdCount = 0;
+
+    lines.forEach(line => {
+        // Separa por tabulaciones (Excel/SAP estándar) o comas/puntos y comas
+        const columns = line.split(/\t|,|;/);
+        if (columns.length >= 3) {
+            const sku = columns[0].trim();
+            const name = columns[1].trim();
+            const quantity = parseInt(columns[2].trim()) || 0;
+
+            if (!sku) return; // Salta líneas vacías
+
+            const existingIdx = PRODUCTS.findIndex(p => p.sku.toLowerCase() === sku.toLowerCase());
+
+            if (existingIdx >= 0) {
+                // Producto existente: Actualiza automáticamente el stock actual
+                PRODUCTS[existingIdx].current = quantity;
+                if (name) PRODUCTS[existingIdx].name = name; // Actualiza nombre opcionalmente
+                updatedCount++;
+            } else {
+                // Producto Nuevo: Lo crea con los 3 parámetros de SAP y valores de configuración por defecto
+                const defaultRow = ROWS[0] ? ROWS[0].id : '';
+                const newProduct = {
+                    sku: sku,
+                    name: name || "Producto Importado SAP",
+                    widthM: 0.4, // Ancho por defecto inicial
+                    color: "#c8a84b", // Color de marca base por defecto
+                    rowId: defaultRow, // Se asigna automáticamente a la primera fila disponible
+                    current: quantity,
+                    min: 0,
+                    max: 0,
+                    photo: null
+                };
+                PRODUCTS.push(newProduct);
+                createdCount++;
+            }
+        }
+    });
+
+    alert(`¡Proceso completado con éxito!\n\n• Stock actualizado en: ${updatedCount} productos.\n• Nuevos productos agregados: ${createdCount}.`);
+    document.getElementById('sapPasteInput').value = '';
+    document.getElementById('sapImportSection').style.display = 'none';
+    sync(); // Guarda e impacta directamente en la base de datos de Firebase
+    filterDB(''); // Recarga el listado de la tabla
 }
 
 function deleteProduct() { 
