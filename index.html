@@ -58,38 +58,28 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 .wh-row {
   height:100px; background:var(--bg); border:1px solid var(--border);
-  border-radius:8px; display:flex; align-items:center; position:relative; overflow:hidden;
+  border-radius:8px; display:flex; align-items:center; position:relative; 
+  /* CAMBIO CLAVE: Quitamos el hidden para que se vea la info al pasar el mouse */
+  overflow: visible; 
 }
 
 .product {
   height:85px; border-radius:4px; display:flex; flex-direction:column; justify-content:center;
-  padding:10px; cursor:grab; position:relative; flex-shrink:0;
+  padding:8px; cursor:grab; position:relative; flex-shrink:0;
   transition: transform 0.2s, box-shadow 0.3s; border:1px solid rgba(255,255,255,0.05);
   margin-right: 1px;
+  overflow: hidden; /* Esto evita que el texto se salga si el cuadro es chico */
 }
-.product-name { font-size:0.75rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.product-pos { font-family: 'DM Mono'; font-size: 0.6rem; color: var(--accent); font-weight: bold; margin-bottom: 2px; }
-.product-sku { font-family: 'DM Mono'; font-size: 0.6rem; opacity: 0.6; }
+.product-name { font-size:0.7rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.product-pos { font-family: 'DM Mono'; font-size: 0.65rem; color: var(--accent); font-weight: bold; margin-bottom: 2px; }
+.product-sku { font-family: 'DM Mono'; font-size: 0.55rem; opacity: 0.6; }
 
-/* MODIFICADO: Estilo del Tooltip Flotante al pasar el mouse */
-.product:hover::after {
-    content: attr(data-info);
-    position: absolute;
-    bottom: 105%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--surface2);
-    color: #fff;
-    padding: 10px;
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    font-size: 0.75rem;
-    white-space: pre;
-    z-index: 1000;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-    pointer-events: none;
-    text-align: center;
-    min-width: 150px;
+/* Efecto visual al pasar el mouse */
+.product:hover {
+    z-index: 100;
+    transform: scale(1.02);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    border: 1px solid var(--accent) !important;
 }
 
 .is-highlighted {
@@ -341,12 +331,17 @@ function render() {
             pEl.style.background = p.color + '22';
             pEl.style.borderTop = `4px solid ${p.color}`;
             
-            /* MODIFICADO: Se agrega el atributo data-info para mostrar el despliegue al pasar el mouse */
-            pEl.setAttribute('data-info', `Producto: ${p.name}\nSKU: ${p.sku}\nStock: ${p.current}`);
+            // TITULO NATIVO (Aparece al pasar el mouse - Infalible)
+            pEl.title = `UBICACIÓN: ${posLabel}\nPRODUCTO: ${p.name}\nSKU: ${p.sku}\nSTOCK: ${p.current}`;
             
             pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
             pEl.onclick = () => openProductModal(p.sku);
-            pEl.innerHTML = `<div class="product-pos">${posLabel}</div><div class="product-name"><span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>${p.name}</div><div class="product-sku">${p.sku}</div>`;
+            
+            pEl.innerHTML = `
+                <div class="product-pos">${posLabel}</div>
+                <div class="product-name"><span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>${p.name}</div>
+                <div class="product-sku">${p.sku}</div>
+            `;
             rowEl.appendChild(pEl);
         });
         wrap.appendChild(container);
@@ -421,7 +416,7 @@ function saveProduct() {
     const sku = document.getElementById('pSku').value;
     const data = {
         sku, name: document.getElementById('pName').value, 
-        widthM: parseFloat(document.getElementById('pWidth').value) || 0,
+        widthM: parseFloat(document.getElementById('pWidth').value) || 0.4,
         color: document.getElementById('pColor').value, 
         rowId: document.getElementById('pRowSelect').value,
         current: parseInt(document.getElementById('pCurrent').value) || 0, 
