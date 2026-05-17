@@ -78,22 +78,24 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     z-index: 100;
 }
 
-/* ─── MODALES ─── */
+/* ─── MODALES (CAPAS DE PROFUNDIDAD) ─── */
 .modal {
   position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px);
   display:none; align-items:center; justify-content:center; z-index:1000;
 }
-.modal.open { display:flex; }
-#dbModal { z-index: 1000; }
-#rowModal { z-index: 1100; }
-#productModal { z-index: 1200; }
+#dbModal { z-index: 1000; } /* Capa base para la DB */
+#productModal { z-index: 2000; } /* Capa superior para el Editor */
+#rowModal { z-index: 1500; }
 
+.modal.open { display:flex; }
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+
 #productModal .modal-content { width: 850px; }
 .editor-grid { display: grid; grid-template-columns: 1fr 320px; }
 .editor-body { padding: 40px; }
 .editor-sidebar { background: var(--surface2); padding: 40px; border-left: 1px solid var(--border); }
 
+/* BASE DE DATOS */
 #dbModal .modal-content { width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column; }
 .db-table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); margin-top: 15px; }
 .db-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -101,11 +103,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .db-table td { padding: 12px; border-bottom: 1px solid var(--border); }
 .db-table input { background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 5px; border-radius: 4px; width: 80px; }
 
-#loginScreen {
-    position:fixed; inset:0; background:#0a0a09; z-index:9999; 
-    display:flex; align-items:center; justify-content:center;
-}
-
+/* UI ELEMENTS */
 .field { margin-bottom: 20px; }
 .field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 700; }
 .field input, .field select { 
@@ -124,7 +122,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 </head>
 <body>
 
-<div id="loginScreen">
+<div id="loginScreen" style="position:fixed; inset:0; background:#0a0a09; z-index:9999; display:flex; align-items:center; justify-content:center;">
     <div style="background:var(--surface); padding:40px; border-radius:16px; width:350px; border:1px solid var(--accent); text-align:center;">
         <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:20px;">Acceso Bodega</h2>
         <div class="field" style="text-align:left;"><label>Correo</label><input type="email" id="loginEmail"></div>
@@ -148,7 +146,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     <button class="btn btn-secondary" onclick="openInventoryDB()">📊 Base de Datos</button>
     <button class="btn btn-secondary" onclick="openRowModal()">+ Nueva Fila</button>
     <button class="btn btn-primary" onclick="openProductModal()">+ Agregar Producto</button>
-    <button class="btn btn-danger" onclick="firebase.auth().signOut()">Cerrar</button>
+    <button class="btn btn-danger" onclick="firebase.auth().signOut()">Cerrar Sesión</button>
   </div>
 </div>
 
@@ -229,6 +227,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
 <script>
+// AGREGADO: CONFIGURACIÓN FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyARv7i6uHqYHiuRfA7jkx8MdzmVKwWqxAo",
   authDomain: "bodega-concha-toro.firebaseapp.com",
@@ -241,11 +240,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-let ROWS = [];
-let PRODUCTS = [];
-let tempImg = null, currentH = null;
-let DB_CHANGES = {};
-
+// AGREGADO: FUNCIÓN DE LOGIN Y ESTADO DE SESIÓN
 function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const pass = document.getElementById('loginPass').value;
@@ -262,23 +257,33 @@ firebase.auth().onAuthStateChanged(user => {
             if(data) {
                 ROWS = data.rows || [{id:'R1', name:'Fila A', sizeM:15}];
                 PRODUCTS = data.products || [];
-                render();
+            } else {
+                ROWS = [{id:'R1', name:'Fila A', sizeM:15}];
+                PRODUCTS = [];
             }
+            render();
         });
     } else {
         document.getElementById('loginScreen').style.display = 'flex';
     }
 });
 
+// MODIFICADO: VARIABLES SIN LOCALSTORAGE
+let ROWS = [];
+let PRODUCTS = [];
+let tempImg = null, currentH = null;
+let DB_CHANGES = {};
+
+// MODIFICADO: SYNC AHORA GUARDA EN FIREBASE EN VEZ DE LOCALSTORAGE
 function sync() {
     if(firebase.auth().currentUser) {
         db.ref('bodega').set({ rows: ROWS, products: PRODUCTS });
     }
+    render();
 }
 
 function render() {
     const wrap = document.getElementById('whWrap');
-    if(!wrap) return;
     wrap.innerHTML = '';
     let alerts = [];
 
@@ -331,7 +336,6 @@ function drop(e) {
     const targetRow = ROWS.find(r => r.id === targetRowId);
 
     if (used + p.widthM > targetRow.sizeM) return alert("Sin espacio.");
-    
     const rowEl = document.getElementById(targetRowId);
     const children = Array.from(rowEl.children);
     let insertIdx = children.length;
@@ -339,7 +343,6 @@ function drop(e) {
         const rect = child.getBoundingClientRect();
         if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx;
     });
-
     rowProds.splice(insertIdx, 0, p);
     p.rowId = targetRowId;
     PRODUCTS = [...PRODUCTS.filter(x => x.rowId !== targetRowId), ...rowProds];
@@ -393,8 +396,7 @@ function saveProduct() {
     };
     const idx = PRODUCTS.findIndex(p => p.sku === sku);
     if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
-    sync(); 
-    closeProductModalOnly();
+    sync(); closeProductModalOnly();
 }
 
 function openInventoryDB() { DB_CHANGES = {}; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
@@ -405,7 +407,7 @@ function filterDB(q) {
     PRODUCTS.filter(p => p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())).forEach((p) => {
         const row = ROWS.find(r => r.id === p.rowId);
         const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
-        const pos = row ? `${row.name.split(' ').pop()}${pIdx}` : 'S/N';
+        const pos = `${row.name.split(' ').pop()}${pIdx}`;
         const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
         b.innerHTML += `<tr>
             <td><b style="color:var(--accent)">${pos}</b></td>
@@ -456,6 +458,7 @@ function processImage(input) {
 }
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
+// ELIMINÉ sync(); AL FINAL PARA QUE FIREBASE HAGA LA CARGA INICIAL
 </script>
 </body>
 </html>
