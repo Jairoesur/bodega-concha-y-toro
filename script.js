@@ -226,3 +226,30 @@ function processImage(input) {
 
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
+
+// Función para validar el Login
+function handleLogin() {
+    const email = document.getElementById('loginEmail').value;
+    const pass = document.getElementById('loginPass').value;
+    const errorMsg = document.getElementById('loginError');
+
+    firebase.auth().signInWithEmailAndPassword(email, pass)
+        .then(() => {
+            // Login exitoso: La pantalla desaparece sola por el observador de abajo
+        })
+        .catch((error) => {
+            errorMsg.style.display = 'block';
+            console.error("Error de acceso:", error.message);
+        });
+}
+
+// Este código revisa SIEMPRE si el usuario está conectado
+firebase.auth().onAuthStateChanged((user) => {
+    const screen = document.getElementById('loginScreen');
+    if (user) {
+        screen.style.display = 'none'; // Usuario entró: ocultar login
+        console.log("Bienvenido a la bodega");
+    } else {
+        screen.style.display = 'flex'; // No hay usuario: mostrar login
+    }
+});
