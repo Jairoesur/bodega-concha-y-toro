@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sistema Maestro de Bodega — Concha y Toro</title>
+<title>Sistema de Bodega — Concha y Toro</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
 
@@ -16,7 +16,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
 
-/* ─── HEADER Y ALERTAS ─── */
+/* ─── HEADER ─── */
 #topbar{
   position:sticky;top:0;z-index:500;
   background:rgba(10, 10, 9, 0.95);backdrop-filter:blur(12px);
@@ -27,58 +27,52 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .search-container { position: relative; flex: 1; max-width: 400px; }
 #searchInput, #dbSearch {
     width:100%; background:var(--surface2); border:1px solid var(--border);
-    padding:10px 15px; border-radius:6px; color:#fff; outline:none; transition: 0.3s;
+    padding:10px 15px; border-radius:6px; color:#fff; outline:none;
 }
 
 .suggestions-box {
     position: absolute; top: 100%; left: 0; right: 0; background: var(--surface2);
-    border: 1px solid var(--accent); border-top:none; border-radius: 0 0 8px 8px; 
+    border: 1px solid var(--accent); border-radius: 0 0 8px 8px; 
     display: none; z-index: 600; max-height: 250px; overflow-y: auto;
 }
 .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
 .suggestion-item:hover { background: var(--accent); color: #000; }
 
-#alertBar {
-    background: rgba(160, 48, 48, 0.15); border-bottom: 1px solid var(--danger);
-    padding: 8px 30px; display: none; align-items: center; gap: 15px; font-size: 0.75rem;
-}
-
 /* ─── BODEGA VISUAL ─── */
 #whWrap { padding: 25px 30px; }
 .row-container { 
     margin-bottom: 30px; background: var(--surface); border-radius: 12px; 
-    border: 1px solid var(--border); padding: 20px; transition: 0.3s;
+    border: 1px solid var(--border); padding: 20px;
 }
-.row-header { 
-    display:flex; justify-content:space-between; align-items:center; 
-    margin-bottom:12px; font-size:0.75rem; color:var(--muted);
-}
+.row-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
 .row-info b { color: var(--accent); font-family: 'Bebas Neue'; font-size: 1.5rem; }
 
 .wh-row {
   height:100px; background:var(--bg); border:1px solid var(--border);
-  border-radius:8px; display:flex; align-items:center; position:relative; 
-  overflow: visible !important;
+  border-radius:8px; display:flex; align-items:center; position:relative;
 }
 
 .product {
   height:85px; border-radius:4px; display:flex; flex-direction:column; justify-content:center;
   padding:5px; cursor:grab; position:relative; flex-shrink:0;
-  transition: transform 0.2s, box-shadow 0.3s; border:1px solid rgba(255,255,255,0.05);
-  margin-right: 1px; overflow: visible !important;
+  border:1px solid rgba(255,255,255,0.05); transition: transform 0.2s;
 }
+.product:active { cursor: grabbing; }
 
-/* CARTEL FLOTANTE (TOOLTIP) */
+/* TOOLTIP EXISTENTE MANTENIDO */
 .product:hover::after {
     content: attr(data-info);
     position: absolute; bottom: 115%; left: 50%; transform: translateX(-50%);
     background: #1e1c18; color: #fff; padding: 12px; border: 1px solid var(--accent);
     border-radius: 8px; font-size: 0.8rem; line-height: 1.4; white-space: pre;
-    z-index: 999999 !important; box-shadow: 0 10px 30px rgba(0,0,0,0.9);
-    pointer-events: none; text-align: left; min-width: 180px;
+    z-index: 1000; pointer-events: none; text-align: left; min-width: 180px;
 }
 
-.is-highlighted { box-shadow: 0 0 25px var(--accent); border: 2px solid var(--accent) !important; transform: scale(1.05); z-index: 100; }
+.is-highlighted { 
+    box-shadow: 0 0 20px var(--accent) !important; 
+    border: 2px solid var(--accent) !important; 
+    transform: scale(1.05); z-index: 10;
+}
 
 .product-pos { font-family: 'DM Mono'; font-size: 0.8rem; color: var(--accent); font-weight: bold; text-align: center; }
 .stock-dot { width: 10px; height: 10px; border-radius: 50%; display: block; margin: 5px auto; }
@@ -88,26 +82,26 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .modal.open { display:flex; }
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
 
-#productModal .modal-content { width: 850px; }
-.editor-grid { display: grid; grid-template-columns: 1fr 320px; }
-.editor-body { padding: 40px; }
-.editor-sidebar { background: var(--surface2); padding: 40px; border-left: 1px solid var(--border); }
+#productModal .modal-content { width: 800px; }
+.editor-grid { display: grid; grid-template-columns: 1fr 300px; }
+.editor-body { padding: 30px; }
+.editor-sidebar { background: var(--surface2); padding: 30px; border-left: 1px solid var(--border); }
 
-#dbModal .modal-content { width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column; }
-.db-table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); margin-top: 15px; }
-.db-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-.db-table th { position: sticky; top: 0; background: var(--surface2); padding: 15px; text-align: left; border-bottom: 2px solid var(--accent); z-index: 10; }
-.db-table td { padding: 12px; border-bottom: 1px solid var(--border); }
+#dbModal .modal-content { width: 90%; height: 85vh; padding: 25px; display: flex; flex-direction: column; }
+.db-table-container { flex: 1; overflow-y: auto; margin-top: 15px; border: 1px solid var(--border); }
+.db-table { width: 100%; border-collapse: collapse; }
+.db-table th { position: sticky; top: 0; background: var(--surface2); padding: 12px; text-align: left; border-bottom: 2px solid var(--accent); }
+.db-table td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
 
-.field { margin-bottom: 20px; }
-.field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 700; }
-.field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 6px; }
-.btn { padding: 12px 24px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.field { margin-bottom: 15px; }
+.field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
+.field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; }
+.btn { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
 .btn-primary { background: var(--accent); color: #000; }
 .btn-secondary { background: var(--border); color: var(--text); }
 .btn-danger { background: var(--danger); color: #fff; }
 
-.img-preview { width: 100%; height: 240px; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px dashed var(--muted); }
+.img-preview { width: 100%; height: 200px; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px dashed var(--muted); }
 .img-preview img { width: 100%; height: 100%; object-fit: contain; }
 </style>
 </head>
@@ -115,28 +109,23 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 <div id="loginScreen" style="position:fixed; inset:0; background:#0a0a09; z-index:9999; display:flex; align-items:center; justify-content:center;">
     <div style="background:var(--surface); padding:40px; border-radius:16px; width:350px; border:1px solid var(--accent); text-align:center;">
-        <img src="logo.png" alt="Logo" style="height: 60px; margin-bottom: 20px;">
+        <img src="logo.png" style="height: 50px; margin-bottom: 20px;">
         <div class="field" style="text-align:left;"><label>Correo</label><input type="email" id="loginEmail"></div>
         <div class="field" style="text-align:left;"><label>Contraseña</label><input type="password" id="loginPass"></div>
         <button class="btn btn-primary" style="width:100%" onclick="handleLogin()">Entrar</button>
-        <p id="loginError" style="color:var(--danger); font-size:0.8rem; margin-top:15px; display:none;">Credenciales incorrectas</p>
     </div>
 </div>
 
-<div id="alertBar"><strong style="color:var(--danger)">⚠️ ALERTAS:</strong> <span id="alertText"></span></div>
-
 <div id="topbar">
-  <img src="logo.png" alt="Logo Bodega" style="height: 45px; object-fit: contain;">
-  
+  <img src="logo.png" alt="Logo" style="height: 45px;">
   <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Buscar producto..." oninput="handleSearch(this.value, 'searchSuggestions', false)">
+      <input type="text" id="searchInput" placeholder="Buscar SKU o Vino..." oninput="handleSearch(this.value, 'searchSuggestions', false)" onkeydown="if(event.key==='Enter'){ currentH=null; render(); }">
       <div id="searchSuggestions" class="suggestions-box"></div>
   </div>
   <div style="display:flex; gap:10px;">
     <button class="btn btn-secondary" onclick="openInventoryDB()">📊 Base de Datos</button>
-    <button class="btn btn-secondary" onclick="openRowModal()">+ Nueva Fila</button>
     <button class="btn btn-primary" onclick="openProductModal(null)">+ Agregar Producto</button>
-    <button class="btn btn-danger" onclick="firebase.auth().signOut()">Cerrar Sesión</button>
+    <button class="btn btn-danger" onclick="firebase.auth().signOut()">Salir</button>
   </div>
 </div>
 
@@ -146,69 +135,54 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   <div class="modal-content">
     <div class="editor-grid">
         <div class="editor-body">
-            <h2 id="pTitle" style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:25px;">Editor de Producto</h2>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <h2 id="pTitle" style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:20px;">Editor de Producto</h2>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
                 <div class="field"><label>SKU</label><input id="pSku" type="text"></div>
                 <div class="field"><label>Nombre</label><input id="pName" type="text"></div>
             </div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
                 <div class="field"><label>Ancho (m)</label><input id="pWidth" type="number" step="0.01"></div>
                 <div class="field"><label>Color</label><input id="pColor" type="color" value="#c8a84b"></div>
             </div>
-            <div class="field"><label>Fila</label><select id="pRowSelect"></select></div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; background:var(--surface2); padding:20px; border-radius:8px;">
+            <div class="field"><label>Ubicación (Fila)</label><select id="pRowSelect"></select></div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; background:var(--surface2); padding:15px; border-radius:8px;">
                 <div class="field" style="margin:0;"><label>Stock</label><input id="pCurrent" type="number"></div>
                 <div class="field" style="margin:0;"><label>Mín.</label><input id="pMin" type="number"></div>
                 <div class="field" style="margin:0;"><label>Máx.</label><input id="pMax" type="number"></div>
             </div>
-            <div style="margin-top:30px; display:flex; gap:10px;">
-                <button class="btn btn-primary" style="flex:2" onclick="saveProduct()">Guardar</button>
-                <button id="btnDelProd" class="btn btn-danger" style="display:none" onclick="deleteProduct()">Eliminar</button>
-                <button class="btn btn-secondary" onclick="closeProductModalOnly()">Cerrar</button>
+            <div style="margin-top:25px; display:flex; gap:10px;">
+                <button class="btn btn-primary" style="flex:2" onclick="saveProduct()">Guardar Cambios</button>
+                <button id="btnDelProd" class="btn btn-danger" onclick="deleteProduct()">Eliminar</button>
+                <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
             </div>
         </div>
         <div class="editor-sidebar">
-            <div class="field">
-                <label>Vista Previa</label>
-                <div class="img-preview" id="pImgPreview"><span>Sin Imagen</span></div>
-                <input type="file" id="pImgInput" accept="image/*" onchange="processImage(this)" style="margin-top:20px; font-size:0.7rem; width:100%;">
-            </div>
+            <label style="font-size:0.7rem; color:var(--muted);">FOTOGRAFÍA</label>
+            <div class="img-preview" id="pImgPreview" style="margin-top:10px;"><span>Sin Imagen</span></div>
+            <input type="file" id="pImgInput" accept="image/*" onchange="processImage(this)" style="margin-top:15px; font-size:0.7rem;">
         </div>
     </div>
   </div>
 </div>
 
-<div id="rowModal" class="modal">
-    <div class="modal-content" style="width:400px; padding:30px;">
-      <h2 style="font-family:'Bebas Neue'; color:var(--accent); margin-bottom:20px;">Configurar Fila</h2>
-      <input type="hidden" id="rId">
-      <div class="field"><label>Nombre</label><input id="rName" type="text"></div>
-      <div class="field"><label>Metros Totales</label><input id="rSize" type="number" step="0.1"></div>
-      <div style="display:flex; gap:10px; flex-direction:column;">
-        <button class="btn btn-primary" onclick="saveRow()">Guardar</button>
-        <button id="btnDelRow" class="btn btn-danger" style="display:none" onclick="deleteRow()">Eliminar</button>
-        <button class="btn btn-secondary" onclick="closeModals()">Cancelar</button>
-      </div>
-    </div>
-</div>
-
 <div id="dbModal" class="modal">
     <div class="modal-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
-            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Ajuste de Inventario</h2>
-            <input type="text" id="dbSearch" placeholder="🔍 Filtrar tabla..." oninput="handleSearch(this.value, 'dbSuggestions', true)" style="flex:1; padding:10px; background:var(--bg); color:#fff; border:1px solid var(--border);">
-            <div id="dbSuggestions" class="suggestions-box"></div>
-            <button class="btn btn-secondary" onclick="toggleSapSection()">📋 SAP</button>
-            <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes</button>
-            <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:15px;">
+            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Inventario Maestro</h2>
+            <input type="text" id="dbSearch" placeholder="🔍 Filtrar..." oninput="handleSearch(this.value, 'dbSuggestions', true)" style="flex:1;">
+            <button class="btn btn-secondary" onclick="document.getElementById('sapArea').style.display='block'">📋 SAP</button>
+            <button class="btn btn-primary" onclick="applyDBChanges()">Aplicar Todo</button>
+            <button class="btn btn-secondary" onclick="closeModals()">X</button>
         </div>
-        <div id="sapImportSection" style="display:none; margin-top:15px;">
-            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px;" placeholder="SKU | Nombre | Cantidad"></textarea>
-            <button class="btn btn-primary" style="margin-top:10px;" onclick="processSapPaste()">Importar SAP</button>
+        
+        <div id="sapArea" style="display:none; margin-top:15px;">
+            <textarea id="sapPasteInput" style="width:100%; height:80px; background:#000; color:#0f0; font-family:monospace; padding:10px;" placeholder="Pega aquí: SKU [TAB] NOMBRE [TAB] CANTIDAD"></textarea>
+            <button class="btn btn-primary" style="margin-top:5px" onclick="processSapPaste()">Procesar SAP</button>
         </div>
+
         <div class="db-table-container">
             <table class="db-table">
-                <thead><tr><th>Ubicación</th><th>SKU</th><th>Vino</th><th>Stock</th><th>Mín.</th><th>Acción</th></tr></thead>
+                <thead><tr><th>Fila</th><th>SKU</th><th>Vino</th><th>Stock Actual</th><th>Acción</th></tr></thead>
                 <tbody id="dbTableBody"></tbody>
             </table>
         </div>
@@ -249,16 +223,15 @@ firebase.auth().onAuthStateChanged(user => {
 function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const pass = document.getElementById('loginPass').value;
-    firebase.auth().signInWithEmailAndPassword(email, pass).catch(() => document.getElementById('loginError').style.display = 'block');
+    firebase.auth().signInWithEmailAndPassword(email, pass);
 }
 
-function sync() { if(firebase.auth().currentUser) db.ref('bodega').set({ rows: ROWS, products: PRODUCTS }); }
+function sync() { db.ref('bodega').set({ rows: ROWS, products: PRODUCTS }); }
 
 function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
-    let alerts = [];
-
+    
     ROWS.forEach(row => {
         const rowProds = PRODUCTS.filter(p => p.rowId === row.id);
         const used = rowProds.reduce((s, p) => s + p.widthM, 0);
@@ -266,19 +239,16 @@ function render() {
         container.className = 'row-container';
         container.innerHTML = `
             <div class="row-header">
-                <div class="row-info"><b>${row.name}</b> <span>${used.toFixed(2)}m / ${row.sizeM}m</span></div>
-                <button class="btn btn-secondary" style="padding:4px 8px" onclick="openRowModal('${row.id}')">⚙️</button>
+                <div class="row-info"><b>${row.name}</b> <span style="font-size:0.8rem; color:var(--muted)">${used.toFixed(2)}m / ${row.sizeM}m</span></div>
             </div>
             <div class="wh-row" id="${row.id}" ondragover="event.preventDefault()" ondrop="drop(event)"></div>
         `;
         const rowEl = container.querySelector('.wh-row');
         
         rowProds.forEach((p, index) => {
-            if(p.current < p.min) alerts.push(p.name);
             const posLabel = `${row.name.split(' ').pop()}${index + 1}`;
             const pEl = document.createElement('div');
             
-            // Corrección aquí: Convertir a texto para garantizar que se resalte
             pEl.className = `product ${String(currentH) === String(p.sku) ? 'is-highlighted' : ''}`;
             pEl.id = `p-${p.sku}`;
             pEl.draggable = true;
@@ -288,67 +258,57 @@ function render() {
             
             pEl.setAttribute('data-info', `UBICACIÓN: ${posLabel}\nSKU: ${p.sku}\nPRODUCTO: ${p.name}\nSTOCK: ${p.current}`);
             
-            pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
+            pEl.ondragstart = (e) => {
+                e.dataTransfer.setData("sku", p.sku);
+                e.target.style.opacity = "0.5";
+            };
+            pEl.ondragend = (e) => e.target.style.opacity = "1";
             pEl.onclick = () => openProductModal(p.sku);
+            
             pEl.innerHTML = `<div class="product-pos">${posLabel}</div><span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>`;
             rowEl.appendChild(pEl);
         });
         wrap.appendChild(container);
     });
-
-    const ab = document.getElementById('alertBar');
-    if(alerts.length) { ab.style.display='flex'; document.getElementById('alertText').innerText = alerts.join(', '); }
-    else ab.style.display='none';
 }
 
-// ─── LOGICA DE MOVIMIENTO CORREGIDA ───
 function drop(e) {
     e.preventDefault();
-    const sku = String(e.dataTransfer.getData("sku")); // Asegurar formato texto
+    const sku = String(e.dataTransfer.getData("sku"));
     const targetRowId = e.currentTarget.id;
-    const p = PRODUCTS.find(x => String(x.sku) === sku);
-    if (!p) return; // Evitar fallos si no encuentra el producto
     
+    let p = PRODUCTS.find(x => String(x.sku) === sku);
+    if(!p) return;
+
     p.rowId = targetRowId;
     
+    // Reordenar dentro de la fila según posición X
     const rowEl = document.getElementById(targetRowId);
     const children = Array.from(rowEl.children);
     let insertIdx = children.length;
+    
     children.forEach((child, idx) => {
         const rect = child.getBoundingClientRect();
         if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx;
     });
 
-    const rowProds = PRODUCTS.filter(x => x.rowId === targetRowId && String(x.sku) !== sku);
-    rowProds.splice(insertIdx, 0, p);
+    const otherProds = PRODUCTS.filter(x => String(x.sku) !== sku);
+    const rowProds = otherProds.filter(x => x.rowId === targetRowId);
+    const restProds = otherProds.filter(x => x.rowId !== targetRowId);
     
-    PRODUCTS = [...PRODUCTS.filter(x => x.rowId !== targetRowId && String(x.sku) !== sku), ...rowProds];
+    rowProds.splice(insertIdx, 0, p);
+    PRODUCTS = [...restProds, ...rowProds];
     sync();
-}
-
-function processImage(input) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale;
-                canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height);
-                tempImg = canvas.toDataURL('image/jpeg', 0.6);
-                document.getElementById('pImgPreview').innerHTML = `<img src="${tempImg}">`;
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
 }
 
 function handleSearch(v, boxId, isDB) {
     const s = document.getElementById(boxId);
-    if(!v) { s.style.display='none'; if(isDB) filterDB(''); return; }
-    // Convertir a texto para búsqueda segura
-    const m = PRODUCTS.filter(p => String(p.sku).toLowerCase().includes(v.toLowerCase()) || String(p.name).toLowerCase().includes(v.toLowerCase()));
+    if(!v) { 
+        s.style.display='none'; 
+        if(!isDB) { currentH = null; render(); }
+        return; 
+    }
+    const m = PRODUCTS.filter(p => String(p.sku).includes(v) || p.name.toLowerCase().includes(v.toLowerCase()));
     s.style.display = m.length ? 'block' : 'none';
     s.innerHTML = m.map(p => `<div class="suggestion-item" onclick="selectSuggestion('${p.sku}', '${boxId}', ${isDB})"><b>${p.sku}</b> - ${p.name}</div>`).join('');
     if(isDB) filterDB(v);
@@ -358,8 +318,8 @@ function selectSuggestion(sku, boxId, isDB) {
     document.getElementById(boxId).style.display = 'none';
     if(isDB) filterDB(sku);
     else { 
-        currentH = String(sku); // Solo guarda el valor a resaltar
-        render(); // Al renderizar, aplicará la clase amarilla
+        currentH = String(sku); 
+        render(); 
         document.getElementById(`p-${sku}`)?.scrollIntoView({behavior:'smooth', block:'center'}); 
     }
 }
@@ -368,7 +328,7 @@ function openProductModal(sku = null) {
     const sel = document.getElementById('pRowSelect');
     sel.innerHTML = ROWS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
     
-    if(sku !== null && sku !== undefined) {
+    if(sku) {
         const p = PRODUCTS.find(x => String(x.sku) === String(sku));
         if(p) {
             document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
@@ -380,101 +340,86 @@ function openProductModal(sku = null) {
             document.getElementById('btnDelProd').style.display = 'block';
         }
     } else {
-        // Limpia todos los campos correctamente para permitir crear uno nuevo
         document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false;
-        document.getElementById('pName').value = ''; document.getElementById('pWidth').value = '0.4';
-        document.getElementById('pColor').value = '#c8a84b'; document.getElementById('pCurrent').value = '0';
-        document.getElementById('pMin').value = '0'; document.getElementById('pMax').value = '0';
-        tempImg = null;
+        document.getElementById('pName').value = ''; document.getElementById('pCurrent').value = 0;
         document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>';
         document.getElementById('btnDelProd').style.display = 'none';
+        tempImg = null;
     }
     document.getElementById('productModal').classList.add('open');
 }
 
-// ─── LÓGICA DE GUARDAR Y ELIMINAR CORREGIDA ───
 function saveProduct() {
     const sku = String(document.getElementById('pSku').value).trim();
-    if(!sku) return alert("Por favor ingresa un SKU válido.");
+    if(!sku) return;
     
     const data = {
-        sku: sku, 
-        name: document.getElementById('pName').value, 
+        sku: sku, name: document.getElementById('pName').value, 
         widthM: parseFloat(document.getElementById('pWidth').value) || 0.4,
-        color: document.getElementById('pColor').value, 
-        rowId: document.getElementById('pRowSelect').value || ROWS[0].id,
+        color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
         current: parseInt(document.getElementById('pCurrent').value) || 0, 
         min: parseInt(document.getElementById('pMin').value) || 0,
-        max: parseInt(document.getElementById('pMax').value) || 0, 
-        photo: tempImg
+        max: parseInt(document.getElementById('pMax').value) || 0, photo: tempImg
     };
     
     const idx = PRODUCTS.findIndex(p => String(p.sku) === sku);
-    if(idx >= 0) {
-        PRODUCTS[idx] = data; // Actualiza el existente
-    } else {
-        PRODUCTS.push(data); // Agrega el nuevo
-    }
+    if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
+    
     sync(); closeModals();
 }
 
-function deleteProduct() { 
+function deleteProduct() {
     const sku = String(document.getElementById('pSku').value);
-    if(confirm("¿Estás seguro que deseas eliminar este producto?")) { 
-        PRODUCTS = PRODUCTS.filter(p => String(p.sku) !== sku); 
-        sync(); 
-        closeModals(); 
-    } 
+    if(confirm("¿Eliminar producto?")) {
+        PRODUCTS = PRODUCTS.filter(p => String(p.sku) !== sku);
+        sync(); closeModals();
+    }
 }
 
 function processSapPaste() {
-    const input = document.getElementById('sapPasteInput').value.trim();
-    const lines = input.split('\n');
+    const lines = document.getElementById('sapPasteInput').value.trim().split('\n');
     lines.forEach(line => {
-        const cols = line.split(/\t|,|;/);
-        if (cols.length >= 3) {
-            const sku = String(cols[0]).trim(), name = cols[1].trim(), qty = parseInt(cols[2]) || 0;
+        const cols = line.split(/\t/); // Divide por Tabulación (SAP Standard)
+        if(cols.length >= 3) {
+            const sku = String(cols[0]).trim();
+            const qty = parseInt(cols[2]) || 0;
             const p = PRODUCTS.find(x => String(x.sku) === sku);
-            if(p) { p.current = qty; if(name) p.name = name; }
-            else { PRODUCTS.push({sku: sku, name: name, widthM: 0.4, color: "#c8a84b", rowId: ROWS[0].id, current: qty, min: 0, max: 0, photo: null}); }
+            if(p) p.current = qty;
         }
     });
-    sync(); alert("SAP Procesado");
+    sync(); alert("SAP Actualizado con éxito");
 }
 
 function filterDB(q) {
     const b = document.getElementById('dbTableBody'); b.innerHTML = '';
-    PRODUCTS.filter(p => String(p.sku).toLowerCase().includes(q.toLowerCase()) || String(p.name).toLowerCase().includes(q.toLowerCase())).forEach(p => {
+    PRODUCTS.filter(p => String(p.sku).includes(q) || p.name.toLowerCase().includes(q.toLowerCase())).forEach(p => {
         b.innerHTML += `<tr><td>${p.rowId}</td><td>${p.sku}</td><td>${p.name}</td>
-            <td><input type="number" value="${DB_CHANGES[p.sku] ?? p.current}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0"></td>
-            <td>${p.min}</td><td><button onclick="openProductModal('${p.sku}')">Ver</button></td></tr>`;
+            <td><input type="number" value="${DB_CHANGES[p.sku] ?? p.current}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0" style="width:60px; background:none; color:#fff; border:1px solid #444;"></td>
+            <td><button class="btn btn-secondary" style="padding:5px 10px" onclick="closeModals(); openProductModal('${p.sku}')">Ver</button></td></tr>`;
     });
 }
 
 function applyDBChanges() {
-    Object.keys(DB_CHANGES).forEach(sku => { const p = PRODUCTS.find(x => String(x.sku) === String(sku)); if(p) p.current = DB_CHANGES[sku]; });
+    Object.keys(DB_CHANGES).forEach(sku => {
+        const p = PRODUCTS.find(x => String(x.sku) === String(sku));
+        if(p) p.current = DB_CHANGES[sku];
+    });
     sync(); closeModals();
 }
 
-function openRowModal(id = null) {
-    const r = id ? ROWS.find(x => x.id === id) : {id:'', name:'', sizeM:15};
-    document.getElementById('rId').value = r.id; document.getElementById('rName').value = r.name; document.getElementById('rSize').value = r.sizeM;
-    document.getElementById('btnDelRow').style.display = id ? 'block' : 'none';
-    document.getElementById('rowModal').classList.add('open');
+function processImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            tempImg = e.target.result;
+            document.getElementById('pImgPreview').innerHTML = `<img src="${tempImg}">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
 }
 
-function saveRow() {
-    const id = document.getElementById('rId').value;
-    const data = { id: id || 'R'+Date.now(), name: document.getElementById('rName').value, sizeM: parseFloat(document.getElementById('rSize').value) || 15 };
-    if(id) ROWS[ROWS.findIndex(x=>x.id===id)] = data; else ROWS.push(data);
-    sync(); closeModals();
-}
-
-function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("No puedes eliminar una fila que tiene productos."); if(confirm("¿Eliminar?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
-function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 function openInventoryDB() { DB_CHANGES = {}; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
-function toggleSapSection() { const s = document.getElementById('sapImportSection'); s.style.display = s.style.display === 'none' ? 'block' : 'none'; }
 </script>
 </body>
 </html>
