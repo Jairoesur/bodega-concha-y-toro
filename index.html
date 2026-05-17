@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Maestro de Bodega — Concha y Toro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="alertBar">
+        <strong style="color:var(--danger)">⚠️ ALERTAS:</strong> <span id="alertText"></span>
+    </div>
+
+    <div id="topbar">
+      <h1>Bodega Concha y Toro</h1>
+      <div class="search-container">
+          <input type="text" id="searchInput" placeholder="Buscar producto..." oninput="handleSearch(this.value, 'searchSuggestions', false)">
+          <div id="searchSuggestions" class="suggestions-box"></div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-secondary" onclick="openInventoryDB()">📊 Base de Datos</button>
+        <button class="btn btn-secondary" onclick="openRowModal()">+ Nueva Fila</button>
+        <button class="btn btn-primary" onclick="openProductModal()">+ Agregar Producto</button>
+      </div>
+    </div>
+
+    <div id="whWrap"></div>
+
+    <div id="productModal" class="modal">
+      <div class="modal-content">
+        <div class="editor-grid">
+            <div class="editor-body">
+                <h2 id="pTitle" style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:25px;">Editor de Producto</h2>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                    <div class="field"><label>SKU</label><input id="pSku" type="text"></div>
+                    <div class="field"><label>Nombre</label><input id="pName" type="text"></div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                    <div class="field"><label>Ancho (Metros)</label><input id="pWidth" type="number" step="0.01"></div>
+                    <div class="field"><label>Color</label><input id="pColor" type="color" value="#c8a84b"></div>
+                </div>
+                <div class="field"><label>Fila</label><select id="pRowSelect"></select></div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; background:var(--surface2); padding:20px; border-radius:8px;">
+                    <div class="field" style="margin:0;"><label>Stock</label><input id="pCurrent" type="number"></div>
+                    <div class="field" style="margin:0;"><label>Mín.</label><input id="pMin" type="number"></div>
+                    <div class="field" style="margin:0;"><label>Máx.</label><input id="pMax" type="number"></div>
+                </div>
+                <div style="margin-top:30px; display:flex; gap:10px;">
+                    <button class="btn btn-primary" style="flex:2" onclick="saveProduct()">Guardar</button>
+                    <button id="btnDelProd" class="btn btn-danger" style="display:none" onclick="deleteProduct()">Eliminar</button>
+                    <button class="btn btn-secondary" onclick="closeProductModalOnly()">Cerrar</button>
+                </div>
+            </div>
+            <div class="editor-sidebar">
+                <div class="field">
+                    <label>Vista Previa</label>
+                    <div class="img-preview" id="pImgPreview"><span>Sin Imagen</span></div>
+                    <input type="file" id="pImgInput" accept="image/*" onchange="processImage(this)" style="margin-top:20px; font-size:0.7rem; width:100%;">
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="rowModal" class="modal">
+        <div class="modal-content" style="width:400px; padding:30px;">
+          <h2 style="font-family:'Bebas Neue'; color:var(--accent); margin-bottom:20px;">Configurar Fila</h2>
+          <input type="hidden" id="rId">
+          <div class="field"><label>Nombre</label><input id="rName" type="text"></div>
+          <div class="field"><label>Metros Totales</label><input id="rSize" type="number" step="0.1"></div>
+          <div style="display:flex; gap:10px; flex-direction:column;">
+            <button class="btn btn-primary" onclick="saveRow()">Guardar</button>
+            <button id="btnDelRow" class="btn btn-danger" style="display:none" onclick="deleteRow()">Eliminar</button>
+            <button class="btn btn-secondary" onclick="closeModals()">Cancelar</button>
+          </div>
+        </div>
+    </div>
+
+    <div id="dbModal" class="modal">
+        <div class="modal-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
+                <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Ajuste de Inventario</h2>
+                <div class="search-container" style="flex:1">
+                    <input type="text" id="dbSearch" placeholder="🔍 Buscar en tabla..." oninput="handleSearch(this.value, 'dbSuggestions', true)">
+                    <div id="dbSuggestions" class="suggestions-box"></div>
+                </div>
+                <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes</button>
+                <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
+            </div>
+            <div class="db-table-container">
+                <table class="db-table">
+                    <thead><tr><th>Ubicación</th><th>SKU</th><th>Vino</th><th>Stock</th><th>Mín.</th><th>Acción</th></tr></thead>
+                    <tbody id="dbTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
