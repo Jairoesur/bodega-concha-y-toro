@@ -362,7 +362,6 @@ function render() {
             pEl.className = `product ${currentH === p.sku ? 'is-highlighted' : ''}`;
             pEl.id = `p-${p.sku}`;
             pEl.draggable = true;
-            pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
             pEl.style.background = p.color + '22';
             pEl.style.borderTop = `4px solid ${p.color}`;
             pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
