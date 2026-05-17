@@ -83,8 +83,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px);
   display:none; align-items:center; justify-content:center; z-index:1000;
 }
-#dbModal { z-index: 1000; } /* Capa base para la DB */
-#productModal { z-index: 2000; } /* Capa superior para el Editor */
+#dbModal { z-index: 1000; } 
+#productModal { z-index: 2000; } 
 #rowModal { z-index: 1500; }
 
 .modal.open { display:flex; }
@@ -227,7 +227,6 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
 <script>
-// AGREGADO: CONFIGURACIÓN FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyARv7i6uHqYHiuRfA7jkx8MdzmVKwWqxAo",
   authDomain: "bodega-concha-toro.firebaseapp.com",
@@ -240,7 +239,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// AGREGADO: FUNCIÓN DE LOGIN Y ESTADO DE SESIÓN
 function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const pass = document.getElementById('loginPass').value;
@@ -268,16 +266,18 @@ firebase.auth().onAuthStateChanged(user => {
     }
 });
 
-// MODIFICADO: VARIABLES SIN LOCALSTORAGE
 let ROWS = [];
 let PRODUCTS = [];
 let tempImg = null, currentH = null;
 let DB_CHANGES = {};
 
-// MODIFICADO: SYNC AHORA GUARDA EN FIREBASE EN VEZ DE LOCALSTORAGE
 function sync() {
     if(firebase.auth().currentUser) {
-        db.ref('bodega').set({ rows: ROWS, products: PRODUCTS });
+        // SOLUCIÓN: Limpiamos los arrays convirtiéndolos a texto y de nuevo a objeto. 
+        // Esto elimina cualquier "undefined" silencioso que Firebase bloqueaba.
+        const safeRows = JSON.parse(JSON.stringify(ROWS));
+        const safeProducts = JSON.parse(JSON.stringify(PRODUCTS));
+        db.ref('bodega').set({ rows: safeRows, products: safeProducts });
     }
     render();
 }
@@ -375,7 +375,7 @@ function openProductModal(sku = null) {
         document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
         document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
         document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
-        document.getElementById('pMax').value = p.max; tempImg = p.photo;
+        document.getElementById('pMax').value = p.max; tempImg = p.photo || null;
         document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}">` : '<span>Sin Imagen</span>';
         document.getElementById('btnDelProd').style.display = 'block';
     } else {
@@ -389,10 +389,15 @@ function openProductModal(sku = null) {
 function saveProduct() {
     const sku = document.getElementById('pSku').value;
     const data = {
-        sku, name: document.getElementById('pName').value, widthM: parseFloat(document.getElementById('pWidth').value) || 0.8,
-        color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
-        current: parseInt(document.getElementById('pCurrent').value) || 0, min: parseInt(document.getElementById('pMin').value) || 0,
-        max: parseInt(document.getElementById('pMax').value) || 0, photo: tempImg
+        sku, 
+        name: document.getElementById('pName').value, 
+        widthM: parseFloat(document.getElementById('pWidth').value) || 0, // Añadido || 0 para evitar NaN
+        color: document.getElementById('pColor').value, 
+        rowId: document.getElementById('pRowSelect').value,
+        current: parseInt(document.getElementById('pCurrent').value) || 0, 
+        min: parseInt(document.getElementById('pMin').value) || 0,
+        max: parseInt(document.getElementById('pMax').value) || 0, 
+        photo: tempImg || null
     };
     const idx = PRODUCTS.findIndex(p => p.sku === sku);
     if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
@@ -407,12 +412,12 @@ function filterDB(q) {
     PRODUCTS.filter(p => p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())).forEach((p) => {
         const row = ROWS.find(r => r.id === p.rowId);
         const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
-        const pos = `${row.name.split(' ').pop()}${pIdx}`;
+        const pos = row ? `${row.name.split(' ').pop()}${pIdx}` : 'S/N';
         const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
         b.innerHTML += `<tr>
             <td><b style="color:var(--accent)">${pos}</b></td>
             <td>${p.sku}</td><td>${p.name}</td>
-            <td><input type="number" value="${displayStock}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value)"></td>
+            <td><input type="number" value="${displayStock}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0"></td>
             <td>${p.min}</td>
             <td><button class="btn btn-secondary" style="padding:4px 8px" onclick="openProductModal('${p.sku}')">Ver</button></td>
         </tr>`;
@@ -420,24 +425,46 @@ function filterDB(q) {
 }
 
 function applyDBChanges() {
-    Object.keys(DB_CHANGES).forEach(sku => { const p = PRODUCTS.find(x => x.sku === sku); if(p) p.current = DB_CHANGES[sku]; });
+    Object.keys(DB_CHANGES).forEach(sku => { 
+        const p = PRODUCTS.find(x => x.sku === sku); 
+        if(p) p.current = parseInt(DB_CHANGES[sku]) || 0; 
+    });
     sync(); closeModals();
 }
 
-function deleteProduct() { if(confirm("¿Eliminar?")) { PRODUCTS = PRODUCTS.filter(p => p.sku !== document.getElementById('pSku').value); sync(); closeProductModalOnly(); } }
+function deleteProduct() { 
+    if(confirm("¿Eliminar?")) { 
+        PRODUCTS = PRODUCTS.filter(p => p.sku !== document.getElementById('pSku').value); 
+        sync(); closeProductModalOnly(); 
+    } 
+}
+
 function openRowModal(id = null) {
     const r = id ? ROWS.find(x => x.id === id) : {id:'', name:'', sizeM:15};
     document.getElementById('rId').value = r.id; document.getElementById('rName').value = r.name; document.getElementById('rSize').value = r.sizeM;
     document.getElementById('btnDelRow').style.display = id ? 'block' : 'none';
     document.getElementById('rowModal').classList.add('open');
 }
+
 function saveRow() {
     const id = document.getElementById('rId').value;
-    const data = { id: id || 'R'+Date.now(), name: document.getElementById('rName').value, sizeM: parseFloat(document.getElementById('rSize').value) };
+    const data = { 
+        id: id || 'R'+Date.now(), 
+        name: document.getElementById('rName').value, 
+        sizeM: parseFloat(document.getElementById('rSize').value) || 15 
+    };
     if(id) ROWS[ROWS.findIndex(x=>x.id===id)] = data; else ROWS.push(data);
     sync(); closeModals();
 }
-function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos."); if(confirm("¿Eliminar?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
+
+function deleteRow() { 
+    const id = document.getElementById('rId').value; 
+    if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos."); 
+    if(confirm("¿Eliminar?")) { 
+        ROWS = ROWS.filter(r => r.id !== id); 
+        sync(); closeModals(); 
+    } 
+}
 
 function processImage(input) {
     if (input.files && input.files[0]) {
@@ -458,7 +485,6 @@ function processImage(input) {
 }
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
-// ELIMINÉ sync(); AL FINAL PARA QUE FIREBASE HAGA LA CARGA INICIAL
 </script>
 </body>
 </html>
