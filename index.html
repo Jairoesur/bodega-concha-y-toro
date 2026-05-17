@@ -367,9 +367,13 @@ function render() {
             pEl.style.borderTop = `4px solid ${p.color}`;
             pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
             pEl.onclick = () => openProductModal(p.sku);
-            const isCompact = (p.widthM / row.sizeM * rowEl.offsetWidth) < 70;
+    const productWidth = (p.widthM / row.sizeM * 100);
 
-if(isCompact) pEl.classList.add('compact');
+pEl.style.width = productWidth + '%';
+
+if(productWidth < 8){
+    pEl.classList.add('compact');
+}
 
 pEl.innerHTML = `
     <div class="product-pos">${posLabel}</div>
@@ -389,7 +393,7 @@ pEl.innerHTML = `
             Stock: ${p.current}
         </div>
     </div>
-`;
+`;       
         });
         wrap.appendChild(container);
     });
