@@ -78,15 +78,15 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     z-index: 100;
 }
 
-/* ─── MODALES (CAPAS CORREGIDAS) ─── */
+/* ─── MODALES ─── */
 .modal {
   position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px);
   display:none; align-items:center; justify-content:center; z-index:1000;
 }
 .modal.open { display:flex; }
 #dbModal { z-index: 1000; }
-#rowModal { z-index: 1200; }
-#productModal { z-index: 2000; } /* Siempre arriba de todo */
+#rowModal { z-index: 1100; }
+#productModal { z-index: 1200; }
 
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
 #productModal .modal-content { width: 850px; }
@@ -321,7 +321,6 @@ function render() {
     else ab.style.display='none';
 }
 
-/* ─── CORRECCIÓN 1: REORDENAMIENTO INTERNO RESTAURADO ─── */
 function drop(e) {
     e.preventDefault();
     const sku = e.dataTransfer.getData("sku");
@@ -384,7 +383,6 @@ function openProductModal(sku = null) {
     document.getElementById('productModal').classList.add('open');
 }
 
-/* ─── CORRECCIÓN 2: GUARDAR PRODUCTO CORREGIDO ─── */
 function saveProduct() {
     const sku = document.getElementById('pSku').value;
     const data = {
