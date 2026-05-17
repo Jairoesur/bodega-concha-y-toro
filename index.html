@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistema de Bodega — Concha y Toro</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap');
 
 :root {
   --bg:#0a0a09; --surface:#161512; --surface2:#1e1c18; --border:#2e2c29;
@@ -14,118 +14,67 @@
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
 
 /* ─── HEADER ─── */
 #topbar{
-  position:sticky;top:0;z-index:500;
-  background:rgba(10, 10, 9, 0.95);backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--border);
-  padding:12px 30px; display:flex; align-items:center; justify-content:space-between; gap:20px;
+  position:sticky;top:0;z-index:500; background:rgba(10,10,9,0.95); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border); padding:12px 30px; display:flex; align-items:center; justify-content:space-between; gap:20px;
 }
+.search-container { position:relative; flex:1; max-width:400px; }
+#searchInput { width:100%; background:var(--surface2); border:1px solid var(--border); padding:10px 15px; border-radius:6px; color:#fff; }
 
-.search-container { position: relative; flex: 1; max-width: 400px; }
-#searchInput, #dbSearch {
-    width:100%; background:var(--surface2); border:1px solid var(--border);
-    padding:10px 15px; border-radius:6px; color:#fff; outline:none;
-}
-
-.suggestions-box {
-    position: absolute; top: 100%; left: 0; right: 0; background: var(--surface2);
-    border: 1px solid var(--accent); border-radius: 0 0 8px 8px; 
-    display: none; z-index: 600; max-height: 250px; overflow-y: auto;
-}
-.suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-.suggestion-item:hover { background: var(--accent); color: #000; }
-
-/* ─── BODEGA VISUAL ─── */
-#whWrap { padding: 25px 30px; }
-.row-container { 
-    margin-bottom: 30px; background: var(--surface); border-radius: 12px; 
-    border: 1px solid var(--border); padding: 20px;
-}
+/* ─── GRILLA DE BODEGA ─── */
+#whWrap { padding:25px 30px; }
+.row-container { margin-bottom:30px; background:var(--surface); border-radius:12px; border:1px solid var(--border); padding:20px; }
 .row-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-.row-info b { color: var(--accent); font-family: 'Bebas Neue'; font-size: 1.5rem; }
+.row-info b { color:var(--accent); font-family:'Bebas Neue'; font-size:1.5rem; }
 
 .wh-row {
-  height:100px; background:var(--bg); border:1px solid var(--border);
-  border-radius:8px; display:flex; align-items:center; position:relative;
+  height:120px; background:rgba(0,0,0,0.3); border:1px dashed var(--border);
+  border-radius:8px; display:flex; align-items:center; gap:5px; padding:0 10px; overflow-x:auto;
 }
 
 .product {
-  height:85px; border-radius:4px; display:flex; flex-direction:column; justify-content:center;
-  padding:5px; cursor:grab; position:relative; flex-shrink:0;
-  border:1px solid rgba(255,255,255,0.05); transition: transform 0.2s;
+  height:90px; border-radius:4px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  cursor:grab; border:1px solid rgba(255,255,255,0.1); position:relative; transition:0.2s; flex-shrink:0;
 }
-.product:active { cursor: grabbing; }
+.product:active { cursor:grabbing; }
+.is-highlighted { box-shadow:0 0 15px var(--accent); border:2px solid var(--accent) !important; z-index:10; }
 
-/* TOOLTIP EXISTENTE MANTENIDO */
-.product:hover::after {
-    content: attr(data-info);
-    position: absolute; bottom: 115%; left: 50%; transform: translateX(-50%);
-    background: #1e1c18; color: #fff; padding: 12px; border: 1px solid var(--accent);
-    border-radius: 8px; font-size: 0.8rem; line-height: 1.4; white-space: pre;
-    z-index: 1000; pointer-events: none; text-align: left; min-width: 180px;
-}
-
-.is-highlighted { 
-    box-shadow: 0 0 20px var(--accent) !important; 
-    border: 2px solid var(--accent) !important; 
-    transform: scale(1.05); z-index: 10;
-}
-
-.product-pos { font-family: 'DM Mono'; font-size: 0.8rem; color: var(--accent); font-weight: bold; text-align: center; }
-.stock-dot { width: 10px; height: 10px; border-radius: 50%; display: block; margin: 5px auto; }
+/* ─── UI ELEMENTS ─── */
+.btn { padding:10px 18px; border-radius:6px; border:none; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:8px; font-size:0.85rem; }
+.btn-primary { background:var(--accent); color:#000; }
+.btn-secondary { background:var(--border); color:var(--text); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-icon { padding:5px; background:none; color:var(--muted); font-size:1.1rem; }
+.btn-icon:hover { color:var(--accent); }
 
 /* ─── MODALES ─── */
-.modal { position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; z-index:1000; }
+.modal { position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); display:none; align-items:center; justify-content:center; z-index:1000; }
 .modal.open { display:flex; }
-.modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+.modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:30px; width:500px; max-width:95%; }
 
-#productModal .modal-content { width: 800px; }
-.editor-grid { display: grid; grid-template-columns: 1fr 300px; }
-.editor-body { padding: 30px; }
-.editor-sidebar { background: var(--surface2); padding: 30px; border-left: 1px solid var(--border); }
+.field { margin-bottom:15px; }
+.field label { display:block; font-size:0.75rem; color:var(--muted); margin-bottom:5px; text-transform:uppercase; }
+.field input, .field select { width:100%; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; }
 
-#dbModal .modal-content { width: 90%; height: 85vh; padding: 25px; display: flex; flex-direction: column; }
-.db-table-container { flex: 1; overflow-y: auto; margin-top: 15px; border: 1px solid var(--border); }
-.db-table { width: 100%; border-collapse: collapse; }
-.db-table th { position: sticky; top: 0; background: var(--surface2); padding: 12px; text-align: left; border-bottom: 2px solid var(--accent); }
-.db-table td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-
-.field { margin-bottom: 15px; }
-.field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
-.field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; }
-.btn { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
-.btn-primary { background: var(--accent); color: #000; }
-.btn-secondary { background: var(--border); color: var(--text); }
-.btn-danger { background: var(--danger); color: #fff; }
-
-.img-preview { width: 100%; height: 200px; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px dashed var(--muted); }
-.img-preview img { width: 100%; height: 100%; object-fit: contain; }
+#dbModal .modal-content { width:90%; max-height:90vh; overflow-y:auto; }
+.db-table { width:100%; border-collapse:collapse; margin-top:15px; }
+.db-table th, .db-table td { padding:12px; border-bottom:1px solid var(--border); text-align:left; }
 </style>
 </head>
 <body>
 
-<div id="loginScreen" style="position:fixed; inset:0; background:#0a0a09; z-index:9999; display:flex; align-items:center; justify-content:center;">
-    <div style="background:var(--surface); padding:40px; border-radius:16px; width:350px; border:1px solid var(--accent); text-align:center;">
-        <img src="logo.png" style="height: 50px; margin-bottom: 20px;">
-        <div class="field" style="text-align:left;"><label>Correo</label><input type="email" id="loginEmail"></div>
-        <div class="field" style="text-align:left;"><label>Contraseña</label><input type="password" id="loginPass"></div>
-        <button class="btn btn-primary" style="width:100%" onclick="handleLogin()">Entrar</button>
-    </div>
-</div>
-
 <div id="topbar">
-  <img src="logo.png" alt="Logo" style="height: 45px;">
+  <img src="logo.png" alt="Logo" style="height:40px;">
   <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Buscar SKU o Vino..." oninput="handleSearch(this.value, 'searchSuggestions', false)" onkeydown="if(event.key==='Enter'){ currentH=null; render(); }">
-      <div id="searchSuggestions" class="suggestions-box"></div>
+    <input type="text" id="searchInput" placeholder="Buscar producto o SKU..." oninput="handleGlobalSearch(this.value)">
   </div>
   <div style="display:flex; gap:10px;">
-    <button class="btn btn-secondary" onclick="openInventoryDB()">📊 Base de Datos</button>
-    <button class="btn btn-primary" onclick="openProductModal(null)">+ Agregar Producto</button>
-    <button class="btn btn-danger" onclick="firebase.auth().signOut()">Salir</button>
+    <button class="btn btn-secondary" onclick="openRowModal()">+ Fila</button>
+    <button class="btn btn-secondary" onclick="openDB()">📊 Base de Datos</button>
+    <button class="btn btn-primary" onclick="openProductModal()">+ Agregar Producto</button>
   </div>
 </div>
 
@@ -133,64 +82,58 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 <div id="productModal" class="modal">
   <div class="modal-content">
-    <div class="editor-grid">
-        <div class="editor-body">
-            <h2 id="pTitle" style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:20px;">Editor de Producto</h2>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                <div class="field"><label>SKU</label><input id="pSku" type="text"></div>
-                <div class="field"><label>Nombre</label><input id="pName" type="text"></div>
-            </div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                <div class="field"><label>Ancho (m)</label><input id="pWidth" type="number" step="0.01"></div>
-                <div class="field"><label>Color</label><input id="pColor" type="color" value="#c8a84b"></div>
-            </div>
-            <div class="field"><label>Ubicación (Fila)</label><select id="pRowSelect"></select></div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; background:var(--surface2); padding:15px; border-radius:8px;">
-                <div class="field" style="margin:0;"><label>Stock</label><input id="pCurrent" type="number"></div>
-                <div class="field" style="margin:0;"><label>Mín.</label><input id="pMin" type="number"></div>
-                <div class="field" style="margin:0;"><label>Máx.</label><input id="pMax" type="number"></div>
-            </div>
-            <div style="margin-top:25px; display:flex; gap:10px;">
-                <button class="btn btn-primary" style="flex:2" onclick="saveProduct()">Guardar Cambios</button>
-                <button id="btnDelProd" class="btn btn-danger" onclick="deleteProduct()">Eliminar</button>
-                <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
-            </div>
-        </div>
-        <div class="editor-sidebar">
-            <label style="font-size:0.7rem; color:var(--muted);">FOTOGRAFÍA</label>
-            <div class="img-preview" id="pImgPreview" style="margin-top:10px;"><span>Sin Imagen</span></div>
-            <input type="file" id="pImgInput" accept="image/*" onchange="processImage(this)" style="margin-top:15px; font-size:0.7rem;">
-        </div>
+    <h2 id="modalTitle" style="color:var(--accent); font-family:'Bebas Neue'; margin-bottom:20px;">Producto</h2>
+    <div class="field"><label>SKU</label><input type="text" id="pSku"></div>
+    <div class="field"><label>Nombre del Vino</label><input type="text" id="pName"></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+      <div class="field"><label>Ancho (m)</label><input type="number" id="pWidth" step="0.01" value="0.40"></div>
+      <div class="field"><label>Fila Actual</label><select id="pRowId"></select></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+        <div class="field"><label>Stock</label><input type="number" id="pCurrent"></div>
+        <div class="field"><label>Min</label><input type="number" id="pMin"></div>
+        <div class="field"><label>Max</label><input type="number" id="pMax"></div>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:10px;">
+      <button class="btn btn-primary" style="flex:1" onclick="saveProduct()">Guardar Cambios</button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="rowModal" class="modal">
+  <div class="modal-content">
+    <h2 style="color:var(--accent); font-family:'Bebas Neue'; margin-bottom:20px;">Configurar Fila</h2>
+    <input type="hidden" id="editRowId">
+    <div class="field"><label>Nombre de Fila (Ej: A)</label><input type="text" id="rName"></div>
+    <div class="field"><label>Capacidad Total (metros)</label><input type="number" id="rSize" step="0.5"></div>
+    <div style="margin-top:20px; display:flex; gap:10px;">
+      <button class="btn btn-primary" style="flex:1" onclick="saveRow()">Guardar Fila</button>
+      <button class="btn btn-danger" id="btnDelRow" onclick="deleteRow()">Eliminar</button>
+      <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
     </div>
   </div>
 </div>
 
 <div id="dbModal" class="modal">
     <div class="modal-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:15px;">
-            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Inventario Maestro</h2>
-            <input type="text" id="dbSearch" placeholder="🔍 Filtrar..." oninput="handleSearch(this.value, 'dbSuggestions', true)" style="flex:1;">
-            <button class="btn btn-secondary" onclick="document.getElementById('sapArea').style.display='block'">📋 SAP</button>
-            <button class="btn btn-primary" onclick="applyDBChanges()">Aplicar Todo</button>
-            <button class="btn btn-secondary" onclick="closeModals()">X</button>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="font-family:'Bebas Neue'; color:var(--accent);">Inventario Maestro</h2>
+            <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
         </div>
-        
-        <div id="sapArea" style="display:none; margin-top:15px;">
-            <textarea id="sapPasteInput" style="width:100%; height:80px; background:#000; color:#0f0; font-family:monospace; padding:10px;" placeholder="Pega aquí: SKU [TAB] NOMBRE [TAB] CANTIDAD"></textarea>
-            <button class="btn btn-primary" style="margin-top:5px" onclick="processSapPaste()">Procesar SAP</button>
+        <div style="background:var(--surface2); padding:15px; border-radius:8px; margin-top:15px;">
+            <label style="font-size:0.7rem; color:var(--muted);">PEGAR DATOS SAP (SKU | NOMBRE | STOCK)</label>
+            <textarea id="sapInput" style="width:100%; height:60px; background:#000; color:#0f0; margin-top:5px; padding:10px;"></textarea>
+            <button class="btn btn-primary" style="width:100%; margin-top:10px;" onclick="processSap()">Procesar SAP</button>
         </div>
-
-        <div class="db-table-container">
-            <table class="db-table">
-                <thead><tr><th>Fila</th><th>SKU</th><th>Vino</th><th>Stock Actual</th><th>Acción</th></tr></thead>
-                <tbody id="dbTableBody"></tbody>
-            </table>
-        </div>
+        <table class="db-table">
+            <thead><tr><th>Fila</th><th>SKU</th><th>Producto</th><th>Stock</th><th>Acciones</th></tr></thead>
+            <tbody id="dbTableBody"></tbody>
+        </table>
     </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
 <script>
@@ -198,74 +141,77 @@ const firebaseConfig = {
   apiKey: "AIzaSyARv7i6uHqYHiuRfA7jkx8MdzmVKwWqxAo",
   authDomain: "bodega-concha-toro.firebaseapp.com",
   databaseURL: "https://bodega-concha-toro-default-rtdb.firebaseio.com/",
-  projectId: "bodega-concha-toro",
-  storageBucket: "bodega-concha-toro.firebasestorage.app",
-  messagingSenderId: "292866536059",
-  appId: "1:292866536059:web:4b69d406debf25d8d468de"
+  projectId: "bodega-concha-toro"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-let ROWS = [], PRODUCTS = [], tempImg = null, currentH = null, DB_CHANGES = {};
+let ROWS = [], PRODUCTS = [], currentHighlight = null;
 
-firebase.auth().onAuthStateChanged(user => {
-    if(user) {
-        document.getElementById('loginScreen').style.display = 'none';
-        db.ref('bodega').on('value', snap => {
-            const data = snap.val() || {};
-            ROWS = data.rows || [{id:'R1', name:'Fila A', sizeM:15}];
-            PRODUCTS = data.products || [];
-            render();
-        });
-    } else { document.getElementById('loginScreen').style.display = 'flex'; }
+// CARGA INICIAL
+db.ref('bodega').on('value', snap => {
+    const data = snap.val() || {};
+    ROWS = data.rows || [];
+    PRODUCTS = data.products || [];
+    render();
 });
 
-function handleLogin() {
-    const email = document.getElementById('loginEmail').value;
-    const pass = document.getElementById('loginPass').value;
-    firebase.auth().signInWithEmailAndPassword(email, pass);
+function sync() {
+    db.ref('bodega').set({ rows: ROWS, products: PRODUCTS });
 }
-
-function sync() { db.ref('bodega').set({ rows: ROWS, products: PRODUCTS }); }
 
 function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
-    
+
     ROWS.forEach(row => {
         const rowProds = PRODUCTS.filter(p => p.rowId === row.id);
-        const used = rowProds.reduce((s, p) => s + p.widthM, 0);
+        const used = rowProds.reduce((acc, p) => acc + (parseFloat(p.widthM) || 0), 0);
+        
         const container = document.createElement('div');
         container.className = 'row-container';
         container.innerHTML = `
             <div class="row-header">
-                <div class="row-info"><b>${row.name}</b> <span style="font-size:0.8rem; color:var(--muted)">${used.toFixed(2)}m / ${row.sizeM}m</span></div>
+                <div class="row-info">
+                    <b>${row.name}</b> 
+                    <span style="margin-left:10px; font-size:0.8rem; color:var(--muted)">
+                        ${used.toFixed(2)}m / ${row.sizeM}m (${((used/row.sizeM)*100).toFixed(1)}%)
+                    </span>
+                </div>
+                <button class="btn-icon" onclick="openRowModal('${row.id}')">⚙️</button>
             </div>
             <div class="wh-row" id="${row.id}" ondragover="event.preventDefault()" ondrop="drop(event)"></div>
         `;
-        const rowEl = container.querySelector('.wh-row');
         
-        rowProds.forEach((p, index) => {
-            const posLabel = `${row.name.split(' ').pop()}${index + 1}`;
+        const rowEl = container.querySelector('.wh-row');
+        rowProds.forEach(p => {
             const pEl = document.createElement('div');
-            
-            pEl.className = `product ${String(currentH) === String(p.sku) ? 'is-highlighted' : ''}`;
-            pEl.id = `p-${p.sku}`;
+            pEl.className = `product ${currentHighlight === p.sku ? 'is-highlighted' : ''}`;
             pEl.draggable = true;
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
-            pEl.style.borderTop = `4px solid ${p.color}`;
-            pEl.style.background = p.color + '15';
+            pEl.style.background = `linear-gradient(to bottom, #222, #111)`;
+            pEl.style.borderTop = `3px solid ${p.current < p.min ? 'var(--danger)' : 'var(--accent)'}`;
             
-            pEl.setAttribute('data-info', `UBICACIÓN: ${posLabel}\nSKU: ${p.sku}\nPRODUCTO: ${p.name}\nSTOCK: ${p.current}`);
-            
+            pEl.innerHTML = `
+                <span style="font-size:0.7rem; color:var(--accent); font-weight:bold;">${p.sku}</span>
+                <div style="width:8px; height:8px; border-radius:50%; background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}; margin:5px 0;"></div>
+                <span style="font-size:0.6rem; text-align:center; padding:0 4px; overflow:hidden;">${p.name}</span>
+            `;
+
+            // FIX ARRASTRE VISUAL
             pEl.ondragstart = (e) => {
                 e.dataTransfer.setData("sku", p.sku);
-                e.target.style.opacity = "0.5";
+                e.target.style.opacity = "0.4";
+                // Creamos una imagen fantasma solo del elemento
+                const ghost = e.target.cloneNode(true);
+                ghost.style.width = "100px";
+                document.body.appendChild(ghost);
+                e.dataTransfer.setDragImage(ghost, 50, 45);
+                setTimeout(() => ghost.remove(), 0);
             };
             pEl.ondragend = (e) => e.target.style.opacity = "1";
             pEl.onclick = () => openProductModal(p.sku);
             
-            pEl.innerHTML = `<div class="product-pos">${posLabel}</div><span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>`;
             rowEl.appendChild(pEl);
         });
         wrap.appendChild(container);
@@ -274,152 +220,144 @@ function render() {
 
 function drop(e) {
     e.preventDefault();
-    const sku = String(e.dataTransfer.getData("sku"));
+    const sku = e.dataTransfer.getData("sku");
     const targetRowId = e.currentTarget.id;
-    
-    let p = PRODUCTS.find(x => String(x.sku) === sku);
-    if(!p) return;
-
-    p.rowId = targetRowId;
-    
-    // Reordenar dentro de la fila según posición X
-    const rowEl = document.getElementById(targetRowId);
-    const children = Array.from(rowEl.children);
-    let insertIdx = children.length;
-    
-    children.forEach((child, idx) => {
-        const rect = child.getBoundingClientRect();
-        if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx;
-    });
-
-    const otherProds = PRODUCTS.filter(x => String(x.sku) !== sku);
-    const rowProds = otherProds.filter(x => x.rowId === targetRowId);
-    const restProds = otherProds.filter(x => x.rowId !== targetRowId);
-    
-    rowProds.splice(insertIdx, 0, p);
-    PRODUCTS = [...restProds, ...rowProds];
-    sync();
-}
-
-function handleSearch(v, boxId, isDB) {
-    const s = document.getElementById(boxId);
-    if(!v) { 
-        s.style.display='none'; 
-        if(!isDB) { currentH = null; render(); }
-        return; 
-    }
-    const m = PRODUCTS.filter(p => String(p.sku).includes(v) || p.name.toLowerCase().includes(v.toLowerCase()));
-    s.style.display = m.length ? 'block' : 'none';
-    s.innerHTML = m.map(p => `<div class="suggestion-item" onclick="selectSuggestion('${p.sku}', '${boxId}', ${isDB})"><b>${p.sku}</b> - ${p.name}</div>`).join('');
-    if(isDB) filterDB(v);
-}
-
-function selectSuggestion(sku, boxId, isDB) {
-    document.getElementById(boxId).style.display = 'none';
-    if(isDB) filterDB(sku);
-    else { 
-        currentH = String(sku); 
-        render(); 
-        document.getElementById(`p-${sku}`)?.scrollIntoView({behavior:'smooth', block:'center'}); 
+    const p = PRODUCTS.find(x => x.sku == sku);
+    if(p) {
+        p.rowId = targetRowId;
+        sync();
     }
 }
 
+// PRODUCTOS CRUD
 function openProductModal(sku = null) {
-    const sel = document.getElementById('pRowSelect');
-    sel.innerHTML = ROWS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+    const select = document.getElementById('pRowId');
+    select.innerHTML = ROWS.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
     
     if(sku) {
-        const p = PRODUCTS.find(x => String(x.sku) === String(sku));
-        if(p) {
-            document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
-            document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
-            document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
-            document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
-            document.getElementById('pMax').value = p.max; tempImg = p.photo;
-            document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}">` : '<span>Sin Imagen</span>';
-            document.getElementById('btnDelProd').style.display = 'block';
-        }
+        const p = PRODUCTS.find(x => x.sku == sku);
+        document.getElementById('pSku').value = p.sku;
+        document.getElementById('pSku').disabled = true;
+        document.getElementById('pName').value = p.name;
+        document.getElementById('pWidth').value = p.widthM;
+        document.getElementById('pRowId').value = p.rowId;
+        document.getElementById('pCurrent').value = p.current;
+        document.getElementById('pMin').value = p.min;
+        document.getElementById('pMax').value = p.max;
     } else {
-        document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false;
-        document.getElementById('pName').value = ''; document.getElementById('pCurrent').value = 0;
-        document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>';
-        document.getElementById('btnDelProd').style.display = 'none';
-        tempImg = null;
+        document.getElementById('pSku').disabled = false;
+        document.getElementById('productModal').querySelectorAll('input').forEach(i => i.value = '');
+        document.getElementById('pWidth').value = 0.4;
     }
     document.getElementById('productModal').classList.add('open');
 }
 
 function saveProduct() {
-    const sku = String(document.getElementById('pSku').value).trim();
-    if(!sku) return;
-    
+    const sku = document.getElementById('pSku').value;
     const data = {
-        sku: sku, name: document.getElementById('pName').value, 
-        widthM: parseFloat(document.getElementById('pWidth').value) || 0.4,
-        color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
-        current: parseInt(document.getElementById('pCurrent').value) || 0, 
+        sku: sku,
+        name: document.getElementById('pName').value,
+        widthM: parseFloat(document.getElementById('pWidth').value),
+        rowId: document.getElementById('pRowId').value,
+        current: parseInt(document.getElementById('pCurrent').value) || 0,
         min: parseInt(document.getElementById('pMin').value) || 0,
-        max: parseInt(document.getElementById('pMax').value) || 0, photo: tempImg
+        max: parseInt(document.getElementById('pMax').value) || 0
     };
-    
-    const idx = PRODUCTS.findIndex(p => String(p.sku) === sku);
-    if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
-    
-    sync(); closeModals();
+
+    const idx = PRODUCTS.findIndex(x => x.sku == sku);
+    if(idx >= 0) PRODUCTS[idx] = data;
+    else PRODUCTS.push(data);
+
+    sync();
+    closeModals();
 }
 
-function deleteProduct() {
-    const sku = String(document.getElementById('pSku').value);
-    if(confirm("¿Eliminar producto?")) {
-        PRODUCTS = PRODUCTS.filter(p => String(p.sku) !== sku);
-        sync(); closeModals();
+// FILAS CRUD
+function openRowModal(id = null) {
+    if(id) {
+        const r = ROWS.find(x => x.id === id);
+        document.getElementById('editRowId').value = r.id;
+        document.getElementById('rName').value = r.name;
+        document.getElementById('rSize').value = r.sizeM;
+        document.getElementById('btnDelRow').style.display = 'block';
+    } else {
+        document.getElementById('editRowId').value = '';
+        document.getElementById('rName').value = '';
+        document.getElementById('rSize').value = 10;
+        document.getElementById('btnDelRow').style.display = 'none';
+    }
+    document.getElementById('rowModal').classList.add('open');
+}
+
+function saveRow() {
+    const id = document.getElementById('editRowId').value || 'R' + Date.now();
+    const data = {
+        id: id,
+        name: document.getElementById('rName').value,
+        sizeM: parseFloat(document.getElementById('rSize').value)
+    };
+
+    const idx = ROWS.findIndex(x => x.id === id);
+    if(idx >= 0) ROWS[idx] = data;
+    else ROWS.push(data);
+
+    sync();
+    closeModals();
+}
+
+function deleteRow() {
+    const id = document.getElementById('editRowId').value;
+    if(confirm("¿Eliminar esta fila y dejar los productos sin asignar?")) {
+        ROWS = ROWS.filter(x => x.id !== id);
+        PRODUCTS.forEach(p => { if(p.rowId === id) p.rowId = ''; });
+        sync();
+        closeModals();
     }
 }
 
-function processSapPaste() {
-    const lines = document.getElementById('sapPasteInput').value.trim().split('\n');
+// SAP Y BÚSQUEDA
+function processSap() {
+    const raw = document.getElementById('sapInput').value.trim();
+    const lines = raw.split('\n');
+    let count = 0;
     lines.forEach(line => {
-        const cols = line.split(/\t/); // Divide por Tabulación (SAP Standard)
-        if(cols.length >= 3) {
-            const sku = String(cols[0]).trim();
-            const qty = parseInt(cols[2]) || 0;
-            const p = PRODUCTS.find(x => String(x.sku) === sku);
-            if(p) p.current = qty;
+        const part = line.split(/[\t\s]{2,}|\|/); // Detecta tab o múltiples espacios
+        if(part.length >= 2) {
+            const sku = part[0].trim();
+            const stock = parseInt(part[part.length-1]) || 0;
+            const p = PRODUCTS.find(x => x.sku == sku);
+            if(p) { p.current = stock; count++; }
         }
     });
-    sync(); alert("SAP Actualizado con éxito");
+    sync();
+    alert(`Se actualizaron ${count} productos desde SAP.`);
 }
 
-function filterDB(q) {
-    const b = document.getElementById('dbTableBody'); b.innerHTML = '';
-    PRODUCTS.filter(p => String(p.sku).includes(q) || p.name.toLowerCase().includes(q.toLowerCase())).forEach(p => {
-        b.innerHTML += `<tr><td>${p.rowId}</td><td>${p.sku}</td><td>${p.name}</td>
-            <td><input type="number" value="${DB_CHANGES[p.sku] ?? p.current}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0" style="width:60px; background:none; color:#fff; border:1px solid #444;"></td>
-            <td><button class="btn btn-secondary" style="padding:5px 10px" onclick="closeModals(); openProductModal('${p.sku}')">Ver</button></td></tr>`;
-    });
+function openDB() {
+    const tbody = document.getElementById('dbTableBody');
+    tbody.innerHTML = PRODUCTS.map(p => `
+        <tr>
+            <td>${p.rowId}</td>
+            <td><b>${p.sku}</b></td>
+            <td>${p.name}</td>
+            <td style="color:${p.current < p.min ? 'var(--danger)' : 'inherit'}">${p.current}</td>
+            <td><button class="btn btn-secondary" onclick="closeModals(); openProductModal('${p.sku}')">Editar</button></td>
+        </tr>
+    `).join('');
+    document.getElementById('dbModal').classList.add('open');
 }
 
-function applyDBChanges() {
-    Object.keys(DB_CHANGES).forEach(sku => {
-        const p = PRODUCTS.find(x => String(x.sku) === String(sku));
-        if(p) p.current = DB_CHANGES[sku];
-    });
-    sync(); closeModals();
-}
-
-function processImage(input) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            tempImg = e.target.result;
-            document.getElementById('pImgPreview').innerHTML = `<img src="${tempImg}">`;
-        };
-        reader.readAsDataURL(input.files[0]);
+function handleGlobalSearch(v) {
+    if(!v) { currentHighlight = null; render(); return; }
+    const found = PRODUCTS.find(p => p.sku.includes(v) || p.name.toLowerCase().includes(v.toLowerCase()));
+    if(found) {
+        currentHighlight = found.sku;
+        render();
+        document.getElementById('whWrap').scrollIntoView({behavior:'smooth', block:'end'});
     }
 }
 
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
-function openInventoryDB() { DB_CHANGES = {}; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
 </script>
 </body>
 </html>
