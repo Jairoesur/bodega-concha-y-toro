@@ -78,7 +78,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     z-index: 100;
 }
 
-/* ─── MODALES ─── */
+/* ─── MODALES (CAPAS DE PROFUNDIDAD) ─── */
 .modal {
   position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px);
   display:none; align-items:center; justify-content:center; z-index:1000;
@@ -95,6 +95,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .editor-body { padding: 40px; }
 .editor-sidebar { background: var(--surface2); padding: 40px; border-left: 1px solid var(--border); }
 
+/* BASE DE DATOS */
 #dbModal .modal-content { width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column; }
 .db-table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); margin-top: 15px; }
 .db-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -102,6 +103,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .db-table td { padding: 12px; border-bottom: 1px solid var(--border); }
 .db-table input { background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 5px; border-radius: 4px; width: 80px; }
 
+/* UI ELEMENTS */
 .field { margin-bottom: 20px; }
 .field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 700; }
 .field input, .field select { 
@@ -137,7 +139,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <div id="topbar">
   <h1>Bodega Concha y Toro</h1>
   <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Buscar producto..." oninput="handleSearch(this.value, 'searchSuggestions', false)" onkeydown="if(event.key==='Enter'){currentH=null; this.value=''; render();}">
+      <input type="text" id="searchInput" placeholder="Buscar producto..." oninput="handleSearch(this.value, 'searchSuggestions', false)" onkeydown="if(event.key === 'Enter'){ currentH = null; this.value = ''; render(); }">
       <div id="searchSuggestions" class="suggestions-box"></div>
   </div>
   <div style="display:flex; gap:10px;">
@@ -411,9 +413,9 @@ function filterDB(q) {
         const pos = row ? `${row.name.split(' ').pop()}${pIdx}` : 'S/N';
         const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
         
-        // RESALTADO DE PRODUCTO BAJO EL MÍNIMO EN DB
+        // MODIFICADO: Cálculo de estilo para resaltar stock bajo en DB
         const isLowStock = p.current < p.min;
-        const rowStyle = isLowStock ? 'style="background: rgba(160, 48, 48, 0.12); border-left: 4px solid var(--danger);"' : '';
+        const rowStyle = isLowStock ? 'style="background: rgba(160, 48, 48, 0.15); border-left: 3px solid var(--danger);"' : '';
 
         b.innerHTML += `<tr ${rowStyle}>
             <td><b style="color:var(--accent)">${pos}</b></td>
