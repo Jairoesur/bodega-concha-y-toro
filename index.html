@@ -479,11 +479,11 @@ function verificarYEnviarReporteDiario() {
     const ahora = new Date();
     const hoyStr = ahora.toISOString().split('T')[0]; // Ejemplo: "2026-05-20"
     
-    // Verificamos si ya son las 08:30 AM o más tarde
+    // Verificamos si ya son las 10:00 AM o más tarde
     const horaActual = ahora.getHours();
     const minutoActual = ahora.getMinutes();
     
-    if (horaActual > 8 || (horaActual === 1 && minutoActual >= 30)) {
+    if (horaActual > 8 || (horaActual === 10 && minutoActual >= 00)) {
         // Miramos en localStorage de tu navegador si hoy ya mandamos el reporte
         const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
         
