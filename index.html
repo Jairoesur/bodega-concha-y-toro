@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistema Maestro de Bodega — Concha y Toro</title>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
 
@@ -60,17 +61,11 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 }
 .row-info b { color: var(--accent); font-family: 'Bebas Neue'; font-size: 1.5rem; }
 
-/* FIX SCROLL HORIZONTAL: Envoltorio para manejar excesos de productos sin cortar tooltips */
 .row-scroll-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden; 
-    padding-top: 150px; /* Margen fantasma para que el tooltip entre en la zona visible */
-    margin-top: -150px; /* Cancela el margen anterior para no deformar tu diseño */
-    padding-bottom: 5px; /* Espacio mínimo para el scroll */
+    width: 100%; overflow-x: auto; overflow-y: hidden; 
+    padding-top: 150px; margin-top: -150px; padding-bottom: 5px;
 }
 
-/* Estilo para la barra de scroll horizontal */
 .row-scroll-wrapper::-webkit-scrollbar { height: 8px; }
 .row-scroll-wrapper::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
 .row-scroll-wrapper::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -79,59 +74,33 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .wh-row {
   height:100px; background:var(--bg); border:1px solid var(--border);
   border-radius:8px; display:flex; align-items:center; position:relative; 
-  overflow: visible !important;
-  min-width: 100%; 
-  width: max-content; /* FIX SCROLL: Permite a la fila estirarse todo lo que necesite internamente */
+  overflow: visible !important; min-width: 100%; width: max-content;
 }
 
 .product {
   height:85px; border-radius:4px; display:flex; flex-direction:column; align-items:center; justify-content:center;
   padding:5px; cursor:grab; position:relative; flex-shrink:0;
-  transition: transform 0.2s, box-shadow 0.3s; border:1px solid rgba(255,255,255,0.05);
-  margin-right: 1px;
+  transition: transform 0.2s, box-shadow 0.3s; border:1px solid rgba(255,255,255,0.05); margin-right: 1px;
 }
 
 .product-pos { font-family: 'DM Mono'; font-size: 0.7rem; color: var(--accent); font-weight: bold; margin-bottom: 4px; pointer-events: none; }
 
 .product:hover::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 110%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #1e1c18;
-    color: #e8e4de;
-    border: 1px solid #c8a84b;
-    padding: 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    white-space: pre-wrap;
-    z-index: 9999;
-    width: max-content;
-    max-width: 250px;
-    box-shadow: 0 5px 20px rgba(0,0,0,1);
-    pointer-events: none;
+    content: attr(data-tooltip); position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+    background: #1e1c18; color: #e8e4de; border: 1px solid #c8a84b; padding: 10px; border-radius: 6px;
+    font-size: 0.75rem; white-space: pre-wrap; z-index: 9999; width: max-content; max-width: 250px;
+    box-shadow: 0 5px 20px rgba(0,0,0,1); pointer-events: none;
 }
 
-.is-highlighted {
-    box-shadow: 0 0 25px var(--accent);
-    border: 2px solid var(--accent) !important;
-    transform: scale(1.05);
-    z-index: 100;
-}
+.is-highlighted { box-shadow: 0 0 25px var(--accent); border: 2px solid var(--accent) !important; transform: scale(1.05); z-index: 100; }
 
 /* ─── MODALES ─── */
-.modal {
-  position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px);
-  display:none; align-items:center; justify-content:center; z-index:10000;
-}
+.modal { position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; z-index:10000; }
 #dbModal { z-index: 10000; } 
 #productModal { z-index: 11000; } 
 #rowModal { z-index: 10500; }
-
 .modal.open { display:flex; }
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
-
 #productModal .modal-content { width: 850px; }
 .editor-grid { display: grid; grid-template-columns: 1fr 320px; }
 .editor-body { padding: 40px; }
@@ -148,10 +117,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 /* UI ELEMENTS */
 .field { margin-bottom: 20px; }
 .field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 700; }
-.field input, .field select { 
-    width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; 
-    padding: 12px; border-radius: 6px; outline: none;
-}
+.field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 6px; outline: none; }
 .btn { padding: 12px 24px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 8px; }
 .btn-primary { background: var(--accent); color: #000; }
 .btn-secondary { background: var(--border); color: var(--text); }
@@ -174,9 +140,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     </div>
 </div>
 
-<div id="alertBar">
-    <strong style="color:var(--danger)">⚠️ ALERTAS:</strong> <span id="alertText"></span>
-</div>
+<div id="alertBar"><strong style="color:var(--danger)">⚠️ ALERTAS:</strong> <span id="alertText"></span></div>
 
 <div id="topbar">
   <h1>Bodega Concha y Toro</h1>
@@ -256,13 +220,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
             <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes</button>
             <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
         </div>
-
         <div id="sapImportSection" style="display:none; background:var(--surface2); padding:15px; border-radius:8px; margin-top:15px; border:1px solid var(--border);">
-            <label style="display:block; font-size:0.75rem; color:var(--muted); margin-bottom:8px; font-weight:700;">PEGA AQUÍ LAS COLUMNAS DE TU HOJA DE CÁLCULO / SAP</label>
-            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none; font-family:monospace; font-size:0.8rem;" placeholder="SKU | Nombre | Cantidad"></textarea>
-            <button class="btn btn-primary" style="margin-top:10px; padding:8px 16px; font-size:0.8rem;" onclick="processSapPaste()">Procesar Carga e Integrar Masivamente</button>
+            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none;" placeholder="SKU | Nombre | Cantidad"></textarea>
+            <button class="btn btn-primary" style="margin-top:10px; padding:8px 16px;" onclick="processSapPaste()">Procesar Carga e Integrar Masivamente</button>
         </div>
-
         <div class="db-table-container">
             <table class="db-table">
                 <thead><tr><th>Ubicación</th><th>SKU</th><th>Vino</th><th>Stock</th><th>Mín.</th><th>Acción</th></tr></thead>
@@ -289,6 +250,11 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+let ROWS = [];
+let PRODUCTS = [];
+let tempImg = null, currentH = null;
+let DB_CHANGES = {};
+
 function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const pass = document.getElementById('loginPass').value;
@@ -302,30 +268,20 @@ firebase.auth().onAuthStateChanged(user => {
         document.getElementById('loginScreen').style.display = 'none';
         db.ref('bodega').on('value', snap => {
             const data = snap.val();
-            if(data) {
-                ROWS = data.rows || [{id:'R1', name:'Fila A', sizeM:15}];
-                PRODUCTS = data.products || [];
-            } else {
-                ROWS = [{id:'R1', name:'Fila A', sizeM:15}];
-                PRODUCTS = [];
-            }
+            ROWS = data?.rows || [{id:'R1', name:'Fila A', sizeM:15}];
+            PRODUCTS = data?.products || [];
             render();
+            // Ejecutamos la revisión del reporte automatizado diario sin molestar al usuario
+            verificarYEnviarReporteDiario();
         });
     } else {
         document.getElementById('loginScreen').style.display = 'flex';
     }
 });
 
-let ROWS = [];
-let PRODUCTS = [];
-let tempImg = null, currentH = null;
-let DB_CHANGES = {};
-
 function sync() {
     if(firebase.auth().currentUser) {
-        const safeRows = JSON.parse(JSON.stringify(ROWS));
-        const safeProducts = JSON.parse(JSON.stringify(PRODUCTS));
-        db.ref('bodega').set({ rows: safeRows, products: safeProducts });
+        db.ref('bodega').set({ rows: JSON.parse(JSON.stringify(ROWS)), products: JSON.parse(JSON.stringify(PRODUCTS)) });
     }
     render();
 }
@@ -342,8 +298,6 @@ function render() {
 
         const container = document.createElement('div');
         container.className = 'row-container';
-        
-        // MODIFICADO: Agregamos el div row-scroll-wrapper rodeando a la wh-row
         container.innerHTML = `
             <div class="row-header">
                 <div class="row-info"><b>${row.name}</b> <span>${used.toFixed(2)}m / ${row.sizeM}m (${perc}%)</span></div>
@@ -365,45 +319,23 @@ function render() {
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
             pEl.style.background = p.color + '22';
             pEl.style.borderTop = `4px solid ${p.color}`;
-            
             pEl.setAttribute('data-tooltip', `SKU: ${p.sku}\nProducto: ${p.name}\nStock: ${p.current}`);
             
-            // FIX EFECTO FANTASMA: Lógica para mostrar solo 1 caja perfecta al arrastrar
             pEl.ondragstart = (e) => {
                 e.dataTransfer.setData("sku", p.sku);
-                
-                // Creamos un clon visual limpio e independiente
                 const ghost = document.createElement('div');
-                ghost.style.width = '60px'; // Tamaño fijo para que no se deforme
-                ghost.style.height = '85px';
-                ghost.style.background = pEl.style.background;
-                ghost.style.borderTop = pEl.style.borderTop;
-                ghost.style.border = '1px solid rgba(255,255,255,0.2)';
-                ghost.style.borderRadius = '4px';
-                ghost.style.display = 'flex';
-                ghost.style.flexDirection = 'column';
-                ghost.style.alignItems = 'center';
-                ghost.style.justifyContent = 'center';
-                ghost.style.position = 'absolute';
-                ghost.style.top = '-1000px'; // Lo escondemos fuera de la pantalla
-                ghost.style.zIndex = '10000';
-                ghost.innerHTML = pEl.innerHTML; // Le pasamos el texto (A1, etc) y el punto
-                
+                ghost.style.width = '60px'; ghost.style.height = '85px'; ghost.style.background = pEl.style.background;
+                ghost.style.borderTop = pEl.style.borderTop; ghost.style.border = '1px solid rgba(255,255,255,0.2)';
+                ghost.style.borderRadius = '4px'; ghost.style.display = 'flex'; ghost.style.flexDirection = 'column';
+                ghost.style.alignItems = 'center'; ghost.style.justifyContent = 'center'; ghost.style.position = 'absolute';
+                ghost.style.top = '-1000px'; ghost.style.zIndex = '10000'; ghost.innerHTML = pEl.innerHTML;
                 document.body.appendChild(ghost);
-                
-                // Usamos el clon como imagen de arrastre (30 y 42 son el centro en píxeles)
                 e.dataTransfer.setDragImage(ghost, 30, 42);
-                
-                // Lo borramos inmediatamente después para no ensuciar tu HTML
                 setTimeout(() => document.body.removeChild(ghost), 0);
             };
             
             pEl.onclick = () => openProductModal(p.sku);
-            
-            pEl.innerHTML = `
-                <div class="product-pos">${posLabel}</div>
-                <span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>
-            `;
+            pEl.innerHTML = `<div class="product-pos">${posLabel}</div><span class="stock-dot" style="background:${p.current < p.min ? 'var(--danger)' : 'var(--ok)'}"></span>`;
             rowEl.appendChild(pEl);
         });
         wrap.appendChild(container);
@@ -477,151 +409,136 @@ function openProductModal(sku = null) {
 function saveProduct() {
     const sku = document.getElementById('pSku').value;
     const data = {
-        sku, 
-        name: document.getElementById('pName').value, 
-        widthM: parseFloat(document.getElementById('pWidth').value) || 0,
-        color: document.getElementById('pColor').value, 
-        rowId: document.getElementById('pRowSelect').value,
-        current: parseInt(document.getElementById('pCurrent').value) || 0, 
-        min: parseInt(document.getElementById('pMin').value) || 0,
-        max: parseInt(document.getElementById('pMax').value) || 0, 
-        photo: tempImg || null
+        sku, name: document.getElementById('pName').value, widthM: parseFloat(document.getElementById('pWidth').value) || 0,
+        color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
+        current: parseInt(document.getElementById('pCurrent').value) || 0, min: parseInt(document.getElementById('pMin').value) || 0,
+        max: parseInt(document.getElementById('pMax').value) || 0, photo: tempImg || null
     };
     const idx = PRODUCTS.findIndex(p => p.sku === sku);
     if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
     sync(); closeProductModalOnly();
 }
 
-function openInventoryDB() { 
-    DB_CHANGES = {}; 
-    document.getElementById('sapImportSection').style.display = 'none'; 
-    document.getElementById('sapPasteInput').value = '';
-    document.getElementById('dbModal').classList.add('open'); 
-    filterDB(''); 
-}
+function openInventoryDB() { DB_CHANGES = {}; document.getElementById('sapImportSection').style.display = 'none'; document.getElementById('sapPasteInput').value = ''; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
 
 function filterDB(q) {
-    const b = document.getElementById('dbTableBody');
-    b.innerHTML = '';
+    const b = document.getElementById('dbTableBody'); b.innerHTML = '';
     PRODUCTS.filter(p => p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())).forEach((p) => {
         const row = ROWS.find(r => r.id === p.rowId);
         const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
         const pos = row ? `${row.name.split(' ').pop()}${pIdx}` : 'S/N';
         const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
-        
-        const isLowStock = p.current < p.min;
-        const rowStyle = isLowStock ? 'style="background: rgba(160, 48, 48, 0.15); border-left: 3px solid var(--danger);"' : '';
-
-        b.innerHTML += `<tr ${rowStyle}>
-            <td><b style="color:var(--accent)">${pos}</b></td>
-            <td>${p.sku}</td><td>${p.name}</td>
+        b.innerHTML += `<tr ${p.current < p.min ? 'style="background: rgba(160, 48, 48, 0.15); border-left: 3px solid var(--danger);"' : ''}>
+            <td><b style="color:var(--accent)">${pos}</b></td><td>${p.sku}</td><td>${p.name}</td>
             <td><input type="number" value="${displayStock}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0"></td>
-            <td>${p.min}</td>
-            <td><button class="btn btn-secondary" style="padding:4px 8px" onclick="openProductModal('${p.sku}')">Ver</button></td>
+            <td>${p.min}</td><td><button class="btn btn-secondary" style="padding:4px 8px" onclick="openProductModal('${p.sku}')">Ver</button></td>
         </tr>`;
     });
 }
 
 function applyDBChanges() {
-    Object.keys(DB_CHANGES).forEach(sku => { 
-        const p = PRODUCTS.find(x => x.sku === sku); 
-        if(p) p.current = parseInt(DB_CHANGES[sku]) || 0; 
-    });
+    Object.keys(DB_CHANGES).forEach(sku => { const p = PRODUCTS.find(x => x.sku === sku); if(p) p.current = parseInt(DB_CHANGES[sku]) || 0; });
     sync(); closeModals();
 }
 
-function toggleSapSection() {
-    const section = document.getElementById('sapImportSection');
-    section.style.display = section.style.display === 'none' ? 'block' : 'none';
-}
+function toggleSapSection() { const section = document.getElementById('sapImportSection'); section.style.display = section.style.display === 'none' ? 'block' : 'none'; }
 
 function processSapPaste() {
-    const inputData = document.getElementById('sapPasteInput').value.trim();
-    if (!inputData) return alert("Por favor, pega primero los datos.");
-
-    const lines = inputData.split('\n');
-    let updatedCount = 0;
-    let createdCount = 0;
-
+    const inputData = document.getElementById('sapPasteInput').value.trim(); if (!inputData) return alert("Vacio.");
+    const lines = inputData.split('\n'); let updatedCount = 0; let createdCount = 0;
     lines.forEach(line => {
         const columns = line.split(/\t|,|;/);
         if (columns.length >= 3) {
-            const sku = columns[0].trim();
-            const name = columns[1].trim();
-            const quantity = parseInt(columns[2].trim()) || 0;
-            if (!sku) return;
+            const sku = columns[0].trim(); const name = columns[1].trim(); const quantity = parseInt(columns[2].trim()) || 0; if (!sku) return;
             const existingIdx = PRODUCTS.findIndex(p => p.sku.toLowerCase() === sku.toLowerCase());
-            if (existingIdx >= 0) {
-                PRODUCTS[existingIdx].current = quantity;
-                if (name) PRODUCTS[existingIdx].name = name;
-                updatedCount++;
-            } else {
-                const defaultRow = ROWS[0] ? ROWS[0].id : '';
-                PRODUCTS.push({
-                    sku, name: name || "Importado", widthM: 0.4, color: "#c8a84b",
-                    rowId: defaultRow, current: quantity, min: 0, max: 0, photo: null
-                });
-                createdCount++;
-            }
+            if (existingIdx >= 0) { PRODUCTS[existingIdx].current = quantity; if (name) PRODUCTS[existingIdx].name = name; updatedCount++; }
+            else { PRODUCTS.push({ sku, name: name || "Importado", widthM: 0.4, color: "#c8a84b", rowId: ROWS[0]?.id || '', current: quantity, min: 0, max: 0, photo: null }); createdCount++; }
         }
     });
-    alert(`Actualizados: ${updatedCount}. Nuevos: ${createdCount}.`);
-    sync(); filterDB('');
+    alert(`Actualizados: ${updatedCount}. Nuevos: ${createdCount}.`); sync(); filterDB('');
 }
 
-function deleteProduct() { 
-    if(confirm("¿Eliminar?")) { 
-        PRODUCTS = PRODUCTS.filter(p => p.sku !== document.getElementById('pSku').value); 
-        sync(); closeProductModalOnly(); 
-    } 
-}
-
-function openRowModal(id = null) {
-    const r = id ? ROWS.find(x => x.id === id) : {id:'', name:'', sizeM:15};
-    document.getElementById('rId').value = r.id; document.getElementById('rName').value = r.name; document.getElementById('rSize').value = r.sizeM;
-    document.getElementById('btnDelRow').style.display = id ? 'block' : 'none';
-    document.getElementById('rowModal').classList.add('open');
-}
-
-function saveRow() {
-    const id = document.getElementById('rId').value;
-    const data = { 
-        id: id || 'R'+Date.now(), 
-        name: document.getElementById('rName').value, 
-        sizeM: parseFloat(document.getElementById('rSize').value) || 15 
-    };
-    if(id) ROWS[ROWS.findIndex(x=>x.id===id)] = data; else ROWS.push(data);
-    sync(); closeModals();
-}
-
-function deleteRow() { 
-    const id = document.getElementById('rId').value; 
-    if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos."); 
-    if(confirm("¿Eliminar?")) { 
-        ROWS = ROWS.filter(r => r.id !== id); 
-        sync(); closeModals(); 
-    } 
-}
-
-function processImage(input) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale;
-                canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height);
-                tempImg = canvas.toDataURL('image/jpeg', 0.6);
-                document.getElementById('pImgPreview').innerHTML = `<img src="${tempImg}">`;
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-}
+function deleteProduct() { if(confirm("¿Eliminar?")) { PRODUCTS = PRODUCTS.filter(p => p.sku !== document.getElementById('pSku').value); sync(); closeProductModalOnly(); } }
+function openRowModal(id = null) { const r = id ? ROWS.find(x => x.id === id) : {id:'', name:'', sizeM:15}; document.getElementById('rId').value = r.id; document.getElementById('rName').value = r.name; document.getElementById('rSize').value = r.sizeM; document.getElementById('btnDelRow').style.display = id ? 'block' : 'none'; document.getElementById('rowModal').classList.add('open'); }
+function saveRow() { const id = document.getElementById('rId').value; const data = { id: id || 'R'+Date.now(), name: document.getElementById('rName').value, sizeM: parseFloat(document.getElementById('rSize').value) || 15 }; if(id) ROWS[ROWS.findIndex(x=>x.id===id)] = data; else ROWS.push(data); sync(); closeModals(); }
+function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos."); if(confirm("¿Eliminar?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
+function processImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale; canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height); tempImg = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('pImgPreview').innerHTML = `<img src="${tempImg}">`; }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]); } }
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
+
+/* ─── 🤖 ROBOT INTERNO Y GRATUITO PARA CORREOS AUTOMÁTICOS ─── */
+// CONFIGURA AQUÍ TUS CREDENCIALES COPIADAS DE EMAILJS:
+const EMAILJS_PUBLIC_KEY = "TU_PUBLIC_KEY_AQUÍ";
+const EMAILJS_SERVICE_ID = "TU_SERVICE_ID_AQUÍ";
+const EMAILJS_TEMPLATE_ID = "TU_TEMPLATE_ID_AQUÍ";
+const CORREO_DESTINATARIO = "TU_CORREO_DESTINATARIO@gmail.com";
+
+emailjs.init(EMAILJS_PUBLIC_KEY);
+
+function verificarYEnviarReporteDiario() {
+    const ahora = new Date();
+    const hoyStr = ahora.toISOString().split('T')[0]; // Ejemplo: "2026-05-20"
+    
+    // Verificamos si ya son las 08:30 AM o más tarde
+    const horaActual = ahora.getHours();
+    const minutoActual = ahora.getMinutes();
+    
+    if (horaActual > 8 || (horaActual === 8 && minutoActual >= 30)) {
+        // Miramos en localStorage de tu navegador si hoy ya mandamos el reporte
+        const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
+        
+        if (ultimoEnvio !== hoyStr) {
+            // Filtrar productos críticos
+            const criticos = PRODUCTS.filter(p => p && p.current < p.min);
+            
+            if (criticos.length === 0) {
+                // Si no hay productos bajos, guardamos el día para no volver a revisar y listo
+                localStorage.setItem('ultimoReporteStock', hoyStr);
+                return;
+            }
+
+            // Construimos la tabla de diseño premium en HTML
+            let filas = "";
+            criticos.forEach(p => {
+                filas += `
+                    <tr>
+                        <td style="padding:12px; border-bottom:1px solid #2e2c29; color:#c8a84b; font-weight:bold;">${p.sku}</td>
+                        <td style="padding:12px; border-bottom:1px solid #2e2c29; color:#e8e4de;">${p.name}</td>
+                        <td style="padding:12px; border-bottom:1px solid #2e2c29; color:#a03030; text-align:center; font-weight:bold;">${p.current}</td>
+                        <td style="padding:12px; border-bottom:1px solid #2e2c29; color:#8a837a; text-align:center;">${p.min}</td>
+                    </tr>`;
+            });
+
+            const estructuraCompletaHTML = `
+                <div style="background:#0a0a09; color:#e8e4de; font-family:sans-serif; padding:40px; max-width:600px; margin:auto; border:1px solid #c8a84b; border-radius:12px;">
+                    <h2 style="color:#c8a84b; border-bottom:1px solid #2e2c29; padding-bottom:15px; text-transform:uppercase; letter-spacing:2px; margin-top:0;">Alerta de Reposición — Concha y Toro</h2>
+                    <p style="color:#8a837a; font-size:14px;">Reporte automático diario de productos bajo el stock mínimo:</p>
+                    <table style="width:100%; border-collapse:collapse; margin-top:25px;">
+                        <thead>
+                            <tr style="background:#161512; color:#c8a84b; font-size:12px; text-transform:uppercase;">
+                                <th style="padding:12px; text-align:left; border-bottom:2px solid #c8a84b;">SKU</th>
+                                <th style="padding:12px; text-align:left; border-bottom:2px solid #c8a84b;">Producto</th>
+                                <th style="padding:12px; text-align:center; border-bottom:2px solid #c8a84b;">Stock</th>
+                                <th style="padding:12px; text-align:center; border-bottom:2px solid #c8a84b;">Mín.</th>
+                            </tr>
+                        </thead>
+                        <tbody style="font-size:13px;">
+                            ${filas}
+                        </tbody>
+                    </table>
+                </div>`;
+
+            // Enviamos el correo mediante EmailJS de manera gratuita e invisible
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+                tablaHTML: estructuraCompletaHTML,
+                to_email: CORREO_DESTINATARIO
+            }).then(() => {
+                console.log("🚀 Reporte diario enviado con éxito de forma gratuita.");
+                localStorage.setItem('ultimoReporteStock', hoyStr); // Guarda la marca para no duplicar correos hoy
+            }).catch(err => console.error("Error al despachar reporte diario:", err));
+        }
+    }
+}
 </script>
 </body>
 </html>
