@@ -467,11 +467,10 @@ function closeModals() { document.querySelectorAll('.modal').forEach(m => m.clas
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 
 /* ─── 🤖 ROBOT INTERNO Y GRATUITO PARA CORREOS AUTOMÁTICOS ─── */
-// CONFIGURA AQUÍ TUS CREDENCIALES COPIADAS DE EMAILJS:
-const EMAILJS_PUBLIC_KEY = "cdusqn38kGYK4HyVj";
-const EMAILJS_SERVICE_ID = "service_00sszf8";
-const EMAILJS_TEMPLATE_ID = "template_1n41bpp";
-const CORREO_DESTINATARIO = "bodegavct@gmail.com";
+const EMAILJS_PUBLIC_KEY = "cdusqn38kGYK4HyVj"; 
+const EMAILJS_SERVICE_ID = "service_00sszf8"; 
+const EMAILJS_TEMPLATE_ID = "template_1n41bpp"; 
+const CORREO_DESTINATARIO = "bodegavct@gmail.com"; 
 
 emailjs.init(EMAILJS_PUBLIC_KEY);
 
@@ -479,11 +478,11 @@ function verificarYEnviarReporteDiario() {
     const ahora = new Date();
     const hoyStr = ahora.toISOString().split('T')[0]; // Ejemplo: "2026-05-20"
     
-    // Verificamos si ya son las 15:00 AM o más tarde
+    // Verificamos si ya son las 08:30 AM o más tarde
     const horaActual = ahora.getHours();
     const minutoActual = ahora.getMinutes();
     
-    if (horaActual > 8 || (horaActual === 15 && minutoActual >= 00)) {
+    if (horaActual > 8 || (horaActual === 15 && minutoActual >= 30)) {
         // Miramos en localStorage de tu navegador si hoy ya mandamos el reporte
         const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
         
