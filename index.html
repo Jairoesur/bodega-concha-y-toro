@@ -50,10 +50,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .row-container { 
     margin-bottom: 30px; background: var(--surface); border-radius: 12px; 
     border: 1px solid var(--border); padding: 20px; transition: 0.3s;
-    position: relative; /* Necesario para el z-index */
+    position: relative;
 }
-
-/* SOLUCIÓN AL DETALLE: Eleva la fila al pasar el mouse */
 .row-container:hover { z-index: 100; }
 
 .row-header { 
@@ -62,10 +60,28 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 }
 .row-info b { color: var(--accent); font-family: 'Bebas Neue'; font-size: 1.5rem; }
 
+/* FIX SCROLL HORIZONTAL: Envoltorio para manejar excesos de productos sin cortar tooltips */
+.row-scroll-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden; 
+    padding-top: 150px; /* Margen fantasma para que el tooltip entre en la zona visible */
+    margin-top: -150px; /* Cancela el margen anterior para no deformar tu diseño */
+    padding-bottom: 5px; /* Espacio mínimo para el scroll */
+}
+
+/* Estilo para la barra de scroll horizontal */
+.row-scroll-wrapper::-webkit-scrollbar { height: 8px; }
+.row-scroll-wrapper::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+.row-scroll-wrapper::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.row-scroll-wrapper:hover::-webkit-scrollbar-thumb { background: var(--accent); }
+
 .wh-row {
   height:100px; background:var(--bg); border:1px solid var(--border);
   border-radius:8px; display:flex; align-items:center; position:relative; 
-  overflow: visible !important; /* IMPORTANTE: Permite que el tooltip salga de la fila */
+  overflow: visible !important;
+  min-width: 100%; 
+  width: max-content; /* FIX SCROLL: Permite a la fila estirarse todo lo que necesite internamente */
 }
 
 .product {
@@ -77,11 +93,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 .product-pos { font-family: 'DM Mono'; font-size: 0.7rem; color: var(--accent); font-weight: bold; margin-bottom: 4px; pointer-events: none; }
 
-/* TOOLTIP CORREGIDO */
 .product:hover::after {
     content: attr(data-tooltip);
     position: absolute;
-    bottom: 110%; /* Lo posiciona arriba */
+    bottom: 110%;
     left: 50%;
     transform: translateX(-50%);
     background: #1e1c18;
@@ -91,7 +106,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     border-radius: 6px;
     font-size: 0.75rem;
     white-space: pre-wrap;
-    z-index: 9999; /* Máxima prioridad */
+    z-index: 9999;
     width: max-content;
     max-width: 250px;
     box-shadow: 0 5px 20px rgba(0,0,0,1);
@@ -327,12 +342,16 @@ function render() {
 
         const container = document.createElement('div');
         container.className = 'row-container';
+        
+        // MODIFICADO: Agregamos el div row-scroll-wrapper rodeando a la wh-row
         container.innerHTML = `
             <div class="row-header">
                 <div class="row-info"><b>${row.name}</b> <span>${used.toFixed(2)}m / ${row.sizeM}m (${perc}%)</span></div>
                 <button class="btn btn-secondary" style="padding:4px 8px; font-size:0.6rem" onclick="openRowModal('${row.id}')">⚙️ Editar</button>
             </div>
-            <div class="wh-row" id="${row.id}" ondragover="event.preventDefault()" ondrop="drop(event)"></div>
+            <div class="row-scroll-wrapper">
+                <div class="wh-row" id="${row.id}" ondragover="event.preventDefault()" ondrop="drop(event)"></div>
+            </div>
         `;
         const rowEl = container.querySelector('.wh-row');
         
@@ -349,7 +368,36 @@ function render() {
             
             pEl.setAttribute('data-tooltip', `SKU: ${p.sku}\nProducto: ${p.name}\nStock: ${p.current}`);
             
-            pEl.ondragstart = (e) => e.dataTransfer.setData("sku", p.sku);
+            // FIX EFECTO FANTASMA: Lógica para mostrar solo 1 caja perfecta al arrastrar
+            pEl.ondragstart = (e) => {
+                e.dataTransfer.setData("sku", p.sku);
+                
+                // Creamos un clon visual limpio e independiente
+                const ghost = document.createElement('div');
+                ghost.style.width = '60px'; // Tamaño fijo para que no se deforme
+                ghost.style.height = '85px';
+                ghost.style.background = pEl.style.background;
+                ghost.style.borderTop = pEl.style.borderTop;
+                ghost.style.border = '1px solid rgba(255,255,255,0.2)';
+                ghost.style.borderRadius = '4px';
+                ghost.style.display = 'flex';
+                ghost.style.flexDirection = 'column';
+                ghost.style.alignItems = 'center';
+                ghost.style.justifyContent = 'center';
+                ghost.style.position = 'absolute';
+                ghost.style.top = '-1000px'; // Lo escondemos fuera de la pantalla
+                ghost.style.zIndex = '10000';
+                ghost.innerHTML = pEl.innerHTML; // Le pasamos el texto (A1, etc) y el punto
+                
+                document.body.appendChild(ghost);
+                
+                // Usamos el clon como imagen de arrastre (30 y 42 son el centro en píxeles)
+                e.dataTransfer.setDragImage(ghost, 30, 42);
+                
+                // Lo borramos inmediatamente después para no ensuciar tu HTML
+                setTimeout(() => document.body.removeChild(ghost), 0);
+            };
+            
             pEl.onclick = () => openProductModal(p.sku);
             
             pEl.innerHTML = `
