@@ -75,6 +75,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   height:100px; background:var(--bg); border:1px solid var(--border);
   border-radius:8px; display:flex; align-items:center; position:relative; 
   overflow: visible !important; min-width: 100%; width: max-content;
+  padding: 0 120px; /* SOLUCIÓN: Espacio de resguardo para evitar corte de tooltips en extremos */
 }
 
 .product {
@@ -82,13 +83,14 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   padding:5px; cursor:grab; position:relative; flex-shrink:0;
   transition: transform 0.2s, box-shadow 0.3s; border:1px solid rgba(255,255,255,0.05); margin-right: 1px;
 }
+.product:hover { z-index: 99999 !important; } /* Fuerza la superposición al pasar el mouse */
 
 .product-pos { font-family: 'DM Mono'; font-size: 0.7rem; color: var(--accent); font-weight: bold; margin-bottom: 4px; pointer-events: none; }
 
 .product:hover::after {
     content: attr(data-tooltip); position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
     background: #1e1c18; color: #e8e4de; border: 1px solid #c8a84b; padding: 10px; border-radius: 6px;
-    font-size: 0.75rem; white-space: pre-wrap; z-index: 9999; width: max-content; max-width: 250px;
+    font-size: 0.75rem; white-space: pre-wrap; z-index: 999999; width: max-content; max-width: 260px;
     box-shadow: 0 5px 20px rgba(0,0,0,1); pointer-events: none;
 }
 
@@ -103,7 +105,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
 #productModal .modal-content { width: 850px; }
 .editor-grid { display: grid; grid-template-columns: 1fr 320px; }
-.editor-body { padding: 40px; }
+.editor-body { padding: 35px; max-height: 90vh; overflow-y: auto; }
 .editor-sidebar { background: var(--surface2); padding: 40px; border-left: 1px solid var(--border); }
 
 /* BASE DE DATOS */
@@ -115,9 +117,9 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .db-table input { background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 5px; border-radius: 4px; width: 80px; }
 
 /* UI ELEMENTS */
-.field { margin-bottom: 20px; }
-.field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 700; }
-.field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 12px; border-radius: 6px; outline: none; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; font-weight: 700; }
+.field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; outline: none; }
 .btn { padding: 12px 24px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 8px; }
 .btn-primary { background: var(--accent); color: #000; }
 .btn-secondary { background: var(--border); color: var(--text); }
@@ -171,13 +173,24 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
                 <div class="field"><label>Ancho (Metros)</label><input id="pWidth" type="number" step="0.01"></div>
                 <div class="field"><label>Color</label><input id="pColor" type="color" value="#c8a84b"></div>
             </div>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; background: rgba(200,168,75,0.03); padding:12px; border-radius:6px; border:1px solid rgba(255,255,255,0.03); margin-bottom:16px;">
+                <div class="field" style="margin:0;"><label>Unidades por Caja Master</label><input id="pMasterQty" type="number" placeholder="Ej: 12"></div>
+                <div class="field" style="margin:0;"><label>Unidades por Caja Interior</label><input id="pInnerQty" type="number" placeholder="Ej: 6"></div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:16px;">
+                <div class="field" style="margin:0;"><label>Proveedor Oficial</label><input id="pSupplier" type="text" placeholder="Nombre de la empresa / proveedor"></div>
+                <div class="field" style="margin:0;"><label>Días de Demora</label><input id="pLeadTime" type="number" placeholder="Ej: 5"></div>
+            </div>
+
             <div class="field"><label>Fila</label><select id="pRowSelect"></select></div>
             <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; background:var(--surface2); padding:20px; border-radius:8px;">
                 <div class="field" style="margin:0;"><label>Stock</label><input id="pCurrent" type="number"></div>
                 <div class="field" style="margin:0;"><label>Mín.</label><input id="pMin" type="number"></div>
                 <div class="field" style="margin:0;"><label>Máx.</label><input id="pMax" type="number"></div>
             </div>
-            <div style="margin-top:30px; display:flex; gap:10px;">
+            <div style="margin-top:25px; display:flex; gap:10px;">
                 <button class="btn btn-primary" style="flex:2" onclick="saveProduct()">Guardar</button>
                 <button id="btnDelProd" class="btn btn-danger" style="display:none" onclick="deleteProduct()">Eliminar</button>
                 <button class="btn btn-secondary" onclick="closeProductModalOnly()">Cerrar</button>
@@ -271,7 +284,6 @@ firebase.auth().onAuthStateChanged(user => {
             ROWS = data?.rows || [{id:'R1', name:'Fila A', sizeM:15}];
             PRODUCTS = data?.products || [];
             render();
-            // Ejecutamos la revisión del reporte automatizado diario sin molestar al usuario
             verificarYEnviarReporteDiario();
         });
     } else {
@@ -319,7 +331,16 @@ function render() {
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
             pEl.style.background = p.color + '22';
             pEl.style.borderTop = `4px solid ${p.color}`;
-            pEl.setAttribute('data-tooltip', `SKU: ${p.sku}\nProducto: ${p.name}\nStock: ${p.current}`);
+            
+            // CONSTRUCCIÓN DINÁMICA DEL TOOLTIP CON LOS NUEVOS ATRIBUTOS LOGÍSTICOS
+            let tooltipText = `SKU: ${p.sku}\nProducto: ${p.name}\nStock: ${p.current} (Mín: ${p.min})`;
+            if (p.masterQty || p.innerQty) {
+                tooltipText += `\nEmpaque: Master: ${p.masterQty || 0} u. | Interior: ${p.innerQty || 0} u.`;
+            }
+            if (p.supplier) {
+                tooltipText += `\nProveedor: ${p.supplier} (Demora: ${p.leadTime || 0} días)`;
+            }
+            pEl.setAttribute('data-tooltip', tooltipText);
             
             pEl.ondragstart = (e) => {
                 e.dataTransfer.setData("sku", p.sku);
@@ -396,11 +417,26 @@ function openProductModal(sku = null) {
         document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
         document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
         document.getElementById('pMax').value = p.max; tempImg = p.photo || null;
+        
+        // CARGA DE NUEVOS VALORES LOGÍSTICOS EN EL FORMULARIO
+        document.getElementById('pMasterQty').value = p.masterQty !== undefined ? p.masterQty : '';
+        document.getElementById('pInnerQty').value = p.innerQty !== undefined ? p.innerQty : '';
+        document.getElementById('pSupplier').value = p.supplier || '';
+        document.getElementById('pLeadTime').value = p.leadTime !== undefined ? p.leadTime : '';
+
         document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}">` : '<span>Sin Imagen</span>';
         document.getElementById('btnDelProd').style.display = 'block';
     } else {
         document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false;
-        document.getElementById('pName').value = ''; document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>';
+        document.getElementById('pName').value = ''; 
+        
+        // REINICIO DE CAMPOS NUEVOS PARA CREACIÓN
+        document.getElementById('pMasterQty').value = '';
+        document.getElementById('pInnerQty').value = '';
+        document.getElementById('pSupplier').value = '';
+        document.getElementById('pLeadTime').value = '';
+
+        document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>';
         document.getElementById('btnDelProd').style.display = 'none';
     }
     document.getElementById('productModal').classList.add('open');
@@ -412,10 +448,20 @@ function saveProduct() {
         sku, name: document.getElementById('pName').value, widthM: parseFloat(document.getElementById('pWidth').value) || 0,
         color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
         current: parseInt(document.getElementById('pCurrent').value) || 0, min: parseInt(document.getElementById('pMin').value) || 0,
-        max: parseInt(document.getElementById('pMax').value) || 0, photo: tempImg || null
+        max: parseInt(document.getElementById('pMax').value) || 0, photo: tempImg || null,
+        // SALVAGUARDA DE LAS NUEVAS PROPIEDADES EN EL OBJETO DE FIREBASE
+        masterQty: parseInt(document.getElementById('pMasterQty').value) || 0,
+        innerQty: parseInt(document.getElementById('pInnerQty').value) || 0,
+        supplier: document.getElementById('pSupplier').value || "",
+        leadTime: parseInt(document.getElementById('pLeadTime').value) || 0
     };
     const idx = PRODUCTS.findIndex(p => p.sku === sku);
-    if(idx >= 0) PRODUCTS[idx] = data; else PRODUCTS.push(data);
+    if(idx >= 0) {
+        // Mapear combinando propiedades previas para no perder datos anexos no editados
+        PRODUCTS[idx] = { ...PRODUCTS[idx], ...data };
+    } else {
+        PRODUCTS.push(data);
+    }
     sync(); closeProductModalOnly();
 }
 
@@ -452,7 +498,7 @@ function processSapPaste() {
             const sku = columns[0].trim(); const name = columns[1].trim(); const quantity = parseInt(columns[2].trim()) || 0; if (!sku) return;
             const existingIdx = PRODUCTS.findIndex(p => p.sku.toLowerCase() === sku.toLowerCase());
             if (existingIdx >= 0) { PRODUCTS[existingIdx].current = quantity; if (name) PRODUCTS[existingIdx].name = name; updatedCount++; }
-            else { PRODUCTS.push({ sku, name: name || "Importado", widthM: 0.4, color: "#c8a84b", rowId: ROWS[0]?.id || '', current: quantity, min: 0, max: 0, photo: null }); createdCount++; }
+            else { PRODUCTS.push({ sku, name: name || "Importado", widthM: 0.4, color: "#c8a84b", rowId: ROWS[0]?.id || '', current: quantity, min: 0, max: 0, photo: null, masterQty: 0, innerQty: 0, supplier: "", leadTime: 0 }); createdCount++; }
         }
     });
     alert(`Actualizados: ${updatedCount}. Nuevos: ${createdCount}.`); sync(); filterDB('');
@@ -470,33 +516,35 @@ function closeProductModalOnly() { document.getElementById('productModal').class
 const EMAILJS_PUBLIC_KEY = "cdusqn38kGYK4HyVj"; 
 const EMAILJS_SERVICE_ID = "service_00sszf8"; 
 const EMAILJS_TEMPLATE_ID = "template_1n41bpp"; 
-const CORREO_DESTINATARIO = "bodegavct@gmail.com"; 
+
+// LISTA DE CORREOS SOLICITADA DISPUESTA PARA ENVÍO SIMULTÁNEO MULTI-DESTINATARIO
+const CORREOS_DESTINATARIOS = [
+    "bodegavct@gmail.com",
+    "nestor.mellado@vctchile.com",
+    "jairo.escobedo@vctchile.com"
+];
 
 emailjs.init(EMAILJS_PUBLIC_KEY);
 
 function verificarYEnviarReporteDiario() {
     const ahora = new Date();
-    const hoyStr = ahora.toISOString().split('T')[0]; // Ejemplo: "2026-05-20"
+    const hoyStr = ahora.toISOString().split('T')[0];
     
-    // Verificamos si ya son las 08:30 AM o más tarde
+    // Activación programada por la mañana (08:30 AM en adelante)
     const horaActual = ahora.getHours();
     const minutoActual = ahora.getMinutes();
     
-    if (horaActual > 8 || (horaActual === 15 && minutoActual >= 30)) {
-        // Miramos en localStorage de tu navegador si hoy ya mandamos el reporte
+    if (horaActual > 8 || (horaActual === 8 && minutoActual >= 30)) {
         const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
         
         if (ultimoEnvio !== hoyStr) {
-            // Filtrar productos críticos
             const criticos = PRODUCTS.filter(p => p && p.current < p.min);
             
             if (criticos.length === 0) {
-                // Si no hay productos bajos, guardamos el día para no volver a revisar y listo
                 localStorage.setItem('ultimoReporteStock', hoyStr);
                 return;
             }
 
-            // Construimos la tabla de diseño premium en HTML
             let filas = "";
             criticos.forEach(p => {
                 filas += `
@@ -527,14 +575,17 @@ function verificarYEnviarReporteDiario() {
                     </table>
                 </div>`;
 
-            // Enviamos el correo mediante EmailJS de manera gratuita e invisible
-            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-                tablaHTML: estructuraCompletaHTML,
-                to_email: CORREO_DESTINATARIO
-            }).then(() => {
-                console.log("🚀 Reporte diario enviado con éxito de forma gratuita.");
-                localStorage.setItem('ultimoReporteStock', hoyStr); // Guarda la marca para no duplicar correos hoy
-            }).catch(err => console.error("Error al despachar reporte diario:", err));
+            // Bucle optimizado para disparar un correo individual a cada destinatario configurado
+            CORREOS_DESTINATARIOS.forEach(correo => {
+                emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+                    tablaHTML: estructuraCompletaHTML,
+                    to_email: correo
+                }).then(() => {
+                    console.log(`🚀 Reporte diario enviado con éxito a: ${correo}`);
+                }).catch(err => console.error(`Error al despachar reporte a ${correo}:`, err));
+            });
+
+            localStorage.setItem('ultimoReporteStock', hoyStr);
         }
     }
 }
