@@ -11,7 +11,8 @@
 :root {
   --bg:#0a0a09; --surface:#161512; --surface2:#1e1c18; --border:#2e2c29;
   --accent:#c8a84b; --text:#e8e4de; --muted:#8a837a;
-  --ok:#4a8c4a; --warn:#c8872a; --danger:#a03030;
+  --ok:#4a8c4a; --warn:#c8872a; --danger:#a03030; --over:#8b5cf6;
+  --order-blue: #2a75d3;
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -27,7 +28,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 #topbar h1{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:3px;color:var(--accent);}
 
 .search-container { position: relative; flex: 1; min-width: 200px; max-width: 300px; }
-#searchInput, #dbSearch, #mobileSearch {
+#searchInput, #dbSearch, #orderPasteInput {
     width:100%; background:var(--surface2); border:1px solid var(--border);
     padding:10px 15px; border-radius:6px; color:#fff; outline:none; transition: 0.3s;
 }
@@ -80,45 +81,42 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     content: attr(data-tooltip); position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
     background: #1e1c18; color: #e8e4de; border: 1px solid #c8a84b; padding: 10px; border-radius: 6px;
     font-size: 0.75rem; white-space: pre-wrap; z-index: 999999; width: max-content; max-width: 260px;
-    box-shadow: 0 5px 20px rgba(0,0,0,1); pointer-events: none;
+    box-shadow: 0 5px 20px rgba(0,0,0,1); pointer-events: none; text-align: left;
 }
 
 .is-highlighted { box-shadow: 0 0 25px var(--accent); border: 2px solid var(--accent) !important; transform: scale(1.05); z-index: 100; }
+.is-ordered { animation: pulseBlue 2s infinite; border: 2px solid var(--order-blue) !important; z-index: 90; }
+
+@keyframes pulseBlue {
+    0% { box-shadow: 0 0 10px rgba(42, 117, 211, 0.5); }
+    50% { box-shadow: 0 0 25px rgba(42, 117, 211, 1); border-color: var(--order-blue) !important; }
+    100% { box-shadow: 0 0 10px rgba(42, 117, 211, 0.5); }
+}
 
 /* ─── MODALES Y BOTONES ─── */
 .modal { position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; z-index:10000; }
 .modal.open { display:flex; }
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
 
-#productModal .modal-content { width: 850px; }
-#dbModal .modal-content, #historyModal .modal-content, #poModal .modal-content { width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column; }
-#mobileModal .modal-content { width: 100%; height: 100vh; border-radius: 0; padding: 20px; display: flex; flex-direction: column; }
+#productModal .modal-content { width: 950px; }
+#dbModal .modal-content, #historyModal .modal-content, #orderModal .modal-content, #poModal .modal-content { width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column; }
 
 .editor-grid { display: grid; grid-template-columns: 1fr 320px; }
 .editor-body { padding: 35px; max-height: 90vh; overflow-y: auto; }
 .editor-sidebar { background: var(--surface2); padding: 40px; border-left: 1px solid var(--border); }
 
-/* TABLAS DB, KARDEX Y PO */
+/* TABLAS DB, KARDEX Y PEDIDOS */
 .db-table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); margin-top: 15px; }
 .db-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .db-table th { position: sticky; top: 0; background: var(--surface2); padding: 15px; text-align: left; border-bottom: 2px solid var(--accent); z-index: 10; }
 .db-table td { padding: 12px; border-bottom: 1px solid var(--border); }
 .db-table input { background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 5px; border-radius: 4px; width: 80px; }
 
-/* NUEVO: MODO MÓVIL */
-.mobile-list { flex: 1; overflow-y: auto; margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
-.mobile-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-.mobile-card-header { display: flex; justify-content: space-between; align-items: center; }
-.mobile-controls { display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 5px; border-radius: 8px; }
-.btn-qty { width: 50px; height: 50px; font-size: 1.5rem; border-radius: 6px; border: none; background: var(--border); color: white; cursor: pointer; font-weight: bold; }
-.btn-qty.plus { background: var(--ok); }
-.btn-qty.minus { background: var(--danger); }
-.mobile-stock-display { font-size: 1.5rem; font-family: 'DM Mono'; font-weight: bold; color: var(--accent); }
-
 /* UI ELEMENTS */
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; font-weight: 700; }
-.field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; outline: none; }
+.field input, .field select, .field textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; outline: none; }
+.field input[type="checkbox"] { width: auto; transform: scale(1.3); margin-right: 10px; }
 .btn { padding: 10px 18px; border-radius: 6px; border: none; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .btn-primary { background: var(--accent); color: #000; }
 .btn-secondary { background: var(--border); color: var(--text); }
@@ -151,7 +149,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       <div id="searchSuggestions" class="suggestions-box"></div>
   </div>
   <div style="display:flex; gap:10px; flex-wrap: wrap;">
-    <button class="btn btn-secondary" onclick="openMobileModal()" style="border: 1px solid var(--accent);">📱 Inv. Rápido</button>
+    <button class="btn btn-secondary" onclick="openPoModal()" style="border: 1px solid var(--warn);">🛒 Generar Orden de Compra</button>
+    <button id="btnOrderIndicator" class="btn btn-secondary" onclick="openOrderModal()" style="border: 1px solid var(--order-blue); color: #fff;">📋 Pedido Tienda <span id="orderDotStatus" style="width:8px; height:8px; background:grey; display:inline-block; border-radius:50%; margin-left:5px;"></span></button>
     <button class="btn btn-secondary" onclick="openHistoryModal()">📜 Historial</button>
     <button class="btn btn-secondary" onclick="openInventoryDB()">📊 Base de Datos</button>
     <button class="btn btn-secondary" onclick="openRowModal()">+ Fila</button>
@@ -167,39 +166,54 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     <div class="editor-grid">
         <div class="editor-body">
             <h2 id="pTitle" style="font-family:'Bebas Neue'; color:var(--accent); font-size:2rem; margin-bottom:25px;">Editor de Producto</h2>
+            
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
                 <div class="field"><label>SKU</label><input id="pSku" type="text"></div>
                 <div class="field"><label>Nombre</label><input id="pName" type="text"></div>
             </div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-                <div class="field"><label>Ancho (Metros)</label><input id="pWidth" type="number" step="0.01"></div>
-                <div class="field"><label>Color</label><input id="pColor" type="color" value="#c8a84b"></div>
-            </div>
             
+            <div class="field"><label>Fila / Ubicación Física</label><select id="pRowSelect"></select></div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; background:var(--surface2); padding:15px; border-radius:8px; margin-bottom:15px;">
+                <div class="field" style="margin:0;"><label>Stock Físico Mío</label><input id="pCurrent" type="number" style="font-weight:bold; color:var(--accent);"></div>
+                <div class="field" style="margin:0;"><label>Mínimo</label><input id="pMin" type="number"></div>
+                <div class="field" style="margin:0;"><label>Máximo</label><input id="pMax" type="number"></div>
+            </div>
+
+            <div style="border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h3 style="font-size: 0.8rem; color: var(--warn); margin-bottom: 15px; text-transform: uppercase;">Datos del Proveedor y Órdenes</h3>
+                <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:15px;">
+                    <div class="field" style="margin:0;"><label>Proveedor Oficial</label><input id="pSupplier" type="text" placeholder="Nombre empresa"></div>
+                    <div class="field" style="margin:0;"><label>Días de Demora</label><input id="pLeadTime" type="number" placeholder="Ej: 5"></div>
+                </div>
+                
+                <div class="field" style="display:flex; align-items:center;">
+                    <input id="pHasPO" type="checkbox">
+                    <label style="margin:0; font-size:0.8rem; cursor:pointer;" for="pHasPO">Este producto tiene una Orden de Compra (Contrato Vigente)</label>
+                </div>
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-top:10px;">
+                    <div class="field" style="margin:0;"><label>Stock Reservado en Prov.</label><input id="pReservedStock" type="number" placeholder="Cant. disponible"></div>
+                    <div class="field" style="margin:0;"><label>Última Solicitud</label><input id="pPoDate" type="date"></div>
+                    <div class="field" style="margin:0;"><label>Llegada Estimada</label><input id="pPoArrival" type="date"></div>
+                </div>
+            </div>
+
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; background: rgba(200,168,75,0.03); padding:12px; border-radius:6px; border:1px solid rgba(255,255,255,0.03); margin-bottom:16px;">
-                <div class="field" style="margin:0;"><label>Unidades por Caja Master</label><input id="pMasterQty" type="number" placeholder="Ej: 12"></div>
-                <div class="field" style="margin:0;"><label>Unidades por Caja Interior</label><input id="pInnerQty" type="number" placeholder="Ej: 6"></div>
+                <div class="field" style="margin:0;"><label>Unidades x Caja Master</label><input id="pMasterQty" type="number"></div>
+                <div class="field" style="margin:0;"><label>Unidades x Caja Interior</label><input id="pInnerQty" type="number"></div>
             </div>
 
-            <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:16px;">
-                <div class="field" style="margin:0;"><label>Proveedor Oficial</label><input id="pSupplier" type="text" placeholder="Nombre empresa"></div>
-                <div class="field" style="margin:0;"><label>Días de Demora</label><input id="pLeadTime" type="number" placeholder="Ej: 5"></div>
-            </div>
-
-            <div class="field"><label>Fila</label><select id="pRowSelect"></select></div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; background:var(--surface2); padding:20px; border-radius:8px;">
-                <div class="field" style="margin:0;"><label>Stock</label><input id="pCurrent" type="number"></div>
-                <div class="field" style="margin:0;"><label>Mín.</label><input id="pMin" type="number"></div>
-                <div class="field" style="margin:0;"><label>Máx.</label><input id="pMax" type="number"></div>
-            </div>
             <div style="margin-top:25px; display:flex; gap:10px;">
-                <button class="btn btn-primary" style="flex:2" onclick="saveProduct()">Guardar</button>
+                <button class="btn btn-primary" style="flex:2" onclick="saveProduct()">Guardar Cambios</button>
                 <button id="btnDelProd" class="btn btn-danger" style="display:none" onclick="deleteProduct()">Eliminar</button>
                 <button class="btn btn-secondary" onclick="closeProductModalOnly()">Cerrar</button>
             </div>
         </div>
         <div class="editor-sidebar">
-            <div class="field">
+            <div class="field"><label>Ancho en Rack (Metros)</label><input id="pWidth" type="number" step="0.01"></div>
+            <div class="field"><label>Color Distintivo</label><input id="pColor" type="color" value="#c8a84b"></div>
+            <div class="field" style="margin-top: 20px;">
                 <label>Vista Previa</label>
                 <div class="img-preview" id="pImgPreview"><span>Sin Imagen</span></div>
                 <input type="file" id="pImgInput" accept="image/*" onchange="processImage(this)" style="margin-top:20px; font-size:0.7rem; width:100%;">
@@ -231,19 +245,44 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
                 <input type="text" id="dbSearch" placeholder="🔍 Buscar en tabla..." oninput="handleSearch(this.value, 'dbSuggestions', true)">
                 <div id="dbSuggestions" class="suggestions-box"></div>
             </div>
-            <button class="btn btn-ok" onclick="openPOModal()">🛒 Generar Orden Compra</button>
-            <button class="btn btn-secondary" onclick="toggleSapSection()">📋 Importar SAP</button>
-            <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes</button>
+            <button class="btn btn-secondary" onclick="toggleSapSection()">📋 Importación Masiva</button>
+            <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes Manuales</button>
             <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
         </div>
         <div id="sapImportSection" style="display:none; background:var(--surface2); padding:15px; border-radius:8px; margin-top:15px; border:1px solid var(--border);">
-            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none;" placeholder="SKU | Nombre | Cantidad"></textarea>
+            <p style="font-size:0.75rem; color:var(--muted); margin-bottom:10px;">Orden opcional de pegado desde Excel: <b>SKU | Nombre | Cantidad | Ubicación | Caja Master | Caja Int | Mínimo | Máximo | Proveedor | Días Demora</b>. Si omites columnas a la derecha, se mantendrán los datos que ya tenías guardados.</p>
+            <textarea id="sapPasteInput" style="width:100%; height:90px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:10px; border-radius:6px; resize:none;" placeholder="Pega aquí las celdas de Excel..."></textarea>
             <button class="btn btn-primary" style="margin-top:10px; padding:8px 16px;" onclick="processSapPaste()">Integrar Masivamente</button>
         </div>
         <div class="db-table-container">
             <table class="db-table">
-                <thead><tr><th>Ubicación</th><th>SKU</th><th>Vino</th><th>Stock</th><th>Mín.</th><th>Estado</th><th>Acción</th></tr></thead>
+                <thead><tr><th>Ubicación</th><th>SKU</th><th>Vino</th><th>Stock Físico</th><th>Mín.</th><th>Máx.</th><th>Estado</th><th>Acción</th></tr></thead>
                 <tbody id="dbTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="poModal" class="modal">
+    <div class="modal-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+            <h2 style="font-family:'Bebas Neue'; color:var(--warn); font-size:1.8rem;">Gestión de Órdenes de Compra y Proveedores</h2>
+            <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
+        </div>
+        
+        <div style="flex:1; overflow-y:auto;">
+            <h3 style="color:var(--ok); border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:15px; font-size:1rem;">✅ Productos con Orden de Compra (Contrato Vigente)</h3>
+            <p style="font-size:0.8rem; color:var(--muted); margin-bottom:10px;">Solicita despachos de lo que el proveedor ya nos tiene guardado. Si el Stock Proveedor es muy bajo, debes emitir una nueva orden.</p>
+            <table class="db-table" style="margin-bottom: 30px;">
+                <thead><tr><th>SKU / Producto</th><th>Proveedor</th><th>Mi Stock Físico</th><th>Stock Reservado (Proveedor)</th><th>Sugerencia a Pedir</th><th>Estado Alerta</th></tr></thead>
+                <tbody id="poActiveTableBody"></tbody>
+            </table>
+
+            <h3 style="color:var(--warn); border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:15px; font-size:1rem;">🛒 Necesidad de Compras Nuevas (Sin Contrato Vigente)</h3>
+            <p style="font-size:0.8rem; color:var(--muted); margin-bottom:10px;">Productos que debes negociar y emitir una orden de compra nueva porque tu stock está bajando.</p>
+            <table class="db-table">
+                <thead><tr><th>SKU / Producto</th><th>Proveedor</th><th>Demora</th><th>Mi Stock</th><th>Mín/Máx</th><th>Sugerencia de Compra</th><th>Fechas (Solicitud / Llegada)</th></tr></thead>
+                <tbody id="poNewTableBody"></tbody>
             </table>
         </div>
     </div>
@@ -264,33 +303,41 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     </div>
 </div>
 
-<div id="poModal" class="modal" style="z-index: 10600;">
+<div id="orderModal" class="modal">
     <div class="modal-content">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-            <h2 style="font-family:'Bebas Neue'; color:var(--ok); font-size:1.8rem;">Sugerencia Automática de Compra</h2>
-            <button class="btn btn-secondary" onclick="document.getElementById('poModal').classList.remove('open')">Volver</button>
+            <h2 style="font-family:'Bebas Neue'; color:var(--order-blue); font-size:1.8rem;">Preparación de Pedido de Tienda</h2>
+            <button class="btn btn-secondary" onclick="closeModals()">Cerrar Ventana</button>
         </div>
-        <p style="color:var(--muted); font-size:0.85rem; margin-bottom:15px;">Calculado matemáticamente para productos en estado de alerta o cercanos al mínimo, ajustado por Cajas Master y Máximos.</p>
-        <div class="db-table-container">
-            <table class="db-table">
-                <thead><tr><th>SKU</th><th>Producto</th><th>Proveedor (Demora)</th><th>Stock Actual</th><th>Caja Master</th><th>Sugerencia a Pedir</th></tr></thead>
-                <tbody id="poTableBody"></tbody>
-            </table>
+        
+        <div id="orderLoadSection">
+            <p style="color:var(--muted); font-size:0.85rem; margin-bottom:12px;">Copia las filas desde tu archivo Excel (SKU, Nombre, Cantidad) y pégalas aquí directamente:</p>
+            <textarea id="orderPasteInput" style="width:100%; height:180px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:15px; border-radius:6px; resize:none; font-family:'DM Mono',monospace; font-size:0.8rem;"></textarea>
+            <button class="btn btn-primary" style="margin-top:15px; background:var(--order-blue); color:white;" onclick="processOrderPaste()">⚡ Procesar y Resaltar en Racks</button>
         </div>
-    </div>
-</div>
 
-<div id="mobileModal" class="modal">
-    <div class="modal-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Inventario Rápido</h2>
-            <button class="btn btn-primary" onclick="applyMobileChanges()">💾 Guardar Todo</button>
-            <button class="btn btn-secondary" onclick="closeModals()">X</button>
+        <div id="orderPrepSection" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+            <p style="color:var(--accent); font-size:0.85rem; margin-bottom:10px;">Los productos listados abajo se encuentran titilando en color <b style="color:var(--order-blue)">Azul</b>. Marca el check (OK) para tachar los retirados y ajusta la cantidad real antes de despachar.</p>
+            <div class="db-table-container">
+                <table class="db-table">
+                    <thead>
+                        <tr>
+                            <th style="width:60px;">OK</th>
+                            <th>Ubicación Real</th>
+                            <th>SKU</th>
+                            <th>Vino Encontrado</th>
+                            <th>Pedido</th>
+                            <th>Cantidad Real a Retirar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orderTableBody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top: 20px; display:flex; justify-content: space-between; align-items:center;">
+                <button class="btn btn-danger" onclick="cancelActiveOrder()">❌ Descartar/Limpiar Pedido</button>
+                <button class="btn btn-ok" style="background:var(--ok);" onclick="finalizeOrder()">📦 Guardar y Despachar Inventario</button>
+            </div>
         </div>
-        <div class="search-container" style="max-width: 100%;">
-            <input type="text" id="mobileSearch" placeholder="Buscar SKU o nombre..." oninput="renderMobileList(this.value)">
-        </div>
-        <div class="mobile-list" id="mobileListContainer"></div>
     </div>
 </div>
 
@@ -313,10 +360,10 @@ const db = firebase.database();
 
 let ROWS = [];
 let PRODUCTS = [];
-let HISTORY_LOG = []; // Nuevo array para el Kardex
+let HISTORY_LOG = []; 
+let ACTIVE_ORDER = [];
 let tempImg = null, currentH = null;
 let DB_CHANGES = {};
-let MOBILE_CHANGES = {};
 
 function handleLogin() {
     const email = document.getElementById('loginEmail').value;
@@ -334,9 +381,7 @@ firebase.auth().onAuthStateChanged(user => {
             ROWS = data?.rows || [{id:'R1', name:'Fila A', sizeM:15}];
             PRODUCTS = data?.products || [];
             
-            // Cargar historial si existe
             if(data?.history) {
-                // Convertir objeto de Firebase a Array y ordenarlo inverso (más nuevo arriba)
                 HISTORY_LOG = Object.values(data.history).sort((a,b) => new Date(b.dateRaw) - new Date(a.dateRaw));
             } else { HISTORY_LOG = []; }
 
@@ -350,14 +395,13 @@ firebase.auth().onAuthStateChanged(user => {
 
 function sync() {
     if(firebase.auth().currentUser) {
-        // Guardamos todo excepto el history (se gestiona por push para no sobreescribir)
         db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
+        // Usar Update o Set directo a la referencia para asegurar descuento inmediato
         db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
     }
     render();
 }
 
-// NUEVA FUNCIÓN: Registro Automático de Movimientos (Kardex)
 function logMovement(sku, name, changeQty, reason) {
     if (changeQty === 0) return;
     const user = firebase.auth().currentUser?.email || 'Admin';
@@ -365,7 +409,6 @@ function logMovement(sku, name, changeQty, reason) {
     const dateStr = new Date().toLocaleString('es-CL');
     const changeTxt = changeQty > 0 ? `+${changeQty}` : `${changeQty}`;
     
-    // Inyectamos el registro en un subnodo de firebase
     db.ref('bodega/history').push({ date: dateStr, dateRaw: dateRaw, sku, name, change: changeTxt, reason, user });
 }
 
@@ -373,6 +416,10 @@ function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
     let alerts = [];
+
+    const dot = document.getElementById('orderDotStatus');
+    if(ACTIVE_ORDER.length > 0) { dot.style.background = 'var(--order-blue)'; }
+    else { dot.style.background = 'grey'; }
 
     ROWS.forEach(row => {
         const rowProds = PRODUCTS.filter(p => p.rowId === row.id);
@@ -395,18 +442,23 @@ function render() {
         rowProds.forEach((p, index) => {
             if(p.current < p.min) alerts.push(p.name);
             const posLabel = `${row.name.split(' ').pop()}${index + 1}`;
+            
+            const isInActiveOrder = ACTIVE_ORDER.some(item => item.sku.toLowerCase() === p.sku.toLowerCase());
+
             const pEl = document.createElement('div');
-            pEl.className = `product ${currentH === p.sku ? 'is-highlighted' : ''}`;
+            pEl.className = `product ${currentH === p.sku ? 'is-highlighted' : ''} ${isInActiveOrder ? 'is-ordered' : ''}`;
             pEl.id = `p-${p.sku}`;
             pEl.draggable = true;
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
             pEl.style.background = p.color + '22';
             pEl.style.borderTop = `4px solid ${p.color}`;
             
-            let tooltipText = `SKU: ${p.sku}\nProducto: ${p.name}\nStock: ${p.current} (Mín: ${p.min})`;
+            let tooltipText = `SKU: ${p.sku}\nProducto: ${p.name}\nStock Físico: ${p.current} (Mín: ${p.min} / Máx: ${p.max || 0})`;
+            if (p.hasPO) tooltipText += `\n📦 Prov. Reservado: ${p.reservedStock || 0}`;
             if (p.masterQty || p.innerQty) tooltipText += `\nEmpaque: Master: ${p.masterQty || 0} u. | Interior: ${p.innerQty || 0} u.`;
             if (p.supplier) tooltipText += `\nProveedor: ${p.supplier} (Demora: ${p.leadTime || 0} días)`;
-            
+            if (isInActiveOrder) tooltipText += `\n\n📦 REQUERIDO EN PEDIDO (Buscar luz azul)`;
+
             pEl.setAttribute('data-tooltip', tooltipText);
             
             pEl.ondragstart = (e) => {
@@ -422,10 +474,10 @@ function render() {
             
             pEl.onclick = () => openProductModal(p.sku);
             
-            // LÓGICA SEMÁFORO EN LOS PUNTOS DEL RACK
-            let dotColor = 'var(--ok)'; // Verde default
-            if(p.current < p.min) dotColor = 'var(--danger)'; // Rojo crítico
-            else if (p.current <= p.min * 1.2) dotColor = 'var(--warn)'; // Amarillo alerta (20% por encima del min)
+            let dotColor = 'var(--ok)';
+            if(p.current < p.min) dotColor = 'var(--danger)';
+            else if (p.current <= p.min * 1.2) dotColor = 'var(--warn)';
+            else if (p.max > 0 && p.current > p.max) dotColor = 'var(--over)'; // SEMÁFORO: SOBRE STOCK
             
             pEl.innerHTML = `<div class="product-pos">${posLabel}</div><span class="stock-dot" style="background:${dotColor}"></span>`;
             rowEl.appendChild(pEl);
@@ -450,7 +502,7 @@ function drop(e) {
     children.forEach((child, idx) => { const rect = child.getBoundingClientRect(); if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx; });
     rowProds.splice(insertIdx, 0, p); p.rowId = targetRowId;
     PRODUCTS = [...PRODUCTS.filter(x => x.rowId !== targetRowId), ...rowProds]; sync();
-    logMovement(p.sku, p.name, 0, `Cambio a fila ${targetRow.name}`); // Loggear movimiento logístico
+    logMovement(p.sku, p.name, 0, `Cambio a fila ${targetRow.name}`);
 }
 
 function handleSearch(v, boxId, isDB) {
@@ -472,15 +524,25 @@ function openProductModal(sku = null) {
         document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
         document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
         document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
-        document.getElementById('pMax').value = p.max; document.getElementById('pMasterQty').value = p.masterQty !== undefined ? p.masterQty : '';
+        document.getElementById('pMax').value = p.max || 0; document.getElementById('pMasterQty').value = p.masterQty !== undefined ? p.masterQty : '';
         document.getElementById('pInnerQty').value = p.innerQty !== undefined ? p.innerQty : ''; document.getElementById('pSupplier').value = p.supplier || '';
-        document.getElementById('pLeadTime').value = p.leadTime !== undefined ? p.leadTime : ''; tempImg = p.photo || null;
-        document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}">` : '<span>Sin Imagen</span>';
+        document.getElementById('pLeadTime').value = p.leadTime !== undefined ? p.leadTime : ''; 
+        
+        // Nuevos campos de Orden
+        document.getElementById('pHasPO').checked = !!p.hasPO;
+        document.getElementById('pReservedStock').value = p.reservedStock || 0;
+        document.getElementById('pPoDate').value = p.poDate || '';
+        document.getElementById('pPoArrival').value = p.poArrival || '';
+
+        tempImg = p.photo || null; document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}">` : '<span>Sin Imagen</span>';
         document.getElementById('btnDelProd').style.display = 'block';
     } else {
         document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false; document.getElementById('pName').value = ''; 
+        document.getElementById('pCurrent').value = '0'; document.getElementById('pMin').value = '0'; document.getElementById('pMax').value = '0';
         document.getElementById('pMasterQty').value = ''; document.getElementById('pInnerQty').value = ''; document.getElementById('pSupplier').value = '';
-        document.getElementById('pLeadTime').value = ''; document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>'; document.getElementById('btnDelProd').style.display = 'none';
+        document.getElementById('pLeadTime').value = ''; document.getElementById('pHasPO').checked = false; document.getElementById('pReservedStock').value = '0';
+        document.getElementById('pPoDate').value = ''; document.getElementById('pPoArrival').value = '';
+        document.getElementById('pImgPreview').innerHTML = '<span>Sin Imagen</span>'; document.getElementById('btnDelProd').style.display = 'none';
     }
     document.getElementById('productModal').classList.add('open');
 }
@@ -489,20 +551,67 @@ function saveProduct() {
     const sku = document.getElementById('pSku').value;
     const newStock = parseInt(document.getElementById('pCurrent').value) || 0;
     const data = {
-        sku, name: document.getElementById('pName').value, widthM: parseFloat(document.getElementById('pWidth').value) || 0,
+        sku, name: document.getElementById('pName').value, widthM: parseFloat(document.getElementById('pWidth').value) || 0.4,
         color: document.getElementById('pColor').value, rowId: document.getElementById('pRowSelect').value,
         current: newStock, min: parseInt(document.getElementById('pMin').value) || 0, max: parseInt(document.getElementById('pMax').value) || 0,
         masterQty: parseInt(document.getElementById('pMasterQty').value) || 0, innerQty: parseInt(document.getElementById('pInnerQty').value) || 0,
-        supplier: document.getElementById('pSupplier').value || "", leadTime: parseInt(document.getElementById('pLeadTime').value) || 0, photo: tempImg || null
+        supplier: document.getElementById('pSupplier').value || "", leadTime: parseInt(document.getElementById('pLeadTime').value) || 0,
+        hasPO: document.getElementById('pHasPO').checked, reservedStock: parseInt(document.getElementById('pReservedStock').value) || 0,
+        poDate: document.getElementById('pPoDate').value, poArrival: document.getElementById('pPoArrival').value, photo: tempImg || null
     };
     const idx = PRODUCTS.findIndex(p => p.sku === sku);
     if(idx >= 0) {
-        if(PRODUCTS[idx].current !== newStock) logMovement(sku, data.name, newStock - PRODUCTS[idx].current, "Edición de Producto");
+        if(PRODUCTS[idx].current !== newStock) logMovement(sku, data.name, newStock - PRODUCTS[idx].current, "Edición Manual de Producto");
         PRODUCTS[idx] = { ...PRODUCTS[idx], ...data };
     } else {
         logMovement(sku, data.name, newStock, "Creación de Producto"); PRODUCTS.push(data);
     }
     sync(); closeProductModalOnly();
+}
+
+/* ─── MODAL ÓRDENES DE COMPRA ─── */
+function openPoModal() {
+    const bActive = document.getElementById('poActiveTableBody'); bActive.innerHTML = '';
+    const bNew = document.getElementById('poNewTableBody'); bNew.innerHTML = '';
+    
+    PRODUCTS.forEach(p => {
+        // Sugerencia para llenar el máximo, si max es 0 sugerimos min * 2 por defecto
+        const targetStock = p.max > 0 ? p.max : (p.min > 0 ? p.min * 2 : 100);
+        const toOrder = targetStock > p.current ? targetStock - p.current : 0;
+
+        if (p.hasPO) {
+            // Producto CON orden vigente
+            let alertHTML = '<span style="color:var(--ok)">Suficiente en Prov.</span>';
+            if (p.reservedStock < toOrder) alertHTML = '<b style="color:var(--danger)">Emitir Nueva OC a Prov.</b>';
+            
+            bActive.innerHTML += `<tr>
+                <td><b>${p.sku}</b><br><small style="color:var(--muted)">${p.name}</small></td>
+                <td>${p.supplier || 'N/A'}</td>
+                <td style="color:var(--accent); font-weight:bold">${p.current}</td>
+                <td>${p.reservedStock || 0}</td>
+                <td><b style="color:var(--order-blue)">${toOrder}</b></td>
+                <td>${alertHTML}</td>
+            </tr>`;
+        } else {
+            // Producto SIN orden vigente (ver si necesita reposición)
+            if (p.current <= (p.min * 1.5)) {
+                bNew.innerHTML += `<tr>
+                    <td><b>${p.sku}</b><br><small style="color:var(--muted)">${p.name}</small></td>
+                    <td>${p.supplier || 'N/A'}</td>
+                    <td>${p.leadTime || 0} días</td>
+                    <td style="color:var(--danger); font-weight:bold">${p.current}</td>
+                    <td>${p.min} / ${p.max}</td>
+                    <td><b style="color:var(--warn)">${toOrder}</b></td>
+                    <td>Sol: ${p.poDate || '-'}<br>Lleg: ${p.poArrival || '-'}</td>
+                </tr>`;
+            }
+        }
+    });
+
+    if(!bActive.innerHTML) bActive.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay productos con contrato vigente.</td></tr>';
+    if(!bNew.innerHTML) bNew.innerHTML = '<tr><td colspan="7" style="text-align:center;">Ningún producto urgente por solicitar.</td></tr>';
+
+    document.getElementById('poModal').classList.add('open');
 }
 
 function openInventoryDB() { DB_CHANGES = {}; document.getElementById('sapImportSection').style.display = 'none'; document.getElementById('sapPasteInput').value = ''; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
@@ -514,68 +623,34 @@ function filterDB(q) {
         const pos = row ? `${row.name.split(' ').pop()}${pIdx}` : 'S/N';
         const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
         
-        // CÓDIGO DE COLORES SEMÁFORO PROFESIONAL
         let rowStyle = ''; let statusLabel = '';
         if(p.current < p.min) { rowStyle = 'background: rgba(160, 48, 48, 0.15); border-left: 4px solid var(--danger);'; statusLabel = '<b style="color:var(--danger)">Crítico</b>'; }
         else if (p.current <= p.min * 1.2) { rowStyle = 'background: rgba(200, 135, 42, 0.1); border-left: 4px solid var(--warn);'; statusLabel = '<b style="color:var(--warn)">Alerta</b>'; }
+        else if (p.max > 0 && p.current > p.max) { rowStyle = 'background: rgba(139, 92, 246, 0.15); border-left: 4px solid var(--over);'; statusLabel = '<b style="color:var(--over)">Sobre Stock</b>'; }
         else { rowStyle = 'border-left: 4px solid var(--ok);'; statusLabel = '<span style="color:var(--ok)">Saludable</span>'; }
 
         b.innerHTML += `<tr style="${rowStyle}">
             <td><b style="color:var(--accent)">${pos}</b></td><td>${p.sku}</td><td>${p.name}</td>
             <td><input type="number" value="${displayStock}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0"></td>
-            <td>${p.min}</td><td>${statusLabel}</td><td><button class="btn btn-secondary" style="padding:4px 8px" onclick="openProductModal('${p.sku}')">Ver</button></td>
+            <td>${p.min}</td><td>${p.max || 0}</td><td>${statusLabel}</td><td><button class="btn btn-secondary" style="padding:4px 8px" onclick="openProductModal('${p.sku}')">Ver</button></td>
         </tr>`;
     });
 }
 
 function applyDBChanges() {
     Object.keys(DB_CHANGES).forEach(sku => { 
-        const p = PRODUCTS.find(x => x.sku === sku); 
-        if(p) {
+        const pIdx = PRODUCTS.findIndex(x => x.sku === sku); 
+        if(pIdx >= 0) {
             const newStock = parseInt(DB_CHANGES[sku]) || 0;
-            if (p.current !== newStock) {
-                logMovement(sku, p.name, newStock - p.current, "Ajuste Masivo en Tabla");
-                p.current = newStock;
+            if (PRODUCTS[pIdx].current !== newStock) {
+                logMovement(sku, PRODUCTS[pIdx].name, newStock - PRODUCTS[pIdx].current, "Ajuste Masivo en Tabla DB");
+                PRODUCTS[pIdx].current = newStock;
             }
         } 
     });
     sync(); closeModals();
 }
 
-// NUEVA FUNCIÓN: Generación Automática de Orden de Compra
-function openPOModal() {
-    const b = document.getElementById('poTableBody'); b.innerHTML = '';
-    // Filtrar los que están en amarillo o rojo (<= min * 1.2)
-    const alertProducts = PRODUCTS.filter(p => p.current <= p.min * 1.2);
-    
-    if(alertProducts.length === 0) {
-        b.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 30px; color:var(--ok);">✅ Todo el inventario está en niveles óptimos. No se requiere emitir compras.</td></tr>`;
-    } else {
-        alertProducts.forEach(p => {
-            let targetStock = p.max > p.min ? p.max : (p.min * 2); // Hasta dónde rellenar
-            let missingQty = targetStock - p.current;
-            let qtyToOrderText = "";
-            
-            if (p.masterQty > 0) {
-                let masterBoxesNeeded = Math.ceil(missingQty / p.masterQty);
-                qtyToOrderText = `<b style="color:var(--ok); font-size:1.1rem;">${masterBoxesNeeded} Cajas Master</b><br><span style="font-size:0.7rem; color:var(--muted)">(${masterBoxesNeeded * p.masterQty} uds.)</span>`;
-            } else {
-                qtyToOrderText = `<b style="color:var(--ok); font-size:1.1rem;">${missingQty} unidades sueltas</b><br><span style="font-size:0.7rem; color:var(--danger)">*Falta config. de caja*</span>`;
-            }
-
-            b.innerHTML += `<tr>
-                <td style="color:var(--accent); font-weight:bold;">${p.sku}</td><td>${p.name}</td>
-                <td>${p.supplier || '<i>Sin Asignar</i>'} <br><span style="font-size:0.7rem; color:var(--muted)">Demora: ${p.leadTime || 0} días</span></td>
-                <td><b style="${p.current < p.min ? 'color:var(--danger)' : 'color:var(--warn)'}">${p.current}</b></td>
-                <td>${p.masterQty || '-'} u/cja</td>
-                <td style="background: rgba(74, 140, 74, 0.1); border-radius:4px; text-align:center;">${qtyToOrderText}</td>
-            </tr>`;
-        });
-    }
-    document.getElementById('poModal').classList.add('open');
-}
-
-// NUEVA FUNCIÓN: Abrir Historial
 function openHistoryModal() {
     const b = document.getElementById('historyTableBody'); b.innerHTML = '';
     if(HISTORY_LOG.length === 0) { b.innerHTML = `<tr><td colspan="6" style="text-align:center;">No hay movimientos registrados.</td></tr>`; }
@@ -592,52 +667,182 @@ function openHistoryModal() {
     document.getElementById('historyModal').classList.add('open');
 }
 
-// NUEVA FUNCIÓN: Inventario Rápido (Móvil)
-function openMobileModal() { MOBILE_CHANGES = {}; renderMobileList(''); document.getElementById('mobileSearch').value = ''; document.getElementById('mobileModal').classList.add('open'); }
-function renderMobileList(q) {
-    const container = document.getElementById('mobileListContainer'); container.innerHTML = '';
-    PRODUCTS.filter(p => p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())).forEach((p) => {
-        const displayStock = MOBILE_CHANGES[p.sku] !== undefined ? MOBILE_CHANGES[p.sku] : p.current;
-        container.innerHTML += `
-            <div class="mobile-card">
-                <div class="mobile-card-header">
-                    <div><span style="color:var(--accent); font-weight:bold;">${p.sku}</span><br><span style="font-size:0.9rem;">${p.name}</span></div>
-                    <div class="mobile-stock-display">${displayStock}</div>
-                </div>
-                <div class="mobile-controls">
-                    <button class="btn-qty minus" onclick="updateMobileQty('${p.sku}', -1)">-</button>
-                    <button class="btn-qty plus" onclick="updateMobileQty('${p.sku}', 1)">+</button>
-                </div>
-            </div>`;
-    });
-}
-function updateMobileQty(sku, change) {
-    const p = PRODUCTS.find(x => x.sku === sku); if(!p) return;
-    if(MOBILE_CHANGES[sku] === undefined) MOBILE_CHANGES[sku] = p.current;
-    if(MOBILE_CHANGES[sku] + change >= 0) { MOBILE_CHANGES[sku] += change; renderMobileList(document.getElementById('mobileSearch').value); }
-}
-function applyMobileChanges() {
-    Object.keys(MOBILE_CHANGES).forEach(sku => { 
-        const p = PRODUCTS.find(x => x.sku === sku); 
-        if(p && p.current !== MOBILE_CHANGES[sku]) { logMovement(sku, p.name, MOBILE_CHANGES[sku] - p.current, "Inventario Rápido Móvil"); p.current = MOBILE_CHANGES[sku]; } 
-    });
-    sync(); closeModals(); alert("Cambios guardados exitosamente.");
-}
-
 function toggleSapSection() { const section = document.getElementById('sapImportSection'); section.style.display = section.style.display === 'none' ? 'block' : 'none'; }
+
 function processSapPaste() {
     const inputData = document.getElementById('sapPasteInput').value.trim(); if (!inputData) return alert("Vacio.");
     const lines = inputData.split('\n'); let updatedCount = 0; let createdCount = 0;
+    
     lines.forEach(line => {
-        const columns = line.split(/\t|,|;/);
-        if (columns.length >= 3) {
-            const sku = columns[0].trim(); const name = columns[1].trim(); const quantity = parseInt(columns[2].trim()) || 0; if (!sku) return;
-            const existingIdx = PRODUCTS.findIndex(p => p.sku.toLowerCase() === sku.toLowerCase());
-            if (existingIdx >= 0) { if(PRODUCTS[existingIdx].current !== quantity) { logMovement(sku, name, quantity - PRODUCTS[existingIdx].current, "Importación SAP"); PRODUCTS[existingIdx].current = quantity; if (name) PRODUCTS[existingIdx].name = name; updatedCount++; } }
-            else { PRODUCTS.push({ sku, name: name || "Importado", widthM: 0.4, color: "#c8a84b", rowId: ROWS[0]?.id || '', current: quantity, min: 0, max: 0, photo: null, masterQty: 0, innerQty: 0, supplier: "", leadTime: 0 }); logMovement(sku, name, quantity, "Alta desde SAP"); createdCount++; }
+        // Detecta separador inteligentemente (tabulaciones de Excel o comas)
+        const delimiter = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : ',');
+        const cols = line.split(delimiter);
+        
+        if (cols.length >= 3) {
+            const sku = cols[0]?.trim(); if (!sku) return;
+            const name = cols[1]?.trim() || "Vino Importado";
+            const qty = parseInt(cols[2]?.trim());
+            
+            const pIdx = PRODUCTS.findIndex(p => p.sku.toLowerCase() === sku.toLowerCase());
+            
+            if (pIdx >= 0) {
+                // Actualizar Producto Existente - Solo si la columna viene con datos
+                if (!isNaN(qty) && PRODUCTS[pIdx].current !== qty) { logMovement(sku, name, qty - PRODUCTS[pIdx].current, "Importación SAP"); PRODUCTS[pIdx].current = qty; updatedCount++; }
+                if (cols[1]?.trim()) PRODUCTS[pIdx].name = cols[1].trim();
+                
+                // Mapeo inteligente de Fila/Ubicación
+                if (cols[3]?.trim()) {
+                    const rowSearch = cols[3].trim().toLowerCase();
+                    const matchedRow = ROWS.find(r => r.name.toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch);
+                    if (matchedRow) PRODUCTS[pIdx].rowId = matchedRow.id;
+                }
+                
+                if (cols[4] && cols[4].trim() !== '') PRODUCTS[pIdx].masterQty = parseInt(cols[4].trim());
+                if (cols[5] && cols[5].trim() !== '') PRODUCTS[pIdx].innerQty = parseInt(cols[5].trim());
+                if (cols[6] && cols[6].trim() !== '') PRODUCTS[pIdx].min = parseInt(cols[6].trim());
+                if (cols[7] && cols[7].trim() !== '') PRODUCTS[pIdx].max = parseInt(cols[7].trim());
+                if (cols[8] && cols[8].trim() !== '') PRODUCTS[pIdx].supplier = cols[8].trim();
+                if (cols[9] && cols[9].trim() !== '') PRODUCTS[pIdx].leadTime = parseInt(cols[9].trim());
+            } else {
+                // Crear Nuevo Producto
+                if(!isNaN(qty)){
+                    const newProd = { 
+                        sku, name, widthM: 0.4, color: "#c8a84b", rowId: ROWS[0]?.id || '', 
+                        current: qty, min: parseInt(cols[6]?.trim()) || 0, max: parseInt(cols[7]?.trim()) || 0, 
+                        masterQty: parseInt(cols[4]?.trim()) || 0, innerQty: parseInt(cols[5]?.trim()) || 0, 
+                        supplier: cols[8]?.trim() || "", leadTime: parseInt(cols[9]?.trim()) || 0,
+                        hasPO: false, reservedStock: 0, photo: null 
+                    };
+                    
+                    if (cols[3]?.trim()) {
+                        const rowSearch = cols[3].trim().toLowerCase();
+                        const matchedRow = ROWS.find(r => r.name.toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch);
+                        if (matchedRow) newProd.rowId = matchedRow.id;
+                    }
+                    PRODUCTS.push(newProd); logMovement(sku, name, qty, "Alta desde SAP Extendido"); createdCount++;
+                }
+            }
         }
     });
-    alert(`Actualizados: ${updatedCount}. Nuevos: ${createdCount}.`); sync(); filterDB('');
+    alert(`Actualizados: ${updatedCount}. Creados: ${createdCount}.`); sync(); filterDB('');
+}
+
+/* ─── 📦 MÓDULO INTERACTIVO DE PEDIDOS DE TIENDA ─── */
+function openOrderModal() {
+    document.getElementById('orderModal').classList.add('open');
+    if (ACTIVE_ORDER.length > 0) {
+        document.getElementById('orderLoadSection').style.display = 'none';
+        document.getElementById('orderPrepSection').style.display = 'flex';
+        renderOrderPrepTable();
+    } else {
+        document.getElementById('orderLoadSection').style.display = 'block';
+        document.getElementById('orderPrepSection').style.display = 'none';
+        document.getElementById('orderPasteInput').value = '';
+    }
+}
+
+function processOrderPaste() {
+    const inputData = document.getElementById('orderPasteInput').value.trim();
+    if (!inputData) return alert("Por favor, pegue los datos.");
+    
+    const lines = inputData.split('\n');
+    ACTIVE_ORDER = [];
+    
+    lines.forEach(line => {
+        const delimiter = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : ',');
+        const columns = line.split(delimiter);
+        if (columns.length >= 2) {
+            const sku = columns[0].trim();
+            const qtyStr = columns[columns.length - 1].trim();
+            const requestedQty = parseInt(qtyStr) || 0;
+            const pastedName = columns[1] ? columns[1].trim() : "Vino";
+            
+            if (sku && requestedQty > 0) {
+                ACTIVE_ORDER.push({
+                    sku: sku, name: pastedName, requested: requestedQty, picked: requestedQty, completed: false
+                });
+            }
+        }
+    });
+
+    if (ACTIVE_ORDER.length > 0) {
+        document.getElementById('orderLoadSection').style.display = 'none';
+        document.getElementById('orderPrepSection').style.display = 'flex';
+        renderOrderPrepTable();
+        sync(); 
+        alert(`¡Pedido cargado! ${ACTIVE_ORDER.length} filas resaltadas en azul.`);
+    }
+}
+
+function renderOrderPrepTable() {
+    const tbody = document.getElementById('orderTableBody');
+    tbody.innerHTML = '';
+    
+    ACTIVE_ORDER.forEach((item, index) => {
+        const p = PRODUCTS.find(x => x.sku.toLowerCase() === item.sku.toLowerCase());
+        let locationLabel = "<span style='color:var(--danger)'>⚠️ No está en racks</span>";
+        
+        if (p) {
+            const row = ROWS.find(r => r.id === p.rowId);
+            const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
+            locationLabel = row ? `<b style="color:var(--accent)">${row.name} (Pos. ${pIdx})</b>` : 'S/N';
+        }
+        
+        const rowStyle = item.completed ? 'text-decoration: line-through; opacity: 0.4; background: rgba(0,0,0,0.25);' : '';
+        
+        tbody.innerHTML += `
+            <tr style="${rowStyle}">
+                <td><input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleOrderItem(${index})"></td>
+                <td>${locationLabel}</td>
+                <td><span style="font-family:'DM Mono'">${item.sku}</span></td>
+                <td>${p ? p.name : item.name}</td>
+                <td><b>${item.requested}</b></td>
+                <td>
+                    <input type="number" value="${item.picked}" 
+                           style="width:80px; text-align:center; background:var(--bg); border:1px solid var(--border); color:#fff; padding:3px; border-radius:4px;" 
+                           oninput="updateOrderPickedQty(${index}, this.value)" 
+                           ${item.completed ? 'disabled' : ''}>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function toggleOrderItem(index) { ACTIVE_ORDER[index].completed = !ACTIVE_ORDER[index].completed; renderOrderPrepTable(); }
+function updateOrderPickedQty(index, value) { ACTIVE_ORDER[index].picked = parseInt(value) || 0; }
+
+function cancelActiveOrder() {
+    if (confirm("¿Vaciar pedido y quitar alertas azules?")) {
+        ACTIVE_ORDER = []; sync(); closeModals();
+    }
+}
+
+// ESTA FUNCIÓN AHORA SÍ DESCUNTA EL STOCK REALMENTE Y GUARDA EN FIREBASE
+function finalizeOrder() {
+    let countDespachados = 0;
+    
+    ACTIVE_ORDER.forEach(item => {
+        // Encontramos el índice real en el arreglo maestro PRODUCTS
+        const pIdx = PRODUCTS.findIndex(x => x.sku.toLowerCase() === item.sku.toLowerCase());
+        if (pIdx >= 0) {
+            const oldStock = PRODUCTS[pIdx].current;
+            PRODUCTS[pIdx].current -= item.picked;
+            
+            // Protección contra inventario negativo
+            if (PRODUCTS[pIdx].current < 0) PRODUCTS[pIdx].current = 0; 
+            
+            const descontado = oldStock - PRODUCTS[pIdx].current;
+            if(descontado > 0) {
+                logMovement(PRODUCTS[pIdx].sku, PRODUCTS[pIdx].name, -descontado, `Despacho Pedido Tienda (Solicitado: ${item.requested})`);
+                countDespachados++;
+            }
+        }
+    });
+    
+    alert(`¡Inventario Descontado! Se actualizó el stock de ${countDespachados} productos.`);
+    ACTIVE_ORDER = []; 
+    sync(); // ESTO FUERZA EL GUARDADO EN LA BASE DE DATOS INMEDIATAMENTE
+    closeModals();
 }
 
 function deleteProduct() { if(confirm("¿Eliminar?")) { const sku = document.getElementById('pSku').value; logMovement(sku, document.getElementById('pName').value, -document.getElementById('pCurrent').value, "Producto Eliminado del Sistema"); PRODUCTS = PRODUCTS.filter(p => p.sku !== sku); sync(); closeProductModalOnly(); } }
@@ -648,7 +853,7 @@ function processImage(input) { if (input.files && input.files[0]) { const reader
 function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 
-/* ─── 🤖 ROBOT INTERNO Y GRATUITO PARA CORREOS AUTOMÁTICOS (INTACTO) ─── */
+/* ─── ROBOT DE CORREOS AUTOMÁTICOS ─── */
 const EMAILJS_PUBLIC_KEY = "cdusqn38kGYK4HyVj"; 
 const EMAILJS_SERVICE_ID = "service_00sszf8"; 
 const EMAILJS_TEMPLATE_ID = "template_1n41bpp"; 
@@ -673,15 +878,12 @@ function verificarYEnviarReporteDiario() {
             if (criticos.length === 0) { localStorage.setItem('ultimoReporteStock', hoyStr); return; }
 
             let filas = "";
-            criticos.forEach(p => {
-                filas += `<tr><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#c8a84b; font-weight:bold;">${p.sku}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#e8e4de;">${p.name}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#a03030; text-align:center; font-weight:bold;">${p.current}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#8a837a; text-align:center;">${p.min}</td></tr>`;
-            });
+            criticos.forEach(p => { filas += `<tr><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#c8a84b; font-weight:bold;">${p.sku}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#e8e4de;">${p.name}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#a03030; text-align:center; font-weight:bold;">${p.current}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#8a837a; text-align:center;">${p.min}</td></tr>`; });
 
             const estructuraCompletaHTML = `<div style="background:#0a0a09; color:#e8e4de; font-family:sans-serif; padding:40px; max-width:600px; margin:auto; border:1px solid #c8a84b; border-radius:12px;"><h2 style="color:#c8a84b; border-bottom:1px solid #2e2c29; padding-bottom:15px; text-transform:uppercase; letter-spacing:2px; margin-top:0;">Alerta de Reposición — Concha y Toro</h2><p style="color:#8a837a; font-size:14px;">Reporte automático diario de productos bajo el stock mínimo:</p><table style="width:100%; border-collapse:collapse; margin-top:25px;"><thead><tr style="background:#161512; color:#c8a84b; font-size:12px; text-transform:uppercase;"><th style="padding:12px; text-align:left; border-bottom:2px solid #c8a84b;">SKU</th><th style="padding:12px; text-align:left; border-bottom:2px solid #c8a84b;">Producto</th><th style="padding:12px; text-align:center; border-bottom:2px solid #c8a84b;">Stock</th><th style="padding:12px; text-align:center; border-bottom:2px solid #c8a84b;">Mín.</th></tr></thead><tbody style="font-size:13px;">${filas}</tbody></table></div>`;
 
             CORREOS_DESTINATARIOS.forEach(correo => {
                 emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: estructuraCompletaHTML, to_email: correo })
-                .then(() => console.log(`🚀 Reporte enviado a: ${correo}`))
                 .catch(err => console.error(`Error a ${correo}:`, err));
             });
             localStorage.setItem('ultimoReporteStock', hoyStr);
