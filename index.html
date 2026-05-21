@@ -12,6 +12,7 @@
   --bg:#0a0a09; --surface:#161512; --surface2:#1e1c18; --border:#2e2c29;
   --accent:#c8a84b; --text:#e8e4de; --muted:#8a837a;
   --ok:#4a8c4a; --warn:#c8872a; --danger:#a03030;
+  --order-blue: #2a75d3;
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -27,7 +28,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 #topbar h1{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:3px;color:var(--accent);}
 
 .search-container { position: relative; flex: 1; min-width: 200px; max-width: 300px; }
-#searchInput, #dbSearch, #mobileSearch {
+#searchInput, #dbSearch, #orderPasteInput {
     width:100%; background:var(--surface2); border:1px solid var(--border);
     padding:10px 15px; border-radius:6px; color:#fff; outline:none; transition: 0.3s;
 }
@@ -85,35 +86,32 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 .is-highlighted { box-shadow: 0 0 25px var(--accent); border: 2px solid var(--accent) !important; transform: scale(1.05); z-index: 100; }
 
+/* RESALTADO NUEVO DE PRODUCTOS REQUERIDOS EN EL PEDIDO ACTIVO */
+@keyframes pulseBlue {
+    0% { box-shadow: 0 0 10px rgba(42, 117, 211, 0.5); }
+    50% { box-shadow: 0 0 25px rgba(42, 117, 211, 1); border-color: var(--order-blue) !important; }
+    100% { box-shadow: 0 0 10px rgba(42, 117, 211, 0.5); }
+}
+.is-ordered { animation: pulseBlue 2s infinite; border: 2px solid var(--order-blue) !important; z-index: 90; }
+
 /* ─── MODALES Y BOTONES ─── */
 .modal { position:fixed; inset:0; background:rgba(0,0,0,0.92); backdrop-filter:blur(10px); display:none; align-items:center; justify-content:center; z-index:10000; }
 .modal.open { display:flex; }
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
 
 #productModal .modal-content { width: 850px; }
-#dbModal .modal-content, #historyModal .modal-content, #poModal .modal-content { width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column; }
-#mobileModal .modal-content { width: 100%; height: 100vh; border-radius: 0; padding: 20px; display: flex; flex-direction: column; }
+#dbModal .modal-content, #historyModal .modal-content, #orderModal .modal-content { width: 95%; height: 88vh; padding: 30px; display: flex; flex-direction: column; }
 
 .editor-grid { display: grid; grid-template-columns: 1fr 320px; }
 .editor-body { padding: 35px; max-height: 90vh; overflow-y: auto; }
 .editor-sidebar { background: var(--surface2); padding: 40px; border-left: 1px solid var(--border); }
 
-/* TABLAS DB, KARDEX Y PO */
+/* TABLAS DB, KARDEX Y PEDIDOS */
 .db-table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); margin-top: 15px; }
 .db-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .db-table th { position: sticky; top: 0; background: var(--surface2); padding: 15px; text-align: left; border-bottom: 2px solid var(--accent); z-index: 10; }
 .db-table td { padding: 12px; border-bottom: 1px solid var(--border); }
 .db-table input { background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 5px; border-radius: 4px; width: 80px; }
-
-/* NUEVO: MODO MÓVIL */
-.mobile-list { flex: 1; overflow-y: auto; margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
-.mobile-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-.mobile-card-header { display: flex; justify-content: space-between; align-items: center; }
-.mobile-controls { display: flex; justify-content: space-between; align-items: center; background: var(--bg); padding: 5px; border-radius: 8px; }
-.btn-qty { width: 50px; height: 50px; font-size: 1.5rem; border-radius: 6px; border: none; background: var(--border); color: white; cursor: pointer; font-weight: bold; }
-.btn-qty.plus { background: var(--ok); }
-.btn-qty.minus { background: var(--danger); }
-.mobile-stock-display { font-size: 1.5rem; font-family: 'DM Mono'; font-weight: bold; color: var(--accent); }
 
 /* UI ELEMENTS */
 .field { margin-bottom: 16px; }
@@ -151,7 +149,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       <div id="searchSuggestions" class="suggestions-box"></div>
   </div>
   <div style="display:flex; gap:10px; flex-wrap: wrap;">
-    <button class="btn btn-secondary" onclick="openMobileModal()" style="border: 1px solid var(--accent);">📱 Inv. Rápido</button>
+    <button id="btnOrderIndicator" class="btn btn-secondary" onclick="openOrderModal()" style="border: 1px solid var(--order-blue); color: #fff;">📋 Pedido Tienda <span id="orderDotStatus" style="width:8px; height:8px; background:grey; display:inline-block; border-radius:50%; margin-left:5px;"></span></button>
     <button class="btn btn-secondary" onclick="openHistoryModal()">📜 Historial</button>
     <button class="btn btn-secondary" onclick="openInventoryDB()">📊 Base de Datos</button>
     <button class="btn btn-secondary" onclick="openRowModal()">+ Fila</button>
@@ -231,7 +229,6 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
                 <input type="text" id="dbSearch" placeholder="🔍 Buscar en tabla..." oninput="handleSearch(this.value, 'dbSuggestions', true)">
                 <div id="dbSuggestions" class="suggestions-box"></div>
             </div>
-            <button class="btn btn-ok" onclick="openPOModal()">🛒 Generar Orden Compra</button>
             <button class="btn btn-secondary" onclick="toggleSapSection()">📋 Importar SAP</button>
             <button class="btn btn-primary" onclick="applyDBChanges()">Guardar Ajustes</button>
             <button class="btn btn-secondary" onclick="closeModals()">Cerrar</button>
@@ -264,33 +261,41 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     </div>
 </div>
 
-<div id="poModal" class="modal" style="z-index: 10600;">
+<div id="orderModal" class="modal">
     <div class="modal-content">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-            <h2 style="font-family:'Bebas Neue'; color:var(--ok); font-size:1.8rem;">Sugerencia Automática de Compra</h2>
-            <button class="btn btn-secondary" onclick="document.getElementById('poModal').classList.remove('open')">Volver</button>
+            <h2 style="font-family:'Bebas Neue'; color:var(--order-blue); font-size:1.8rem;">Preparación de Pedido de Tienda</h2>
+            <button class="btn btn-secondary" onclick="closeModals()">Cerrar Ventana</button>
         </div>
-        <p style="color:var(--muted); font-size:0.85rem; margin-bottom:15px;">Calculado matemáticamente para productos en estado de alerta o cercanos al mínimo, ajustado por Cajas Master y Máximos.</p>
-        <div class="db-table-container">
-            <table class="db-table">
-                <thead><tr><th>SKU</th><th>Producto</th><th>Proveedor (Demora)</th><th>Stock Actual</th><th>Caja Master</th><th>Sugerencia a Pedir</th></tr></thead>
-                <tbody id="poTableBody"></tbody>
-            </table>
+        
+        <div id="orderLoadSection">
+            <p style="color:var(--muted); font-size:0.85rem; margin-bottom:12px;">Copia las filas desde tu archivo Excel (SKU, Nombre, Ubicación, Cantidad) y pégalas aquí directamente:</p>
+            <textarea id="orderPasteInput" style="width:100%; height:180px; background:var(--bg); border:1px solid var(--border); color:#fff; padding:15px; border-radius:6px; resize:none; font-family:'DM Mono',monospace; font-size:0.8rem;" placeholder="Ejemplo de pegado desde Excel:&#10;SKU001	Casillero Cabernet	Fila A	12&#10;SKU005	Don Melchor 2021	Fila C	6"></textarea>
+            <button class="btn btn-primary" style="margin-top:15px; background:var(--order-blue); color:white;" onclick="processOrderPaste()">⚡ Procesar y Resaltar en Racks</button>
         </div>
-    </div>
-</div>
 
-<div id="mobileModal" class="modal">
-    <div class="modal-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:1.8rem;">Inventario Rápido</h2>
-            <button class="btn btn-primary" onclick="applyMobileChanges()">💾 Guardar Todo</button>
-            <button class="btn btn-secondary" onclick="closeModals()">X</button>
+        <div id="orderPrepSection" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+            <p style="color:var(--accent); font-size:0.85rem; margin-bottom:10px;">Los productos listados abajo se encuentran titilando en color <b style="color:var(--order-blue)">Azul</b> en el mapa principal. Marca el check (OK) para tachar los retirados.</p>
+            <div class="db-table-container">
+                <table class="db-table">
+                    <thead>
+                        <tr>
+                            <th style="width:60px;">OK</th>
+                            <th>Ubicación Real</th>
+                            <th>SKU</th>
+                            <th>Vino Encontrado</th>
+                            <th>Pedido</th>
+                            <th>Cantidad Real a Retirar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orderTableBody"></tbody>
+                </table>
+            </div>
+            <div style="margin-top: 20px; display:flex; justify-content: space-between; align-items:center;">
+                <button class="btn btn-danger" onclick="cancelActiveOrder()">❌ Descartar/Limpiar Pedido</button>
+                <button class="btn btn-ok" style="background:var(--ok);" onclick="finalizeOrder()">📦 Despachar y Actualizar Inventario</button>
+            </div>
         </div>
-        <div class="search-container" style="max-width: 100%;">
-            <input type="text" id="mobileSearch" placeholder="Buscar SKU o nombre..." oninput="renderMobileList(this.value)">
-        </div>
-        <div class="mobile-list" id="mobileListContainer"></div>
     </div>
 </div>
 
@@ -313,10 +318,10 @@ const db = firebase.database();
 
 let ROWS = [];
 let PRODUCTS = [];
-let HISTORY_LOG = []; // Nuevo array para el Kardex
+let HISTORY_LOG = []; 
+let ACTIVE_ORDER = []; // Nueva estructura para guardar el pedido en memoria interactiva
 let tempImg = null, currentH = null;
 let DB_CHANGES = {};
-let MOBILE_CHANGES = {};
 
 function handleLogin() {
     const email = document.getElementById('loginEmail').value;
@@ -334,9 +339,7 @@ firebase.auth().onAuthStateChanged(user => {
             ROWS = data?.rows || [{id:'R1', name:'Fila A', sizeM:15}];
             PRODUCTS = data?.products || [];
             
-            // Cargar historial si existe
             if(data?.history) {
-                // Convertir objeto de Firebase a Array y ordenarlo inverso (más nuevo arriba)
                 HISTORY_LOG = Object.values(data.history).sort((a,b) => new Date(b.dateRaw) - new Date(a.dateRaw));
             } else { HISTORY_LOG = []; }
 
@@ -350,14 +353,12 @@ firebase.auth().onAuthStateChanged(user => {
 
 function sync() {
     if(firebase.auth().currentUser) {
-        // Guardamos todo excepto el history (se gestiona por push para no sobreescribir)
         db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
         db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
     }
     render();
 }
 
-// NUEVA FUNCIÓN: Registro Automático de Movimientos (Kardex)
 function logMovement(sku, name, changeQty, reason) {
     if (changeQty === 0) return;
     const user = firebase.auth().currentUser?.email || 'Admin';
@@ -365,7 +366,6 @@ function logMovement(sku, name, changeQty, reason) {
     const dateStr = new Date().toLocaleString('es-CL');
     const changeTxt = changeQty > 0 ? `+${changeQty}` : `${changeQty}`;
     
-    // Inyectamos el registro en un subnodo de firebase
     db.ref('bodega/history').push({ date: dateStr, dateRaw: dateRaw, sku, name, change: changeTxt, reason, user });
 }
 
@@ -373,6 +373,11 @@ function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
     let alerts = [];
+
+    // Actualizar indicador visual del botón de Pedidos en la cabecera
+    const dot = document.getElementById('orderDotStatus');
+    if(ACTIVE_ORDER.length > 0) { dot.style.background = 'var(--order-blue)'; }
+    else { dot.style.background = 'grey'; }
 
     ROWS.forEach(row => {
         const rowProds = PRODUCTS.filter(p => p.rowId === row.id);
@@ -395,8 +400,12 @@ function render() {
         rowProds.forEach((p, index) => {
             if(p.current < p.min) alerts.push(p.name);
             const posLabel = `${row.name.split(' ').pop()}${index + 1}`;
+            
+            // VERIFICAR SI ESTE PRODUCTO SE ENCUENTRA EN EL PEDIDO CARGADO ACTUALMENTE
+            const isInActiveOrder = ACTIVE_ORDER.some(item => item.sku.toLowerCase() === p.sku.toLowerCase());
+
             const pEl = document.createElement('div');
-            pEl.className = `product ${currentH === p.sku ? 'is-highlighted' : ''}`;
+            pEl.className = `product ${currentH === p.sku ? 'is-highlighted' : ''} ${isInActiveOrder ? 'is-ordered' : ''}`;
             pEl.id = `p-${p.sku}`;
             pEl.draggable = true;
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
@@ -406,7 +415,8 @@ function render() {
             let tooltipText = `SKU: ${p.sku}\nProducto: ${p.name}\nStock: ${p.current} (Mín: ${p.min})`;
             if (p.masterQty || p.innerQty) tooltipText += `\nEmpaque: Master: ${p.masterQty || 0} u. | Interior: ${p.innerQty || 0} u.`;
             if (p.supplier) tooltipText += `\nProveedor: ${p.supplier} (Demora: ${p.leadTime || 0} días)`;
-            
+            if (isInActiveOrder) tooltipText += `\n\n📦 REQUERIDO EN EL PEDIDO DE TIENDA`;
+
             pEl.setAttribute('data-tooltip', tooltipText);
             
             pEl.ondragstart = (e) => {
@@ -422,10 +432,9 @@ function render() {
             
             pEl.onclick = () => openProductModal(p.sku);
             
-            // LÓGICA SEMÁFORO EN LOS PUNTOS DEL RACK
-            let dotColor = 'var(--ok)'; // Verde default
-            if(p.current < p.min) dotColor = 'var(--danger)'; // Rojo crítico
-            else if (p.current <= p.min * 1.2) dotColor = 'var(--warn)'; // Amarillo alerta (20% por encima del min)
+            let dotColor = 'var(--ok)';
+            if(p.current < p.min) dotColor = 'var(--danger)';
+            else if (p.current <= p.min * 1.2) dotColor = 'var(--warn)';
             
             pEl.innerHTML = `<div class="product-pos">${posLabel}</div><span class="stock-dot" style="background:${dotColor}"></span>`;
             rowEl.appendChild(pEl);
@@ -450,7 +459,7 @@ function drop(e) {
     children.forEach((child, idx) => { const rect = child.getBoundingClientRect(); if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx; });
     rowProds.splice(insertIdx, 0, p); p.rowId = targetRowId;
     PRODUCTS = [...PRODUCTS.filter(x => x.rowId !== targetRowId), ...rowProds]; sync();
-    logMovement(p.sku, p.name, 0, `Cambio a fila ${targetRow.name}`); // Loggear movimiento logístico
+    logMovement(p.sku, p.name, 0, `Cambio a fila ${targetRow.name}`);
 }
 
 function handleSearch(v, boxId, isDB) {
@@ -514,7 +523,6 @@ function filterDB(q) {
         const pos = row ? `${row.name.split(' ').pop()}${pIdx}` : 'S/N';
         const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
         
-        // CÓDIGO DE COLORES SEMÁFORO PROFESIONAL
         let rowStyle = ''; let statusLabel = '';
         if(p.current < p.min) { rowStyle = 'background: rgba(160, 48, 48, 0.15); border-left: 4px solid var(--danger);'; statusLabel = '<b style="color:var(--danger)">Crítico</b>'; }
         else if (p.current <= p.min * 1.2) { rowStyle = 'background: rgba(200, 135, 42, 0.1); border-left: 4px solid var(--warn);'; statusLabel = '<b style="color:var(--warn)">Alerta</b>'; }
@@ -542,40 +550,6 @@ function applyDBChanges() {
     sync(); closeModals();
 }
 
-// NUEVA FUNCIÓN: Generación Automática de Orden de Compra
-function openPOModal() {
-    const b = document.getElementById('poTableBody'); b.innerHTML = '';
-    // Filtrar los que están en amarillo o rojo (<= min * 1.2)
-    const alertProducts = PRODUCTS.filter(p => p.current <= p.min * 1.2);
-    
-    if(alertProducts.length === 0) {
-        b.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 30px; color:var(--ok);">✅ Todo el inventario está en niveles óptimos. No se requiere emitir compras.</td></tr>`;
-    } else {
-        alertProducts.forEach(p => {
-            let targetStock = p.max > p.min ? p.max : (p.min * 2); // Hasta dónde rellenar
-            let missingQty = targetStock - p.current;
-            let qtyToOrderText = "";
-            
-            if (p.masterQty > 0) {
-                let masterBoxesNeeded = Math.ceil(missingQty / p.masterQty);
-                qtyToOrderText = `<b style="color:var(--ok); font-size:1.1rem;">${masterBoxesNeeded} Cajas Master</b><br><span style="font-size:0.7rem; color:var(--muted)">(${masterBoxesNeeded * p.masterQty} uds.)</span>`;
-            } else {
-                qtyToOrderText = `<b style="color:var(--ok); font-size:1.1rem;">${missingQty} unidades sueltas</b><br><span style="font-size:0.7rem; color:var(--danger)">*Falta config. de caja*</span>`;
-            }
-
-            b.innerHTML += `<tr>
-                <td style="color:var(--accent); font-weight:bold;">${p.sku}</td><td>${p.name}</td>
-                <td>${p.supplier || '<i>Sin Asignar</i>'} <br><span style="font-size:0.7rem; color:var(--muted)">Demora: ${p.leadTime || 0} días</span></td>
-                <td><b style="${p.current < p.min ? 'color:var(--danger)' : 'color:var(--warn)'}">${p.current}</b></td>
-                <td>${p.masterQty || '-'} u/cja</td>
-                <td style="background: rgba(74, 140, 74, 0.1); border-radius:4px; text-align:center;">${qtyToOrderText}</td>
-            </tr>`;
-        });
-    }
-    document.getElementById('poModal').classList.add('open');
-}
-
-// NUEVA FUNCIÓN: Abrir Historial
 function openHistoryModal() {
     const b = document.getElementById('historyTableBody'); b.innerHTML = '';
     if(HISTORY_LOG.length === 0) { b.innerHTML = `<tr><td colspan="6" style="text-align:center;">No hay movimientos registrados.</td></tr>`; }
@@ -592,38 +566,6 @@ function openHistoryModal() {
     document.getElementById('historyModal').classList.add('open');
 }
 
-// NUEVA FUNCIÓN: Inventario Rápido (Móvil)
-function openMobileModal() { MOBILE_CHANGES = {}; renderMobileList(''); document.getElementById('mobileSearch').value = ''; document.getElementById('mobileModal').classList.add('open'); }
-function renderMobileList(q) {
-    const container = document.getElementById('mobileListContainer'); container.innerHTML = '';
-    PRODUCTS.filter(p => p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())).forEach((p) => {
-        const displayStock = MOBILE_CHANGES[p.sku] !== undefined ? MOBILE_CHANGES[p.sku] : p.current;
-        container.innerHTML += `
-            <div class="mobile-card">
-                <div class="mobile-card-header">
-                    <div><span style="color:var(--accent); font-weight:bold;">${p.sku}</span><br><span style="font-size:0.9rem;">${p.name}</span></div>
-                    <div class="mobile-stock-display">${displayStock}</div>
-                </div>
-                <div class="mobile-controls">
-                    <button class="btn-qty minus" onclick="updateMobileQty('${p.sku}', -1)">-</button>
-                    <button class="btn-qty plus" onclick="updateMobileQty('${p.sku}', 1)">+</button>
-                </div>
-            </div>`;
-    });
-}
-function updateMobileQty(sku, change) {
-    const p = PRODUCTS.find(x => x.sku === sku); if(!p) return;
-    if(MOBILE_CHANGES[sku] === undefined) MOBILE_CHANGES[sku] = p.current;
-    if(MOBILE_CHANGES[sku] + change >= 0) { MOBILE_CHANGES[sku] += change; renderMobileList(document.getElementById('mobileSearch').value); }
-}
-function applyMobileChanges() {
-    Object.keys(MOBILE_CHANGES).forEach(sku => { 
-        const p = PRODUCTS.find(x => x.sku === sku); 
-        if(p && p.current !== MOBILE_CHANGES[sku]) { logMovement(sku, p.name, MOBILE_CHANGES[sku] - p.current, "Inventario Rápido Móvil"); p.current = MOBILE_CHANGES[sku]; } 
-    });
-    sync(); closeModals(); alert("Cambios guardados exitosamente.");
-}
-
 function toggleSapSection() { const section = document.getElementById('sapImportSection'); section.style.display = section.style.display === 'none' ? 'block' : 'none'; }
 function processSapPaste() {
     const inputData = document.getElementById('sapPasteInput').value.trim(); if (!inputData) return alert("Vacio.");
@@ -638,6 +580,135 @@ function processSapPaste() {
         }
     });
     alert(`Actualizados: ${updatedCount}. Nuevos: ${createdCount}.`); sync(); filterDB('');
+}
+
+/* ─── 📦 NUEVAS FUNCIONES: MÓDULO INTERACTIVO DE PEDIDOS DE TIENDA ─── */
+function openOrderModal() {
+    document.getElementById('orderModal').classList.add('open');
+    if (ACTIVE_ORDER.length > 0) {
+        document.getElementById('orderLoadSection').style.display = 'none';
+        document.getElementById('orderPrepSection').style.display = 'flex';
+        renderOrderPrepTable();
+    } else {
+        document.getElementById('orderLoadSection').style.display = 'block';
+        document.getElementById('orderPrepSection').style.display = 'none';
+        document.getElementById('orderPasteInput').value = '';
+    }
+}
+
+function processOrderPaste() {
+    const inputData = document.getElementById('orderPasteInput').value.trim();
+    if (!inputData) return alert("Por favor, pegue los datos de las columnas de Excel.");
+    
+    const lines = inputData.split('\n');
+    ACTIVE_ORDER = [];
+    
+    lines.forEach(line => {
+        const columns = line.split(/\t|,|;/);
+        if (columns.length >= 2) {
+            const sku = columns[0].trim();
+            // Detectamos inteligentemente el número de la cantidad (suele estar al final de la fila en los despachos)
+            const qtyStr = columns[columns.length - 1].trim();
+            const requestedQty = parseInt(qtyStr) || 0;
+            const pastedName = columns[1] ? columns[1].trim() : "Vino Desconocido";
+            
+            if (sku && requestedQty > 0) {
+                ACTIVE_ORDER.push({
+                    sku: sku,
+                    name: pastedName,
+                    requested: requestedQty,
+                    picked: requestedQty, // Por defecto se asume que se sacará todo lo solicitado
+                    completed: false      // Para el tachado interactivo
+                });
+            }
+        }
+    });
+
+    if (ACTIVE_ORDER.length > 0) {
+        document.getElementById('orderLoadSection').style.display = 'none';
+        document.getElementById('orderPrepSection').style.display = 'flex';
+        renderOrderPrepTable();
+        sync(); // Re-renderiza el mapa completo de racks para activar los marcadores parpadeantes azules
+        alert(`¡Pedido cargado! Se han localizado y resaltado ${ACTIVE_ORDER.length} tipos de productos en sus respectivos racks.`);
+    } else {
+        alert("No se pudo leer ninguna fila válida. Asegúrese de incluir SKU y Cantidad.");
+    }
+}
+
+function renderOrderPrepTable() {
+    const tbody = document.getElementById('orderTableBody');
+    tbody.innerHTML = '';
+    
+    ACTIVE_ORDER.forEach((item, index) => {
+        // Encontrar ubicación real actual en el layout visual
+        const p = PRODUCTS.find(x => x.sku.toLowerCase() === item.sku.toLowerCase());
+        let locationLabel = "<span style='color:var(--danger)'>⚠️ No está en racks</span>";
+        
+        if (p) {
+            const row = ROWS.find(r => r.id === p.rowId);
+            const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
+            locationLabel = row ? `<b style="color:var(--accent)">${row.name} (Pos. ${pIdx})</b>` : 'S/N';
+        }
+        
+        // Estilo visual si está tachado
+        const rowStyle = item.completed ? 'text-decoration: line-through; opacity: 0.4; background: rgba(0,0,0,0.25);' : '';
+        
+        tbody.innerHTML += `
+            <tr style="${rowStyle}">
+                <td><input type="checkbox" style="transform:scale(1.3); cursor:pointer;" ${item.completed ? 'checked' : ''} onchange="toggleOrderItem(${index})"></td>
+                <td>${locationLabel}</td>
+                <td><span style="font-family:'DM Mono'">${item.sku}</span></td>
+                <td>${p ? p.name : item.name}</td>
+                <td><b>${item.requested}</b></td>
+                <td>
+                    <input type="number" value="${item.picked}" 
+                           style="width:80px; text-align:center; background:var(--bg); border:1px solid var(--border); color:#fff; padding:3px; border-radius:4px;" 
+                           oninput="updateOrderPickedQty(${index}, this.value)" 
+                           ${item.completed ? 'disabled' : ''}>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function toggleOrderItem(index) {
+    ACTIVE_ORDER[index].completed = !ACTIVE_ORDER[index].completed;
+    renderOrderPrepTable();
+}
+
+function updateOrderPickedQty(index, value) {
+    ACTIVE_ORDER[index].picked = parseInt(value) || 0;
+}
+
+function cancelActiveOrder() {
+    if (confirm("¿Estás seguro de que deseas vaciar este pedido? Se removerán las luces azules de alerta en los racks.")) {
+        ACTIVE_ORDER = [];
+        sync();
+        closeModals();
+    }
+}
+
+function finalizeOrder() {
+    let countDespachados = 0;
+    
+    // Validar si existen productos reales
+    ACTIVE_ORDER.forEach(item => {
+        const p = PRODUCTS.find(x => x.sku.toLowerCase() === item.sku.toLowerCase());
+        if (p) {
+            // Restamos del inventario la cantidad ingresada en el control del pedido
+            p.current -= item.picked;
+            if (p.current < 0) p.current = 0; // Seguridad de quiebre
+            
+            // Registramos en el historial Kardex de forma profesional e individual
+            logMovement(p.sku, p.name, -item.picked, `Despacho Pedido Tienda (Solicitado: ${item.requested})`);
+            countDespachados++;
+        }
+    });
+    
+    alert(`¡Pedido Despachado e Integrado! Se actualizó el stock de ${countDespachados} productos y se escribieron las bitácoras en el historial.`);
+    ACTIVE_ORDER = []; // Limpiamos el pedido actual
+    sync(); // Sincroniza con Firebase y actualiza racks
+    closeModals();
 }
 
 function deleteProduct() { if(confirm("¿Eliminar?")) { const sku = document.getElementById('pSku').value; logMovement(sku, document.getElementById('pName').value, -document.getElementById('pCurrent').value, "Producto Eliminado del Sistema"); PRODUCTS = PRODUCTS.filter(p => p.sku !== sku); sync(); closeProductModalOnly(); } }
