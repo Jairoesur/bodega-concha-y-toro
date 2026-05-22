@@ -4,175 +4,259 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bodega WMS - Concha y Toro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
         :root {
-            --bg: #0a0a09;
-            --surface: #161512;
-            --border: #2e2c29;
-            --text: #e8e4de;
-            --muted: #8a837a;
-            --accent: #c8a84b;
-            --accent-hover: #dcc273;
-            --ok: #22c55e;
+            /* Paleta Base Optimizada */
+            --bg: #0d0c0b;
+            --surface: #1a1916;
+            --surface-hover: #26241f;
+            --border: #38352f;
+            --text: #f0ede6;
+            --muted: #a39c93;
+            --accent: #d4af37;
+            --accent-hover: #ebd075;
+            
+            /* Estados */
+            --ok: #10b981;
             --danger: #ef4444;
             --warn: #f59e0b;
             --over: #8b5cf6;
             --order-blue: #3b82f6;
+
+            /* Sombras y Radios */
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
+            --shadow-md: 0 8px 24px rgba(0,0,0,0.6);
+            --transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
+        /* --- Estilos Globales --- */
         body {
             margin: 0; padding: 0;
             background-color: var(--bg);
             color: var(--text);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* Utilidades */
+        /* Scrollbars personalizados */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+        /* --- Utilidades e Inputs --- */
         .btn {
             background: var(--surface); color: var(--text);
-            border: 1px solid var(--border); padding: 8px 16px;
-            border-radius: 6px; cursor: pointer; transition: 0.2s;
+            border: 1px solid var(--border); padding: 10px 18px;
+            border-radius: var(--radius-sm); cursor: pointer; 
+            font-family: inherit; font-size: 0.85rem; font-weight: 500;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            transition: var(--transition);
         }
-        .btn:hover { border-color: var(--accent); color: var(--accent); }
-        .btn-primary { background: var(--accent); color: #000; border: none; font-weight: bold; }
-        .btn-primary:hover { background: var(--accent-hover); color: #000; }
-        .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: var(--danger); }
-        .btn-danger:hover { background: var(--danger); color: #fff; }
+        .btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+        .btn:active { transform: translateY(1px); }
+        
+        .btn-primary { background: var(--accent); color: #0a0a09; border: none; font-weight: 600; }
+        .btn-primary:hover { background: var(--accent-hover); color: #0a0a09; box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2); }
+        
+        .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+        
+        .btn-secondary { font-size: 0.75rem; padding: 6px 12px; }
 
         input, select, textarea {
-            background: var(--bg); color: var(--text);
-            border: 1px solid var(--border); padding: 8px;
-            border-radius: 4px; width: 100%; box-sizing: border-box;
-            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.03); color: var(--text);
+            border: 1px solid var(--border); padding: 10px 14px;
+            border-radius: var(--radius-sm); width: 100%; box-sizing: border-box;
+            font-family: inherit; font-size: 0.9rem; transition: var(--transition);
+            margin-bottom: 15px;
         }
-        input:focus, select:focus { outline: none; border-color: var(--accent); }
+        input:focus, select:focus, textarea:focus { 
+            outline: none; border-color: var(--accent); 
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15); 
+        }
+        input[type="checkbox"] { width: auto; transform: scale(1.2); accent-color: var(--accent); cursor: pointer; }
 
-        /* Login */
+        /* --- Login --- */
         #loginScreen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg); display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 9999;
+            background: radial-gradient(circle at center, var(--surface) 0%, var(--bg) 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;
         }
         .login-box {
-            background: var(--surface); padding: 30px; border-radius: 8px;
-            border: 1px solid var(--accent); width: 300px; text-align: center;
+            background: var(--surface); padding: 40px; border-radius: var(--radius-lg);
+            border: 1px solid var(--border); width: 100%; max-width: 340px; text-align: center;
+            box-shadow: var(--shadow-md);
+            animation: fadeIn 0.5s ease-out;
         }
+        .login-box h2 { color: var(--accent); margin: 0 0 5px 0; font-size: 1.75rem; font-weight: 700; }
+        .login-box p { color: var(--muted); margin: 0 0 25px 0; font-size: 0.9rem; }
 
-        /* Topbar & Header */
+        /* --- Topbar & Header --- */
         .topbar {
-            background: var(--surface); border-bottom: 1px solid var(--accent);
-            padding: 15px 20px; display: flex; justify-content: space-between;
+            background: rgba(26, 25, 22, 0.85); backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 30px; display: flex; justify-content: space-between;
             align-items: center; position: sticky; top: 0; z-index: 100;
         }
-        .toolbar { display: flex; gap: 10px; align-items: center; }
+        .brand-container { display: flex; align-items: center; gap: 12px; }
+        .brand-container h3 { margin: 0; color: var(--accent); font-weight: 600; letter-spacing: 1px; font-size: 1.2rem; }
+        .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        
         .order-indicator {
-            width: 12px; height: 12px; border-radius: 50%; background: grey;
-            display: inline-block; margin-right: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.5);
+            width: 10px; height: 10px; border-radius: 50%; background: grey;
+            display: inline-block; box-shadow: 0 0 8px rgba(0,0,0,0.5);
         }
 
-        /* Alertas */
+        /* --- Alertas --- */
         #alertBar {
-            background: rgba(239, 68, 68, 0.1); border-bottom: 1px solid var(--danger);
-            color: var(--danger); padding: 10px; text-align: center; font-weight: bold;
+            background: rgba(239, 68, 68, 0.15); border-bottom: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5; padding: 12px; text-align: center; font-weight: 500; font-size: 0.9rem;
             display: none; align-items: center; justify-content: center; gap: 10px;
         }
 
-        /* Layout Bodega */
-        #whWrap { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        /* --- Layout Bodega --- */
+        #whWrap { padding: 30px; display: flex; flex-direction: column; gap: 25px; max-width: 1600px; margin: 0 auto; }
         
         .row-container {
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 8px; overflow: hidden;
+            border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-sm);
+            transition: var(--transition);
         }
+        .row-container:hover { border-color: #4a473e; }
+        
         .row-header {
-            background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);
-            padding: 10px 15px; display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--border);
+            padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;
         }
-        .row-scroll-wrapper { width: 100%; overflow-x: auto; padding: 15px; box-sizing: border-box; }
+        .row-info b { font-size: 1.1rem; color: var(--text); }
+        .row-scroll-wrapper { width: 100%; overflow-x: auto; padding: 20px; box-sizing: border-box; }
+        
         .wh-row {
-            display: flex; height: 100px; background: var(--bg); border: 2px dashed var(--border);
-            border-radius: 4px; position: relative; min-width: 800px;
+            display: flex; height: 120px; background: rgba(0,0,0,0.2); border: 2px dashed var(--border);
+            border-radius: var(--radius-sm); position: relative; min-width: 800px; padding: 4px; gap: 2px;
         }
 
-        /* Productos en Rack */
+        /* --- Productos en Rack --- */
         .product {
             height: 100%; position: relative; cursor: grab;
             display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
-            border-right: 1px solid rgba(255,255,255,0.05); box-sizing: border-box; transition: 0.2s;
+            border-radius: 4px; box-sizing: border-box; transition: var(--transition);
+            backdrop-filter: blur(4px);
         }
-        .product:hover { opacity: 0.8; }
-        .product.is-highlighted { box-shadow: 0 0 15px var(--accent); z-index: 10; border-radius: 4px; }
-        .product.is-ordered { animation: pulseOrder 1.5s infinite; border-top-color: var(--order-blue) !important; z-index: 5; }
-        @keyframes pulseOrder { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+        .product:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .product:active { cursor: grabbing; }
+        .product.is-highlighted { box-shadow: 0 0 0 2px var(--accent), 0 0 15px rgba(212, 175, 55, 0.4); z-index: 10; }
+        .product.is-ordered { animation: pulseOrder 2s infinite; border-top-color: var(--order-blue) !important; z-index: 5; }
         
-        .product-pos { font-size: 0.65rem; color: var(--muted); margin-bottom: 5px; user-select: none; }
-        .stock-dot { width: 8px; height: 8px; border-radius: 50%; margin-bottom: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
-
-        /* Tooltip */
-        .product[data-tooltip]:hover::after {
-            content: attr(data-tooltip); position: absolute; bottom: 110%; left: 50%;
-            transform: translateX(-50%); background: #000; color: #fff; padding: 8px 12px;
-            border-radius: 4px; font-size: 0.75rem; white-space: pre-wrap;
-            border: 1px solid var(--accent); z-index: 1000; width: max-content; max-width: 200px;
-            pointer-events: none;
+        @keyframes pulseOrder { 
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6); } 
+            70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } 
         }
+        
+        .product-pos { font-size: 0.7rem; font-weight: 600; color: var(--text); margin-bottom: 6px; user-select: none; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+        .stock-dot { width: 10px; height: 10px; border-radius: 50%; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); }
 
-        /* Modales */
+        /* --- Tooltip --- */
+        .product[data-tooltip]::after {
+            content: attr(data-tooltip); position: absolute; bottom: calc(100% + 10px); left: 50%;
+            transform: translateX(-50%) translateY(10px); background: #26241f; color: var(--text); padding: 10px 14px;
+            border-radius: var(--radius-sm); font-size: 0.8rem; white-space: pre-wrap; line-height: 1.4;
+            border: 1px solid var(--border); box-shadow: var(--shadow-md); z-index: 1000; width: max-content; max-width: 250px;
+            pointer-events: none; opacity: 0; visibility: hidden; transition: var(--transition);
+        }
+        .product[data-tooltip]:hover::after { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+
+        /* --- Modales --- */
         .modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center;
-            z-index: 2000; backdrop-filter: blur(4px);
+            background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center;
+            z-index: 2000; backdrop-filter: blur(6px); opacity: 0; transition: opacity 0.3s ease;
         }
-        .modal.open { display: flex; }
+        .modal.open { display: flex; opacity: 1; }
         .modal-content {
-            background: var(--surface); border: 1px solid var(--accent);
-            border-radius: 8px; padding: 20px; width: 90%; max-width: 800px; max-height: 90vh;
-            overflow-y: auto; position: relative;
+            background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-md);
+            border-radius: var(--radius-lg); padding: 30px; width: 90%; max-width: 850px; max-height: 85vh;
+            overflow-y: auto; position: relative; transform: scale(0.95); transition: transform 0.3s ease;
         }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; }
-        .close-btn { background: transparent; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; }
-        .close-btn:hover { color: var(--danger); }
+        .modal.open .modal-content { transform: scale(1); }
+        
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 25px; }
+        .modal-header h3 { font-size: 1.4rem; font-weight: 600; }
+        .close-btn { background: rgba(255,255,255,0.05); border: 1px solid transparent; color: var(--muted); font-size: 1.2rem; cursor: pointer; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: var(--transition); }
+        .close-btn:hover { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
 
-        /* Tablas */
-        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 0.85rem; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); }
-        th { color: var(--accent); font-weight: normal; text-transform: uppercase; font-size: 0.75rem; border-bottom: 2px solid var(--accent); }
-        tbody tr:hover { background: rgba(255,255,255,0.02); }
+        /* --- Tablas --- */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 20px; font-size: 0.85rem; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; position: sticky; top: 0; background: var(--surface); z-index: 10; border-bottom: 2px solid var(--border); }
+        tbody tr { transition: var(--transition); }
+        tbody tr:hover { background: var(--surface-hover); }
 
-        /* Grid Formularios */
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        /* --- Formularios --- */
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0 20px; }
         .form-group { display: flex; flex-direction: column; }
-        .form-group label { font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+        .form-group label { font-size: 0.8rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+        
+        hr { border: 0; border-top: 1px solid var(--border); margin: 25px 0; }
+        h4 { font-size: 1.1rem; font-weight: 600; color: var(--text); margin-bottom: 15px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- Media Queries --- */
+        @media (max-width: 1024px) {
+            .topbar { flex-direction: column; gap: 15px; align-items: flex-start; }
+            .toolbar { width: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 5px; }
+        }
     </style>
 </head>
 <body>
 
     <div id="loginScreen">
         <div class="login-box">
-            <h2 style="color: var(--accent); margin-top:0;">WMS Bodega</h2>
-            <p style="color: var(--muted); font-size:0.8rem;">Concha y Toro</p>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 15px;">
+                <path d="M2 20h20M4 20v2M12 20v2M20 20v2M4 16h16v4H4z"/><path d="M6 16V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10"/><path d="M12 4v12"/><path d="M6 10h12"/>
+            </svg>
+            <h2>WMS Bodega</h2>
+            <p>Concha y Toro</p>
             <input type="email" id="loginEmail" placeholder="Correo Electrónico">
             <input type="password" id="loginPass" placeholder="Contraseña">
-            <button class="btn btn-primary" style="width:100%" onclick="handleLogin()">Ingresar</button>
-            <p id="loginError" style="color:var(--danger); display:none; font-size:0.8rem; margin-top:10px;">Credenciales incorrectas.</p>
+            <button class="btn btn-primary" style="width:100%; padding: 12px; margin-top: 5px;" onclick="handleLogin()">Ingresar al Sistema</button>
+            <p id="loginError" style="color:var(--danger); display:none; font-size:0.85rem; margin-top:15px; font-weight:500;">Credenciales incorrectas.</p>
         </div>
     </div>
 
     <div id="alertBar">
-        <span>⚠️</span> <span id="alertText"></span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <span id="alertText"></span>
     </div>
 
     <div class="topbar">
-        <div>
-            <h3 style="margin:0; color:var(--accent); letter-spacing: 1px;">BODEGA CENTRAL</h3>
+        <div class="brand-container">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 20h20M4 20v2M12 20v2M20 20v2M4 16h16v4H4z"/>
+                <path d="M6 16V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10"/>
+                <path d="M12 4v12"/>
+                <path d="M6 10h12"/>
+            </svg>
+            <h3>BODEGA CENTRAL</h3>
         </div>
         <div class="toolbar">
             <button class="btn" onclick="openOrderModal()"><span id="orderDotStatus" class="order-indicator"></span> Pedidos Tienda</button>
-            <button class="btn" onclick="openPoModal()">📦 Órdenes a Prov.</button>
-            <button class="btn" onclick="openInventoryDB()">🗄️ Base de Datos / SAP</button>
+            <button class="btn" onclick="openPoModal()">📦 Proveedores</button>
+            <button class="btn" onclick="openInventoryDB()">🗄️ BD / SAP</button>
             <button class="btn" onclick="openHistoryModal()">📜 Historial</button>
-            <span style="color:var(--border)">|</span>
+            <span style="color:var(--border); margin: 0 5px;">|</span>
             <button class="btn btn-primary" onclick="openProductModal()">+ Producto</button>
             <button class="btn" onclick="openRowModal()">+ Fila</button>
             <button class="btn" onclick="firebase.auth().signOut()">Salir</button>
@@ -182,18 +266,20 @@
     <div id="whWrap"></div>
 
     <div id="productModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
                 <h3 style="margin:0; color:var(--accent);">Detalle de Producto</h3>
-                <button class="close-btn" onclick="closeProductModalOnly()">×</button>
+                <button class="close-btn" onclick="closeProductModalOnly()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
             <div class="form-grid">
                 <div class="form-group"><label>SKU / Código</label><input type="text" id="pSku"></div>
                 <div class="form-group"><label>Nombre del Producto</label><input type="text" id="pName"></div>
                 <div class="form-group"><label>Fila de Ubicación</label><select id="pRowSelect"></select></div>
                 <div class="form-group"><label>Ancho en Rack (m)</label><input type="number" step="0.01" id="pWidth" value="0.56"></div>
-                <div class="form-group"><label>Stock Físico Actual</label><input type="number" id="pCurrent" style="font-weight:bold; color:var(--accent)"></div>
-                <div class="form-group"><label>Color Visual</label><input type="color" id="pColor" value="#c8a84b" style="height:35px; padding:2px;"></div>
+                <div class="form-group"><label>Stock Físico Actual</label><input type="number" id="pCurrent" style="font-weight:bold; color:var(--accent); background:rgba(212,175,55,0.05);"></div>
+                <div class="form-group"><label>Color Visual</label><input type="color" id="pColor" value="#c8a84b" style="height:42px; padding:4px; cursor:pointer;"></div>
                 <div class="form-group"><label>Stock Mínimo (Alerta)</label><input type="number" id="pMin"></div>
                 <div class="form-group"><label>Stock Máximo (Capacidad)</label><input type="number" id="pMax"></div>
                 <div class="form-group"><label>Cant. Caja Master</label><input type="number" id="pMasterQty"></div>
@@ -202,70 +288,74 @@
                 <div class="form-group"><label>Días de Demora (Lead Time)</label><input type="number" id="pLeadTime"></div>
             </div>
             
-            <hr style="border:0; border-top:1px solid var(--border); margin: 20px 0;">
-            <h4 style="color:var(--muted); margin-top:0;">Gestión de Compras (OC)</h4>
+            <hr>
+            <h4>Gestión de Compras (OC)</h4>
             <div class="form-grid">
                 <div class="form-group" style="flex-direction:row; align-items:center; gap:10px;">
-                    <input type="checkbox" id="pHasPO" style="width:auto; margin:0;"><label style="margin:0;">¿Contrato/OC Activa?</label>
+                    <input type="checkbox" id="pHasPO" style="margin:0;"><label style="margin:0; cursor:pointer;" for="pHasPO">¿Contrato/OC Activa?</label>
                 </div>
                 <div class="form-group"><label>Stock Reservado en Prov.</label><input type="number" id="pReservedStock"></div>
                 <div class="form-group"><label>Fecha Solicitud OC</label><input type="date" id="pPoDate"></div>
                 <div class="form-group"><label>Fecha Llegada Estimada</label><input type="date" id="pPoArrival"></div>
             </div>
 
-            <div class="form-group" style="margin-top:15px;">
+            <div class="form-group" style="margin-top:20px;">
                 <label>Foto de Referencia</label>
-                <input type="file" accept="image/*" onchange="processImage(this)">
-                <div id="pImgPreview" style="margin-top:10px; min-height:50px; border:1px dashed var(--border); display:flex; align-items:center; justify-content:center; color:var(--muted)"></div>
+                <input type="file" accept="image/*" onchange="processImage(this)" style="padding:8px;">
+                <div id="pImgPreview" style="margin-top:10px; min-height:80px; border:2px dashed var(--border); border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; color:var(--muted); background:rgba(0,0,0,0.2);"></div>
             </div>
 
-            <div style="display:flex; justify-content:space-between; margin-top:20px;">
-                <button class="btn btn-danger" id="btnDelProd" onclick="deleteProduct()">Eliminar</button>
-                <button class="btn btn-primary" onclick="saveProduct()">Guardar Producto</button>
+            <div style="display:flex; justify-content:space-between; margin-top:30px;">
+                <button class="btn btn-danger" id="btnDelProd" onclick="deleteProduct()">Eliminar Producto</button>
+                <button class="btn btn-primary" onclick="saveProduct()">Guardar Cambios</button>
             </div>
         </div>
     </div>
 
     <div id="rowModal" class="modal">
-        <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-content" style="max-width: 450px;">
             <div class="modal-header">
                 <h3 style="margin:0; color:var(--accent);">Gestión de Fila</h3>
-                <button class="close-btn" onclick="closeModals()">×</button>
+                <button class="close-btn" onclick="closeModals()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
             <input type="hidden" id="rId">
             <div class="form-group"><label>Nombre de Fila</label><input type="text" id="rName" placeholder="Ej: Fila A"></div>
             <div class="form-group"><label>Capacidad Total (Metros)</label><input type="number" step="0.1" id="rSize"></div>
-            <div style="display:flex; justify-content:space-between; margin-top:20px;">
-                <button class="btn btn-danger" id="btnDelRow" onclick="deleteRow()">Eliminar</button>
+            <div style="display:flex; justify-content:space-between; margin-top:30px;">
+                <button class="btn btn-danger" id="btnDelRow" onclick="deleteRow()">Eliminar Fila</button>
                 <button class="btn btn-primary" onclick="saveRow()">Guardar Fila</button>
             </div>
         </div>
     </div>
 
     <div id="dbModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 1000px;">
             <div class="modal-header">
                 <h3 style="margin:0; color:var(--accent);">Inventario Global & SAP</h3>
-                <button class="close-btn" onclick="closeModals()">×</button>
+                <button class="close-btn" onclick="closeModals()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
-                <input type="text" placeholder="Buscar SKU o Nombre..." style="width:300px; margin:0;" oninput="filterDB(this.value)">
-                <div>
-                    <button class="btn" onclick="toggleSapSection()">📥 Importar SAP</button>
-                    <button class="btn btn-primary" onclick="applyDBChanges()">💾 Guardar Cambios</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:15px;">
+                <input type="text" placeholder="Buscar SKU o Nombre..." style="width:100%; max-width:350px; margin:0;" oninput="filterDB(this.value)">
+                <div style="display:flex; gap:10px;">
+                    <button class="btn" onclick="toggleSapSection()">📥 Importar de Excel / SAP</button>
+                    <button class="btn btn-primary" onclick="applyDBChanges()">💾 Guardar Ajustes</button>
                 </div>
             </div>
 
-            <div id="sapImportSection" style="display:none; background:rgba(0,0,0,0.3); padding:15px; border-radius:8px; border:1px solid var(--border); margin-bottom:15px;">
-                <p style="font-size:0.8rem; color:var(--muted); margin-top:0;">Pegue los datos desde Excel (Columnas: SKU | Nombre | Cantidad | FilaDestino | CajaMaster | CajaInner | Min | Max | Proveedor | DemoraDias)</p>
+            <div id="sapImportSection" style="display:none; background:rgba(0,0,0,0.2); padding:20px; border-radius:var(--radius-md); border:1px solid var(--border); margin-bottom:20px;">
+                <p style="font-size:0.85rem; color:var(--muted); margin-top:0; margin-bottom:10px;">Pegue los datos desde Excel. Columnas requeridas en orden:<br> <i>SKU | Nombre | Cantidad | FilaDestino | CajaMaster | CajaInner | Min | Max | Proveedor | DemoraDias</i></p>
                 <textarea id="sapPasteInput" rows="5" placeholder="SKU123&#9;Vino Export&#9;150..."></textarea>
                 <button class="btn btn-primary" onclick="processSapPaste()">Procesar Datos</button>
             </div>
 
-            <div style="max-height: 50vh; overflow-y: auto;">
+            <div style="max-height: 55vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm);">
                 <table>
                     <thead>
-                        <tr><th>Ubicación</th><th>SKU</th><th>Producto</th><th style="width:100px;">Físico</th><th>Mínimo</th><th>Máximo</th><th>Estado</th><th>Acción</th></tr>
+                        <tr><th>Ubicación</th><th>SKU</th><th>Producto</th><th style="width:110px;">Físico</th><th>Mín.</th><th>Máx.</th><th>Estado</th><th>Acción</th></tr>
                     </thead>
                     <tbody id="dbTableBody"></tbody>
                 </table>
@@ -274,24 +364,26 @@
     </div>
 
     <div id="poModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 900px;">
             <div class="modal-header">
                 <h3 style="margin:0; color:var(--accent);">Gestión con Proveedores</h3>
-                <button class="close-btn" onclick="closeModals()">×</button>
+                <button class="close-btn" onclick="closeModals()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
             
-            <h4 style="color:var(--text); border-bottom:1px solid var(--border); padding-bottom:5px;">Productos con Contrato Vigente</h4>
-            <div style="max-height: 30vh; overflow-y: auto; margin-bottom:20px;">
+            <h4>Productos con Contrato Vigente</h4>
+            <div style="max-height: 30vh; overflow-y: auto; margin-bottom:25px; border: 1px solid var(--border); border-radius: var(--radius-sm);">
                 <table>
-                    <thead><tr><th>Producto</th><th>Proveedor</th><th>Stock Bodega</th><th>Reservado Prov.</th><th>A Solicitar</th><th>Estado</th></tr></thead>
+                    <thead><tr><th>Producto</th><th>Proveedor</th><th>Stock Actual</th><th>Reserva Prov.</th><th>A Solicitar</th><th>Estado</th></tr></thead>
                     <tbody id="poActiveTableBody"></tbody>
                 </table>
             </div>
 
-            <h4 style="color:var(--text); border-bottom:1px solid var(--border); padding-bottom:5px;">Críticos (Requieren Nueva OC)</h4>
-            <div style="max-height: 30vh; overflow-y: auto;">
+            <h4>Críticos (Requieren Nueva OC)</h4>
+            <div style="max-height: 30vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm);">
                 <table>
-                    <thead><tr><th>Producto</th><th>Proveedor</th><th>Demora</th><th>Stock Bodega</th><th>Rango (Min/Max)</th><th>A Comprar</th><th>Fechas OC</th></tr></thead>
+                    <thead><tr><th>Producto</th><th>Proveedor</th><th>Demora</th><th>Stock Actual</th><th>Mín/Máx</th><th>A Comprar</th><th>Fechas OC</th></tr></thead>
                     <tbody id="poNewTableBody"></tbody>
                 </table>
             </div>
@@ -299,29 +391,34 @@
     </div>
 
     <div id="orderModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
                 <h3 style="margin:0; color:var(--accent);">Picking de Pedidos</h3>
-                <button class="close-btn" onclick="closeModals()">×</button>
+                <button class="close-btn" onclick="closeModals()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
 
             <div id="orderLoadSection">
-                <p style="font-size:0.85rem; color:var(--muted);">Pega la lista del pedido. Se buscan SKU y Cantidades para encender las luces azules en la bodega.</p>
+                <p style="font-size:0.9rem; color:var(--muted); margin-bottom:15px;">Pega la lista del pedido desde Excel (SKU y Cantidades al final). Se encenderán alertas azules en los racks de bodega para guiar la preparación.</p>
                 <textarea id="orderPasteInput" rows="8" placeholder="SKU001&#9;Vino Tinto&#9;12..."></textarea>
-                <button class="btn btn-primary" onclick="processOrderPaste()">Cargar e Iniciar Búsqueda</button>
+                <button class="btn btn-primary" onclick="processOrderPaste()">Cargar Pedido e Iniciar Búsqueda</button>
             </div>
 
             <div id="orderPrepSection" style="display:none; flex-direction:column;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <span style="color:var(--order-blue); font-weight:bold;">🟢 Pedido en curso (Racks Iluminados)</span>
-                    <div>
-                        <button class="btn btn-danger" onclick="cancelActiveOrder()">Cancelar / Vaciar</button>
-                        <button class="btn btn-primary" onclick="finalizeOrder()">✔️ Finalizar y Descontar Stock</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: var(--radius-sm); border: 1px solid rgba(59, 130, 246, 0.3);">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span class="order-indicator" style="background:var(--order-blue); width:12px; height:12px; animation: pulseOrder 2s infinite;"></span>
+                        <span style="color:var(--order-blue); font-weight:600; font-size:1.05rem;">Pedido en curso (Guíate por las luces azules)</span>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-danger" onclick="cancelActiveOrder()">Cancelar Picking</button>
+                        <button class="btn btn-primary" onclick="finalizeOrder()">✔️ Finalizar y Descontar</button>
                     </div>
                 </div>
-                <div style="max-height: 50vh; overflow-y: auto;">
+                <div style="max-height: 45vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm);">
                     <table>
-                        <thead><tr><th>Check</th><th>Ubicación</th><th>SKU</th><th>Producto</th><th>Solicitado</th><th>A Descontar</th></tr></thead>
+                        <thead><tr><th style="width:40px;">Listo</th><th>Ubicación Rack</th><th>SKU</th><th>Producto</th><th>Solicitado</th><th>Despachar</th></tr></thead>
                         <tbody id="orderTableBody"></tbody>
                     </table>
                 </div>
@@ -330,14 +427,16 @@
     </div>
 
     <div id="historyModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 900px;">
             <div class="modal-header">
-                <h3 style="margin:0; color:var(--accent);">Historial de Movimientos</h3>
-                <button class="close-btn" onclick="closeModals()">×</button>
+                <h3 style="margin:0; color:var(--accent);">Kardex / Historial de Movimientos</h3>
+                <button class="close-btn" onclick="closeModals()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
-            <div style="max-height: 60vh; overflow-y: auto;">
+            <div style="max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm);">
                 <table>
-                    <thead><tr><th>Fecha</th><th>SKU</th><th>Producto</th><th>Cambio</th><th>Usuario</th><th>Motivo / Razón</th></tr></thead>
+                    <thead><tr><th>Fecha / Hora</th><th>SKU</th><th>Producto</th><th>Cambio</th><th>Usuario</th><th>Motivo / Razón</th></tr></thead>
                     <tbody id="historyTableBody"></tbody>
                 </table>
             </div>
@@ -436,7 +535,7 @@
                 container.innerHTML = `
                     <div class="row-header">
                         <div class="row-info"><b>${row.name}</b> <span style="color:var(--muted); font-size:0.85rem; margin-left:10px;">${used.toFixed(2)}m / ${row.sizeM}m (${perc}%)</span></div>
-                        <button class="btn btn-secondary" style="padding:4px 8px; font-size:0.6rem" onclick="openRowModal('${row.id}')">⚙️ Editar</button>
+                        <button class="btn btn-secondary" onclick="openRowModal('${row.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>Editar</button>
                     </div>
                     <div class="row-scroll-wrapper">
                         <div class="wh-row" id="${row.id}" ondragover="event.preventDefault()" ondrop="drop(event)"></div>
@@ -454,14 +553,14 @@
                     pEl.id = `p-${p.sku}`;
                     pEl.draggable = true;
                     pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
-                    pEl.style.background = p.color + '22';
-                    pEl.style.borderTop = `4px solid ${p.color}`;
+                    pEl.style.background = p.color + '25';
+                    pEl.style.borderTop = `6px solid ${p.color}`;
                     
                     let tooltipText = `SKU: ${p.sku}\nProducto: ${p.name}\nStock Físico: ${p.current} (Mín: ${p.min} / Máx: ${p.max || 0})`;
                     if (p.hasPO) tooltipText += `\n📦 Prov. Reservado: ${p.reservedStock || 0}`;
                     if (p.masterQty || p.innerQty) tooltipText += `\nEmpaque: Master: ${p.masterQty || 0} u. | Interior: ${p.innerQty || 0} u.`;
                     if (p.supplier) tooltipText += `\nProveedor: ${p.supplier} (Demora: ${p.leadTime || 0} días)`;
-                    if (isInActiveOrder) tooltipText += `\n\n📦 REQUERIDO EN PEDIDO (Buscar luz azul)`;
+                    if (isInActiveOrder) tooltipText += `\n\n📦 REQUERIDO EN PEDIDO (Luz azul)`;
 
                     pEl.setAttribute('data-tooltip', tooltipText);
                     
@@ -517,15 +616,15 @@
                 const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
                 
                 let rowStyle = ''; let statusLabel = '';
-                if(p.current < p.min) { rowStyle = 'background: rgba(160, 48, 48, 0.15); border-left: 4px solid var(--danger);'; statusLabel = '<b style="color:var(--danger)">Crítico</b>'; }
-                else if (p.current <= p.min * 1.2) { rowStyle = 'background: rgba(200, 135, 42, 0.1); border-left: 4px solid var(--warn);'; statusLabel = '<b style="color:var(--warn)">Alerta</b>'; }
-                else if (p.max > 0 && p.current > p.max) { rowStyle = 'background: rgba(139, 92, 246, 0.15); border-left: 4px solid var(--over);'; statusLabel = '<b style="color:var(--over)">Sobre Stock</b>'; }
-                else { rowStyle = 'border-left: 4px solid var(--ok);'; statusLabel = '<span style="color:var(--ok)">Saludable</span>'; }
+                if(p.current < p.min) { rowStyle = 'background: rgba(239, 68, 68, 0.08); border-left: 4px solid var(--danger);'; statusLabel = '<b style="color:var(--danger)">Crítico</b>'; }
+                else if (p.current <= p.min * 1.2) { rowStyle = 'background: rgba(245, 158, 11, 0.08); border-left: 4px solid var(--warn);'; statusLabel = '<b style="color:var(--warn)">Alerta</b>'; }
+                else if (p.max > 0 && p.current > p.max) { rowStyle = 'background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--over);'; statusLabel = '<b style="color:var(--over)">Sobre Stock</b>'; }
+                else { rowStyle = 'border-left: 4px solid transparent;'; statusLabel = '<span style="color:var(--ok); font-weight:500;">Saludable</span>'; }
 
                 b.innerHTML += `<tr style="${rowStyle}">
-                    <td><b style="color:var(--accent)">${pos}</b></td><td>${p.sku}</td><td>${p.name}</td>
-                    <td><input type="number" style="margin:0; width:80px; text-align:center" value="${displayStock}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0"></td>
-                    <td>${p.min}</td><td>${p.max || 0}</td><td>${statusLabel}</td><td><button class="btn btn-secondary" style="padding:4px 8px" onclick="openProductModal('${p.sku}')">Ver</button></td>
+                    <td><b style="color:var(--accent)">${pos}</b></td><td><span style="font-family:monospace; color:var(--muted);">${p.sku}</span></td><td style="font-weight:500;">${p.name}</td>
+                    <td><input type="number" style="margin:0; width:90px; text-align:center;" value="${displayStock}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0"></td>
+                    <td>${p.min}</td><td>${p.max || 0}</td><td>${statusLabel}</td><td><button class="btn btn-secondary" onclick="openProductModal('${p.sku}')">Editar</button></td>
                 </tr>`;
             });
         }
@@ -545,7 +644,7 @@
                 document.getElementById('pReservedStock').value = p.reservedStock || 0;
                 document.getElementById('pPoDate').value = p.poDate || '';
                 document.getElementById('pPoArrival').value = p.poArrival || '';
-                tempImg = p.photo || null; document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}">` : '<span>Sin Imagen</span>';
+                tempImg = p.photo || null; document.getElementById('pImgPreview').innerHTML = p.photo ? `<img src="${p.photo}" style="max-height:150px; border-radius:4px;">` : '<span>Sin Imagen (Sube una para visualizar)</span>';
                 document.getElementById('btnDelProd').style.display = 'block';
             } else {
                 document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false; document.getElementById('pName').value = ''; 
@@ -588,17 +687,17 @@
                 const toOrder = targetStock > p.current ? targetStock - p.current : 0;
 
                 if (p.hasPO) {
-                    let alertHTML = '<span style="color:var(--ok)">Suficiente en Prov.</span>';
-                    if (p.reservedStock < toOrder) alertHTML = '<b style="color:var(--danger)">Emitir Nueva OC a Prov.</b>';
-                    bActive.innerHTML += `<tr><td><b>${p.sku}</b><br><small style="color:var(--muted)">${p.name}</small></td><td>${p.supplier || 'N/A'}</td><td style="color:var(--accent); font-weight:bold">${p.current}</td><td>${p.reservedStock || 0}</td><td><b style="color:var(--order-blue)">${toOrder}</b></td><td>${alertHTML}</td></tr>`;
+                    let alertHTML = '<span style="color:var(--ok); font-weight:500;">Stock en Prov. OK</span>';
+                    if (p.reservedStock < toOrder) alertHTML = '<b style="color:var(--danger)">Requiere Nueva OC</b>';
+                    bActive.innerHTML += `<tr><td><b style="color:var(--text);">${p.sku}</b><br><small style="color:var(--muted)">${p.name}</small></td><td>${p.supplier || 'N/A'}</td><td style="color:var(--accent); font-weight:bold; font-size:1.1rem;">${p.current}</td><td>${p.reservedStock || 0}</td><td><b style="color:var(--order-blue)">${toOrder}</b></td><td>${alertHTML}</td></tr>`;
                 } else {
                     if (p.current <= (p.min * 1.5)) {
-                        bNew.innerHTML += `<tr><td><b>${p.sku}</b><br><small style="color:var(--muted)">${p.name}</small></td><td>${p.supplier || 'N/A'}</td><td>${p.leadTime || 0} días</td><td style="color:var(--danger); font-weight:bold">${p.current}</td><td>${p.min} / ${p.max}</td><td><b style="color:var(--warn)">${toOrder}</b></td><td>Sol: ${p.poDate || '-'}<br>Lleg: ${p.poArrival || '-'}</td></tr>`;
+                        bNew.innerHTML += `<tr><td><b style="color:var(--text);">${p.sku}</b><br><small style="color:var(--muted)">${p.name}</small></td><td>${p.supplier || 'N/A'}</td><td>${p.leadTime || 0} días</td><td style="color:var(--danger); font-weight:bold; font-size:1.1rem;">${p.current}</td><td>${p.min} / ${p.max}</td><td><b style="color:var(--warn)">${toOrder}</b></td><td><span style="color:var(--muted); font-size:0.8rem;">Sol:</span> ${p.poDate || '-'}<br><span style="color:var(--muted); font-size:0.8rem;">Lleg:</span> ${p.poArrival || '-'}</td></tr>`;
                     }
                 }
             });
-            if(!bActive.innerHTML) bActive.innerHTML = '<tr><td colspan="6" style="text-align:center;">No hay productos con contrato vigente.</td></tr>';
-            if(!bNew.innerHTML) bNew.innerHTML = '<tr><td colspan="7" style="text-align:center;">Ningún producto urgente por solicitar.</td></tr>';
+            if(!bActive.innerHTML) bActive.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:20px;">No hay productos con contrato vigente.</td></tr>';
+            if(!bNew.innerHTML) bNew.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--muted); padding:20px;">Ningún producto urgente por solicitar a proveedor.</td></tr>';
             document.getElementById('poModal').classList.add('open');
         }
 
@@ -610,7 +709,7 @@
                 if(pIdx >= 0) {
                     const newStock = parseInt(DB_CHANGES[sku]) || 0;
                     if (PRODUCTS[pIdx].current !== newStock) {
-                        logMovement(sku, PRODUCTS[pIdx].name, newStock - PRODUCTS[pIdx].current, "Ajuste Masivo en Tabla DB");
+                        logMovement(sku, PRODUCTS[pIdx].name, newStock - PRODUCTS[pIdx].current, "Ajuste Masivo en Tabla BD");
                         PRODUCTS[pIdx].current = newStock;
                     }
                 } 
@@ -620,11 +719,11 @@
 
         function openHistoryModal() {
             const b = document.getElementById('historyTableBody'); b.innerHTML = '';
-            if(HISTORY_LOG.length === 0) { b.innerHTML = `<tr><td colspan="6" style="text-align:center;">No hay movimientos registrados.</td></tr>`; }
+            if(HISTORY_LOG.length === 0) { b.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:20px;">No hay movimientos registrados.</td></tr>`; }
             else {
                 HISTORY_LOG.forEach(log => {
                     const isPos = log.change.startsWith('+');
-                    b.innerHTML += `<tr><td style="color:var(--muted)">${log.date}</td><td><b>${log.sku}</b></td><td>${log.name}</td><td><b style="color:${isPos ? 'var(--ok)' : 'var(--danger)'}">${log.change}</b></td><td style="font-size:0.75rem;">${log.user}</td><td><i>${log.reason}</i></td></tr>`;
+                    b.innerHTML += `<tr><td style="color:var(--muted); font-size:0.85rem;">${log.date}</td><td><span style="font-family:monospace; color:var(--accent);">${log.sku}</span></td><td style="font-weight:500;">${log.name}</td><td><b style="color:${isPos ? 'var(--ok)' : 'var(--danger)'; font-size:1.1rem;}">${log.change}</b></td><td style="font-size:0.8rem; color:var(--muted);">${log.user}</td><td><i>${log.reason}</i></td></tr>`;
                 });
             }
             document.getElementById('historyModal').classList.add('open');
@@ -694,16 +793,24 @@
             const tbody = document.getElementById('orderTableBody'); tbody.innerHTML = '';
             ACTIVE_ORDER.forEach((item, index) => {
                 const p = PRODUCTS.find(x => x.sku.toLowerCase() === item.sku.toLowerCase());
-                let locationLabel = "<span style='color:var(--danger)'>⚠️ No está en racks</span>";
+                let locationLabel = "<span style='color:var(--danger); font-weight:600;'>⚠️ No está en racks</span>";
                 if (p) { const row = ROWS.find(r => r.id === p.rowId); const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1; locationLabel = row ? `<b style="color:var(--accent)">${row.name} (Pos. ${pIdx})</b>` : 'S/N'; }
-                const rowStyle = item.completed ? 'text-decoration: line-through; opacity: 0.4; background: rgba(0,0,0,0.25);' : '';
-                tbody.innerHTML += `<tr style="${rowStyle}"><td><input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleOrderItem(${index})" style="margin:0;"></td><td>${locationLabel}</td><td><span style="font-family:'DM Mono'">${item.sku}</span></td><td>${p ? p.name : item.name}</td><td><b>${item.requested}</b></td><td><input type="number" value="${item.picked}" style="width:80px; text-align:center; background:var(--bg); border:1px solid var(--border); color:#fff; padding:3px; margin:0; border-radius:4px;" oninput="updateOrderPickedQty(${index}, this.value)" ${item.completed ? 'disabled' : ''}></td></tr>`;
+                const rowStyle = item.completed ? 'opacity: 0.4; background: rgba(0,0,0,0.3);' : '';
+                const textStyle = item.completed ? 'text-decoration: line-through;' : '';
+                tbody.innerHTML += `<tr style="${rowStyle}">
+                    <td style="text-align:center;"><input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleOrderItem(${index})"></td>
+                    <td style="${textStyle}">${locationLabel}</td>
+                    <td style="${textStyle}"><span style="font-family:monospace; color:var(--muted);">${item.sku}</span></td>
+                    <td style="${textStyle}; font-weight:500;">${p ? p.name : item.name}</td>
+                    <td style="${textStyle}; font-weight:bold; font-size:1.1rem;">${item.requested}</td>
+                    <td><input type="number" value="${item.picked}" style="width:90px; text-align:center; margin:0;" oninput="updateOrderPickedQty(${index}, this.value)" ${item.completed ? 'disabled' : ''}></td>
+                </tr>`;
             });
         }
 
         function toggleOrderItem(index) { ACTIVE_ORDER[index].completed = !ACTIVE_ORDER[index].completed; renderOrderPrepTable(); }
         function updateOrderPickedQty(index, value) { ACTIVE_ORDER[index].picked = parseInt(value) || 0; }
-        function cancelActiveOrder() { if (confirm("¿Vaciar pedido y quitar alertas azules?")) { ACTIVE_ORDER = []; sync(); closeModals(); } }
+        function cancelActiveOrder() { if (confirm("¿Vaciar pedido actual y limpiar alertas en bodega?")) { ACTIVE_ORDER = []; sync(); closeModals(); } }
 
         function finalizeOrder() {
             let countDespachados = 0;
@@ -713,18 +820,19 @@
                     const oldStock = PRODUCTS[pIdx].current; PRODUCTS[pIdx].current -= item.picked;
                     if (PRODUCTS[pIdx].current < 0) PRODUCTS[pIdx].current = 0; 
                     const descontado = oldStock - PRODUCTS[pIdx].current;
-                    if(descontado > 0) { logMovement(PRODUCTS[pIdx].sku, PRODUCTS[pIdx].name, -descontado, `Despacho Pedido Tienda (Solicitado: ${item.requested})`); countDespachados++; }
+                    if(descontado > 0) { logMovement(PRODUCTS[pIdx].sku, PRODUCTS[pIdx].name, -descontado, `Despacho Pedido (Solicitado: ${item.requested})`); countDespachados++; }
                 }
             });
-            alert(`¡Inventario Descontado! Se actualizó el stock de ${countDespachados} productos en la Base de Datos.`);
+            alert(`¡Inventario Descontado! Se actualizó el stock de ${countDespachados} productos.`);
             ACTIVE_ORDER = []; sync(); closeModals();
         }
 
-        function deleteProduct() { if(confirm("¿Eliminar?")) { const sku = document.getElementById('pSku').value; logMovement(sku, document.getElementById('pName').value, -document.getElementById('pCurrent').value, "Producto Eliminado del Sistema"); PRODUCTS = PRODUCTS.filter(p => p.sku !== sku); sync(); closeProductModalOnly(); } }
+        function deleteProduct() { if(confirm("¿Estás seguro de eliminar este producto?")) { const sku = document.getElementById('pSku').value; logMovement(sku, document.getElementById('pName').value, -document.getElementById('pCurrent').value, "Producto Eliminado del Sistema"); PRODUCTS = PRODUCTS.filter(p => p.sku !== sku); sync(); closeProductModalOnly(); } }
         function openRowModal(id = null) { const r = id ? ROWS.find(x => x.id === id) : {id:'', name:'', sizeM:15}; document.getElementById('rId').value = r.id; document.getElementById('rName').value = r.name; document.getElementById('rSize').value = r.sizeM; document.getElementById('btnDelRow').style.display = id ? 'block' : 'none'; document.getElementById('rowModal').classList.add('open'); }
         function saveRow() { const id = document.getElementById('rId').value; const data = { id: id || 'R'+Date.now(), name: document.getElementById('rName').value, sizeM: parseFloat(document.getElementById('rSize').value) || 15 }; if(id) ROWS[ROWS.findIndex(x=>x.id===id)] = data; else ROWS.push(data); sync(); closeModals(); }
-        function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos."); if(confirm("¿Eliminar?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
-        function processImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale; canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height); tempImg = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('pImgPreview').innerHTML = `<img src="${tempImg}">`; }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]); } }
+        function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("No se puede eliminar una fila que contiene productos."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
+        function processImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale; canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height); tempImg = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('pImgPreview').innerHTML = `<img src="${tempImg}" style="max-height:150px; border-radius:4px;">`; }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]); } }
+        
         function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
         function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 
@@ -744,8 +852,8 @@
                     const criticos = PRODUCTS.filter(p => p && p.current < p.min);
                     if (criticos.length === 0) { localStorage.setItem('ultimoReporteStock', hoyStr); return; }
                     let filas = "";
-                    criticos.forEach(p => { filas += `<tr><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#c8a84b; font-weight:bold;">${p.sku}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#e8e4de;">${p.name}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#a03030; text-align:center; font-weight:bold;">${p.current}</td><td style="padding:12px; border-bottom:1px solid #2e2c29; color:#8a837a; text-align:center;">${p.min}</td></tr>`; });
-                    const estructuraCompletaHTML = `<div style="background:#0a0a09; color:#e8e4de; font-family:sans-serif; padding:40px; max-width:600px; margin:auto; border:1px solid #c8a84b; border-radius:12px;"><h2 style="color:#c8a84b; border-bottom:1px solid #2e2c29; padding-bottom:15px; text-transform:uppercase; letter-spacing:2px; margin-top:0;">Alerta de Reposición — Concha y Toro</h2><p style="color:#8a837a; font-size:14px;">Reporte automático diario de productos bajo el stock mínimo:</p><table style="width:100%; border-collapse:collapse; margin-top:25px;"><thead><tr style="background:#161512; color:#c8a84b; font-size:12px; text-transform:uppercase;"><th style="padding:12px; text-align:left; border-bottom:2px solid #c8a84b;">SKU</th><th style="padding:12px; text-align:left; border-bottom:2px solid #c8a84b;">Producto</th><th style="padding:12px; text-align:center; border-bottom:2px solid #c8a84b;">Stock</th><th style="padding:12px; text-align:center; border-bottom:2px solid #c8a84b;">Mín.</th></tr></thead><tbody style="font-size:13px;">${filas}</tbody></table></div>`;
+                    criticos.forEach(p => { filas += `<tr><td style="padding:12px; border-bottom:1px solid #38352f; color:#d4af37; font-weight:bold;">${p.sku}</td><td style="padding:12px; border-bottom:1px solid #38352f; color:#f0ede6;">${p.name}</td><td style="padding:12px; border-bottom:1px solid #38352f; color:#ef4444; text-align:center; font-weight:bold;">${p.current}</td><td style="padding:12px; border-bottom:1px solid #38352f; color:#a39c93; text-align:center;">${p.min}</td></tr>`; });
+                    const estructuraCompletaHTML = `<div style="background:#0d0c0b; color:#f0ede6; font-family:'Inter', sans-serif; padding:40px; max-width:600px; margin:auto; border:1px solid #38352f; border-radius:12px;"><h2 style="color:#d4af37; border-bottom:1px solid #38352f; padding-bottom:15px; text-transform:uppercase; letter-spacing:1px; margin-top:0;">Alerta de Reposición — Concha y Toro</h2><p style="color:#a39c93; font-size:14px;">Reporte automático diario de productos bajo el stock mínimo:</p><table style="width:100%; border-collapse:collapse; margin-top:25px;"><thead><tr style="background:#1a1916; color:#a39c93; font-size:12px; text-transform:uppercase;"><th style="padding:12px; text-align:left; border-bottom:2px solid #38352f;">SKU</th><th style="padding:12px; text-align:left; border-bottom:2px solid #38352f;">Producto</th><th style="padding:12px; text-align:center; border-bottom:2px solid #38352f;">Stock</th><th style="padding:12px; text-align:center; border-bottom:2px solid #38352f;">Mín.</th></tr></thead><tbody style="font-size:13px;">${filas}</tbody></table></div>`;
                     CORREOS_DESTINATARIOS.forEach(correo => { emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: estructuraCompletaHTML, to_email: correo }).catch(err => console.error(`Error a ${correo}:`, err)); });
                     localStorage.setItem('ultimoReporteStock', hoyStr);
                 }
