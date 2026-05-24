@@ -9,12 +9,11 @@ const firebaseConfig = {
     appId: "1:292866536059:web:4b69d406debf25d8d468de"
 };
 
-// Inicialización
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-// Variables Globales intactas
+// Variables Globales base
 let ROWS = [];
 let PRODUCTS = [];
 let HISTORY_LOG = []; 
@@ -22,25 +21,23 @@ let ACTIVE_ORDER = [];
 let tempImg = null, currentH = null;
 let DB_CHANGES = {};
 
-// LOGIC DE LOGIN
+// Variables Globales Nueva Función (Mapa 2D)
+let WAREHOUSES = [];
+let ZONES = [];
+let currentViewMode = 'racks';
+let activeWarehouseId = null;
+
+// Lógica de Login Intacta
 function handleLogin() {
     const emailInput = document.getElementById('loginEmail').value;
     const passInput = document.getElementById('loginPass').value;
     const errEl = document.getElementById('loginError');
-    
     const email = emailInput ? emailInput.trim() : '';
     const pass = passInput ? passInput.trim() : '';
 
-    if (!email || !pass) {
-        errEl.style.display = 'block';
-        errEl.innerText = "Por favor, ingresa correo y contraseña.";
-        return;
-    }
-
+    if (!email || !pass) { errEl.style.display = 'block'; errEl.innerText = "Ingresa correo y contraseña."; return; }
     auth.signInWithEmailAndPassword(email, pass).catch(function(err) {
-        errEl.style.display = 'block';
-        errEl.innerText = "Error de acceso: " + err.message;
-        console.error("Fallo de autenticación:", err);
+        errEl.style.display = 'block'; errEl.innerText = "Error de acceso: " + err.message;
     });
 }
 
@@ -48,40 +45,35 @@ auth.onAuthStateChanged(function(user) {
     if(user) {
         document.getElementById('loginScreen').style.display = 'none';
         
-        db.ref('bodega/rows').on('value', function(snap) {
-            const data = snap.val();
-            if (Array.isArray(data)) {
-                ROWS = data.filter(function(r) { return r !== null && r !== undefined; });
-            } else if (data && typeof data === 'object') {
-                ROWS = Object.keys(data).map(function(k) { return data[k]; }).filter(function(r) { return r !== null && r !== undefined; });
-            } else {
-                ROWS = [{id:'R1', name:'Fila A', sizeM:15}];
-            }
-            if(ROWS.length === 0) ROWS = [{id:'R1', name:'Fila A', sizeM:15}];
-            render();
-        });
+        db.ref('bodega').on('value', function(snap) {
+            const data = snap.val() || {};
 
-        db.ref('bodega/products').on('value', function(snap) {
-            const data = snap.val();
-            if (Array.isArray(data)) {
-                PRODUCTS = data.filter(function(p) { return p !== null && p !== undefined; });
-            } else if (data && typeof data === 'object') {
-                PRODUCTS = Object.keys(data).map(function(k) { return data[k]; }).filter(function(p) { return p !== null && p !== undefined; });
-            } else {
-                PRODUCTS = [];
-            }
+            let rawRows = data.rows || [{id:'R1', name:'Fila A', sizeM:15}];
+            if (!Array.isArray(rawRows) && typeof rawRows === 'object') { rawRows = Object.keys(rawRows).map(function(k) { return rawRows[k]; }); }
+            ROWS = rawRows.filter(function(r) { return r !== null && r !== undefined; });
+            if (ROWS.length === 0) ROWS = [{id:'R1', name:'Fila A', sizeM:15}];
+
+            let rawProducts = data.products || [];
+            if (!Array.isArray(rawProducts) && typeof rawProducts === 'object') { rawProducts = Object.keys(rawProducts).map(function(k) { return rawProducts[k]; }); }
+            PRODUCTS = rawProducts.filter(function(p) { return p !== null && p !== undefined; });
+
+            if (data.history) { HISTORY_LOG = Object.keys(data.history).map(function(k) { return data.history[k]; }).sort(function(a,b) { return new Date(b.dateRaw) - new Date(a.dateRaw); }); } 
+            else { HISTORY_LOG = []; }
+
+            // Carga segura de nuevos nodos (Mapa)
+            let rawWH = data.warehouses || [];
+            if (!Array.isArray(rawWH) && typeof rawWH === 'object') { rawWH = Object.keys(rawWH).map(function(k) { return rawWH[k]; }); }
+            WAREHOUSES = rawWH.filter(function(w) { return w !== null && w !== undefined; });
+            if (WAREHOUSES.length === 0) WAREHOUSES = [{id: 'WH1', name: 'Bodega Principal', widthM: 30, lengthM: 20, scale: 25}];
+            if (!activeWarehouseId) activeWarehouseId = WAREHOUSES[0].id;
+
+            let rawZones = data.zones || [];
+            if (!Array.isArray(rawZones) && typeof rawZones === 'object') { rawZones = Object.keys(rawZones).map(function(k) { return rawZones[k]; }); }
+            ZONES = rawZones.filter(function(z) { return z !== null && z !== undefined; });
+
             render();
+            if(currentViewMode === 'map') renderMap();
             verificarYEnviarReporteDiario();
-        });
-
-        db.ref('bodega/history').on('value', function(snap) {
-            const data = snap.val();
-            if(data) {
-                const arr = Object.keys(data).map(function(k) { return data[k]; });
-                HISTORY_LOG = arr.sort(function(a,b) { return new Date(b.dateRaw) - new Date(a.dateRaw); });
-            } else {
-                HISTORY_LOG = [];
-            }
         });
     } else {
         document.getElementById('loginScreen').style.display = 'flex';
@@ -92,8 +84,12 @@ function sync() {
     if(auth.currentUser) {
         db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
         db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
+        // Sincronizar también el mapa
+        db.ref('bodega/warehouses').set(JSON.parse(JSON.stringify(WAREHOUSES)));
+        db.ref('bodega/zones').set(JSON.parse(JSON.stringify(ZONES)));
     }
     render();
+    if(currentViewMode === 'map') renderMap();
 }
 
 function logMovement(sku, name, changeQty, reason) {
@@ -102,12 +98,10 @@ function logMovement(sku, name, changeQty, reason) {
     const dateRaw = new Date().toISOString();
     const dateStr = new Date().toLocaleString('es-CL');
     const changeTxt = changeQty > 0 ? '+' + changeQty : changeQty;
-    
-    db.ref('bodega/history').push({ 
-        date: dateStr, dateRaw: dateRaw, sku: sku, name: name, change: changeTxt, reason: reason, user: user 
-    });
+    db.ref('bodega/history').push({ date: dateStr, dateRaw: dateRaw, sku: sku, name: name, change: changeTxt, reason: reason, user: user });
 }
 
+// RENDER CLÁSICO DE RACKS (Intacto)
 function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
@@ -134,7 +128,6 @@ function render() {
         rowProds.forEach(function(p, index) {
             if(p.current < p.min) alerts.push(p.name);
             const posLabel = row.name.split(' ').pop() + (index + 1);
-            
             const isInActiveOrder = ACTIVE_ORDER.some(function(item) { return item.sku.toLowerCase() === p.sku.toLowerCase(); });
 
             const pEl = document.createElement('div');
@@ -195,7 +188,7 @@ function drop(e) {
     const sku = e.dataTransfer.getData("sku"); const targetRowId = e.currentTarget.id;
     const p = PRODUCTS.find(function(x) { return x.sku === sku; }); 
     const rowProds = PRODUCTS.filter(function(x) { return x.rowId === targetRowId && x.sku !== sku; });
-    const used = rowProds.reduce(function(s, x) { return s + (x.widthM||0); }, 0); 
+    const used = rowProds.reduce(function(s, x) { return s + (x.widthM || 0); }, 0); 
     const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
 
     if (used + p.widthM > targetRow.sizeM) return alert("Sin espacio en fila.");
@@ -236,8 +229,13 @@ function selectSuggestion(sku, boxId, isDB) {
     if(isDB) {
         filterDB(sku); 
     } else { 
-        currentH = sku; render(); 
-        const el = document.getElementById('p-' + sku);
+        currentH = sku; 
+        render(); 
+        if(currentViewMode === 'map') renderMap();
+        
+        // Auto scroll dependiendo de la vista activa
+        const prefix = currentViewMode === 'map' ? 'map-p-' : 'p-';
+        const el = document.getElementById(prefix + sku);
         if(el) el.scrollIntoView({behavior:'smooth', block:'center'}); 
     } 
 }
@@ -395,7 +393,7 @@ function applyDBChanges() {
         if(pIdx >= 0) {
             const newStock = parseInt(DB_CHANGES[sku]) || 0;
             if (PRODUCTS[pIdx].current !== newStock) {
-                logMovement(sku, PRODUCTS[pIdx].name, newStock - PRODUCTS[pIdx].current, "Ajuste Masivo en Tabla");
+                logMovement(sku, PRODUCTS[pIdx].name, newStock - PRODUCTS[pIdx].current, "Ajuste Masivo Tabla");
                 PRODUCTS[pIdx].current = newStock;
             }
         } 
@@ -516,7 +514,7 @@ function processOrderPaste() {
             const sku = columns[0] ? columns[0].trim() : '';
             const qtyStr = columns[columns.length - 1] ? columns[columns.length - 1].trim() : '';
             const requestedQty = parseInt(qtyStr) || 0;
-            const pastedName = columns[1] ? columns[1].trim() : "Producto";
+            const pastedName = columns[1] ? columns[1].trim() : "Producto Tienda";
             
             if (sku && requestedQty > 0) {
                 ACTIVE_ORDER.push({ sku: sku, name: pastedName, requested: requestedQty, picked: requestedQty, completed: false });
@@ -564,10 +562,7 @@ function renderOrderPrepTable() {
 
 function toggleOrderItem(index) { ACTIVE_ORDER[index].completed = !ACTIVE_ORDER[index].completed; renderOrderPrepTable(); }
 function updateOrderPickedQty(index, value) { ACTIVE_ORDER[index].picked = parseInt(value) || 0; }
-
-function cancelActiveOrder() {
-    if (confirm("¿Vaciar pedido y quitar alertas azules en bodega?")) { ACTIVE_ORDER = []; sync(); closeModals(); }
-}
+function cancelActiveOrder() { if (confirm("¿Vaciar pedido y quitar alertas azules en bodega?")) { ACTIVE_ORDER = []; sync(); closeModals(); } }
 
 function finalizeOrder() {
     let countDespachados = 0;
@@ -594,6 +589,7 @@ function openRowModal(id) { const r = (id && typeof id === 'string') ? ROWS.find
 function saveRow() { const id = document.getElementById('rId').value; const data = { id: id || 'R'+Date.now(), name: document.getElementById('rName').value, sizeM: parseFloat(document.getElementById('rSize').value) || 15 }; if(id) ROWS[ROWS.findIndex(function(x) { return x.id===id; })] = data; else ROWS.push(data); sync(); closeModals(); }
 function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(function(p) { return p.rowId === id; })) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(function(r) { return r.id !== id; }); sync(); closeModals(); } }
 function processImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { const img = new Image(); img.onload = function() { const canvas = document.createElement('canvas'); const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale; canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height); tempImg = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('pImgPreview').innerHTML = '<img src="' + tempImg + '" style="max-height:160px; border-radius:4px;">'; }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]); } }
+
 function closeModals() { document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); }); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 
@@ -601,14 +597,8 @@ function closeProductModalOnly() { document.getElementById('productModal').class
 const EMAILJS_PUBLIC_KEY = "cdusqn38kGYK4HyVj"; 
 const EMAILJS_SERVICE_ID = "service_00sszf8"; 
 const EMAILJS_TEMPLATE_ID = "template_1n41bpp"; 
-
-const CORREOS_DESTINATARIOS = [
-    "bodegavct@gmail.com",
-    "nestor.mellado@vctchile.com",
-    "jairo.escobedo@vctchile.com"
-];
-
-emailjs.init(EMAILJS_PUBLIC_KEY);
+const CORREOS_DESTINATARIOS = [ "bodegavct@gmail.com", "nestor.mellado@vctchile.com", "jairo.escobedo@vctchile.com" ];
+if(typeof emailjs !== 'undefined') emailjs.init(EMAILJS_PUBLIC_KEY);
 
 function verificarYEnviarReporteDiario() {
     const ahora = new Date(); const hoyStr = ahora.toISOString().split('T')[0];
@@ -616,7 +606,6 @@ function verificarYEnviarReporteDiario() {
     
     if (horaActual >= 8) {
         const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
-        
         if (ultimoEnvio !== hoyStr) {
             const criticos = PRODUCTS.filter(function(p) { return p && p.current < p.min; });
             if (criticos.length === 0) { localStorage.setItem('ultimoReporteStock', hoyStr); return; }
@@ -644,11 +633,347 @@ function verificarYEnviarReporteDiario() {
                     '<tbody style="font-size:14px;">' + filas + '</tbody>' +
                 '</table></div>';
 
-            CORREOS_DESTINATARIOS.forEach(function(correo) {
-                emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: estructuraCompletaHTML, to_email: correo })
-                .catch(function(err) { console.error("Error al enviar a " + correo + ":", err); });
-            });
+            if(typeof emailjs !== 'undefined') {
+                CORREOS_DESTINATARIOS.forEach(function(correo) {
+                    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: estructuraCompletaHTML, to_email: correo })
+                    .catch(function(err) { console.error("Error al enviar a " + correo + ":", err); });
+                });
+            }
             localStorage.setItem('ultimoReporteStock', hoyStr);
         }
+    }
+}
+
+/* ===============================================================
+   NUEVA FUNCIÓN: VISTA AÉREA INTERACTIVA (MAPA 2D)
+   =============================================================== */
+
+// Variables de interacción Mouse
+let draggingMapItem = null;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
+
+function toggleViewMode() {
+    const whWrap = document.getElementById('whWrap');
+    const mapWrap = document.getElementById('mapWrap');
+    const btn = document.getElementById('btnToggleView');
+    
+    if (currentViewMode === 'racks') {
+        currentViewMode = 'map';
+        whWrap.style.display = 'none';
+        mapWrap.style.display = 'flex';
+        btn.innerText = "📄 Vista Racks Clásica";
+        btn.style.background = "var(--accent)";
+        btn.style.color = "#000";
+        renderMap();
+    } else {
+        currentViewMode = 'racks';
+        mapWrap.style.display = 'none';
+        whWrap.style.display = 'flex'; // Default is flex in our app
+        btn.innerText = "📍 Vista Aérea 2D";
+        btn.style.background = "transparent";
+        btn.style.color = "var(--accent)";
+    }
+}
+
+function changeActiveWarehouse(whId) {
+    activeWarehouseId = whId;
+    renderMap();
+}
+
+function renderMap() {
+    if (currentViewMode !== 'map') return;
+    
+    // Rellenar selector de bodegas
+    const sel = document.getElementById('mapBodegaSelect');
+    let selHtml = '';
+    WAREHOUSES.forEach(function(w) { selHtml += '<option value="' + w.id + '" ' + (w.id === activeWarehouseId ? 'selected' : '') + '>' + w.name + '</option>'; });
+    sel.innerHTML = selHtml;
+
+    const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; }) || WAREHOUSES[0];
+    if (!activeWH) return;
+
+    const scale = activeWH.scale || 25;
+    const canvas = document.getElementById('mapCanvas');
+    
+    // Configurar tamaño del lienzo
+    canvas.style.width = (activeWH.widthM * scale) + 'px';
+    canvas.style.height = (activeWH.lengthM * scale) + 'px';
+    canvas.innerHTML = ''; // Limpiar lienzo
+
+    // Dibujar Zonas (Pasillos)
+    const whZones = ZONES.filter(function(z) { return z.whId === activeWH.id; });
+    whZones.forEach(function(zone) {
+        const zEl = document.createElement('div');
+        zEl.className = 'map-entity-zone';
+        zEl.id = 'map-zone-' + zone.id;
+        zEl.style.width = (zone.widthM * scale) + 'px';
+        zEl.style.height = (zone.lengthM * scale) + 'px';
+        zEl.style.left = (zone.x * scale) + 'px';
+        zEl.style.top = (zone.y * scale) + 'px';
+        zEl.innerHTML = '<span>' + zone.name + '</span>';
+        
+        zEl.onmousedown = function(e) { initMapDrag(e, 'zone', zone.id); };
+        zEl.ondblclick = function(e) { e.stopPropagation(); openZoneModal(zone.id); }; // Doble clic para editar
+        canvas.appendChild(zEl);
+    });
+
+    // Separar filas asignadas a esta bodega de las no asignadas (globales)
+    const assignedRows = [];
+    const unassignedRows = [];
+    
+    ROWS.forEach(function(r) {
+        if (r.whId === activeWH.id) assignedRows.push(r);
+        else if (!r.whId) unassignedRows.push(r);
+    });
+
+    // Dibujar Filas Asignadas
+    assignedRows.forEach(function(row) {
+        const rEl = document.createElement('div');
+        rEl.className = 'map-entity-row' + (row.rotation === 90 ? ' rotated' : '');
+        rEl.id = 'map-row-' + row.id;
+        
+        const rWidthPx = row.sizeM * scale;
+        const rDepthPx = 1.2 * scale; // Profundidad estándar de rack (1.2m)
+        
+        if (row.rotation === 90) {
+            rEl.style.width = rDepthPx + 'px';
+            rEl.style.height = rWidthPx + 'px';
+        } else {
+            rEl.style.width = rWidthPx + 'px';
+            rEl.style.height = rDepthPx + 'px';
+        }
+        
+        rEl.style.left = (row.x * scale) + 'px';
+        rEl.style.top = (row.y * scale) + 'px';
+
+        // Etiqueta de la Fila
+        const lbl = document.createElement('div');
+        lbl.className = 'map-entity-row-label';
+        lbl.innerText = row.name;
+        rEl.appendChild(lbl);
+
+        // Llenar con productos
+        const rowProds = PRODUCTS.filter(function(p) { return p && p.rowId === row.id; });
+        rowProds.forEach(function(p) {
+            const pWidthPx = p.widthM * scale;
+            const pEl = document.createElement('div');
+            pEl.className = 'map-mini-product';
+            pEl.style.background = p.color || '#c8a84b';
+            
+            if (row.rotation === 90) { pEl.style.height = pWidthPx + 'px'; } 
+            else { pEl.style.width = pWidthPx + 'px'; }
+
+            // Highlighting
+            const isInActiveOrder = ACTIVE_ORDER.some(function(item) { return item.sku.toLowerCase() === p.sku.toLowerCase(); });
+            if (currentH === p.sku) { pEl.style.boxShadow = '0 0 0 2px var(--bg), 0 0 10px var(--accent)'; pEl.style.zIndex = 10; }
+            if (isInActiveOrder) { pEl.style.animation = 'pulseBlue 1.5s infinite'; pEl.style.zIndex = 10; }
+
+            // Tooltip
+            let tooltipText = 'SKU: ' + p.sku + '\nProducto: ' + p.name + '\nStock: ' + p.current;
+            pEl.setAttribute('data-tooltip', tooltipText);
+            
+            pEl.onmousedown = function(e) { e.stopPropagation(); }; // Evita arrastrar fila si clickeas producto
+            pEl.onclick = function() { openProductModal(p.sku); };
+            
+            rEl.appendChild(pEl);
+        });
+
+        // Eventos Mover Fila
+        rEl.onmousedown = function(e) { initMapDrag(e, 'row', row.id); };
+        
+        // Rotar o quitar
+        rEl.ondblclick = function(e) {
+            if (e.shiftKey) { row.whId = null; row.x = 0; row.y = 0; sync(); } // Quitar del mapa
+            else { row.rotation = row.rotation === 90 ? 0 : 90; sync(); } // Rotar
+        };
+
+        canvas.appendChild(rEl);
+    });
+
+    // Renderizar panel lateral (Filas sin asignar)
+    const unassignWrap = document.getElementById('mapUnassignedRows');
+    let uHtml = '';
+    if (unassignedRows.length === 0) {
+        uHtml = '<p style="color:var(--ok); font-size:0.8rem; text-align:center;">Todas las filas están ubicadas.</p>';
+    } else {
+        unassignedRows.forEach(function(ur) {
+            uHtml += '<div class="unassigned-row-card">' +
+                '<b>' + ur.name + '</b>' +
+                '<button class="btn btn-secondary" style="padding:4px 8px; font-size:0.7rem;" onclick="assignRowToMap(\'' + ur.id + '\')">Al Plano ➡️</button>' +
+            '</div>';
+        });
+    }
+    unassignWrap.innerHTML = uHtml;
+}
+
+function assignRowToMap(rowId) {
+    const row = ROWS.find(function(r) { return r.id === rowId; });
+    if(row && activeWarehouseId) {
+        row.whId = activeWarehouseId;
+        row.x = 0; row.y = 0; row.rotation = 0;
+        sync();
+    }
+}
+
+// DRAG AND DROP NATIVO DEL LIENZO
+function initMapDrag(e, type, id) {
+    if (e.button !== 0) return; // Solo clic izquierdo
+    e.stopPropagation();
+    draggingMapItem = { type: type, id: id };
+    
+    const target = document.getElementById('map-' + type + '-' + id);
+    const rect = target.getBoundingClientRect();
+    
+    // Zoom/Scale calculation logic
+    const canvas = document.getElementById('mapCanvas');
+    const canvasRect = canvas.getBoundingClientRect();
+    
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+
+    document.addEventListener('mousemove', onMapDrag);
+    document.addEventListener('mouseup', onMapDrop);
+}
+
+function onMapDrag(e) {
+    if(!draggingMapItem) return;
+    const canvas = document.getElementById('mapCanvas');
+    const canvasRect = canvas.getBoundingClientRect();
+    
+    let x = e.clientX - canvasRect.left - dragOffsetX;
+    let y = e.clientY - canvasRect.top - dragOffsetY;
+
+    const el = document.getElementById('map-' + draggingMapItem.type + '-' + draggingMapItem.id);
+    if(el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
+}
+
+function onMapDrop(e) {
+    document.removeEventListener('mousemove', onMapDrag);
+    document.removeEventListener('mouseup', onMapDrop);
+    if(!draggingMapItem) return;
+
+    const canvas = document.getElementById('mapCanvas');
+    const canvasRect = canvas.getBoundingClientRect();
+    const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; });
+    const scale = activeWH ? (activeWH.scale || 25) : 25;
+
+    let x = e.clientX - canvasRect.left - dragOffsetX;
+    let y = e.clientY - canvasRect.top - dragOffsetY;
+
+    // Convertir de px a metros según escala y redondear levemente para "snap" sutil (0.1m)
+    let xM = Math.max(0, parseFloat((x / scale).toFixed(2)));
+    let yM = Math.max(0, parseFloat((y / scale).toFixed(2)));
+
+    if(draggingMapItem.type === 'row') {
+        const row = ROWS.find(function(r) { return r.id === draggingMapItem.id; });
+        if(row) { row.x = xM; row.y = yM; }
+    } else if (draggingMapItem.type === 'zone') {
+        const zone = ZONES.find(function(z) { return z.id === draggingMapItem.id; });
+        if(zone) { zone.x = xM; zone.y = yM; }
+    }
+
+    draggingMapItem = null;
+    sync(); // Guarda en FB y re-renderiza
+}
+
+// ─── MODALES DE CONFIGURACIÓN BODEGA Y ZONAS ───
+function openWarehouseModal(id) {
+    const wh = (id && typeof id === 'string') ? WAREHOUSES.find(function(x) { return x.id === id; }) : null;
+    if(wh) {
+        document.getElementById('whId').value = wh.id;
+        document.getElementById('whName').value = wh.name;
+        document.getElementById('whWidth').value = wh.widthM;
+        document.getElementById('whLength').value = wh.lengthM;
+        document.getElementById('whScale').value = wh.scale || 25;
+        document.getElementById('btnDelWh').style.display = 'block';
+        document.getElementById('whModalTitle').innerText = "Editar Bodega";
+    } else {
+        document.getElementById('whId').value = '';
+        document.getElementById('whName').value = '';
+        document.getElementById('whWidth').value = '';
+        document.getElementById('whLength').value = '';
+        document.getElementById('whScale').value = 25;
+        document.getElementById('btnDelWh').style.display = 'none';
+        document.getElementById('whModalTitle').innerText = "Nueva Bodega";
+    }
+    document.getElementById('warehouseModal').classList.add('open');
+}
+
+function saveWarehouse() {
+    const id = document.getElementById('whId').value || 'WH' + Date.now();
+    const name = document.getElementById('whName').value.trim();
+    const widthM = parseFloat(document.getElementById('whWidth').value) || 30;
+    const lengthM = parseFloat(document.getElementById('whLength').value) || 20;
+    const scale = parseFloat(document.getElementById('whScale').value) || 25;
+
+    if(!name) return alert("El nombre es requerido.");
+
+    const data = { id: id, name: name, widthM: widthM, lengthM: lengthM, scale: scale };
+    const idx = WAREHOUSES.findIndex(function(x) { return x.id === id; });
+    
+    if(idx >= 0) WAREHOUSES[idx] = data;
+    else WAREHOUSES.push(data);
+    
+    activeWarehouseId = id;
+    sync(); closeModals();
+}
+
+function deleteWarehouse() {
+    const id = document.getElementById('whId').value;
+    if(ROWS.some(function(r) { return r.whId === id; })) return alert("Vacía las filas de esta bodega primero (Shift+DobleClic en el plano).");
+    if(confirm("¿Eliminar Bodega? Se perderán sus pasillos.")) {
+        WAREHOUSES = WAREHOUSES.filter(function(w) { return w.id !== id; });
+        ZONES = ZONES.filter(function(z) { return z.whId !== id; });
+        activeWarehouseId = WAREHOUSES.length ? WAREHOUSES[0].id : null;
+        sync(); closeModals();
+    }
+}
+
+function openZoneModal(id) {
+    if(!activeWarehouseId) return alert("Selecciona o crea una bodega primero.");
+    const z = (id && typeof id === 'string') ? ZONES.find(function(x) { return x.id === id; }) : null;
+    if(z) {
+        document.getElementById('zId').value = z.id;
+        document.getElementById('zName').value = z.name;
+        document.getElementById('zWidth').value = z.widthM;
+        document.getElementById('zLength').value = z.lengthM;
+        document.getElementById('btnDelZone').style.display = 'block';
+    } else {
+        document.getElementById('zId').value = '';
+        document.getElementById('zName').value = '';
+        document.getElementById('zWidth').value = 4;
+        document.getElementById('zLength').value = 10;
+        document.getElementById('btnDelZone').style.display = 'none';
+    }
+    document.getElementById('zoneModal').classList.add('open');
+}
+
+function saveZone() {
+    const id = document.getElementById('zId').value || 'Z' + Date.now();
+    const data = { 
+        id: id, whId: activeWarehouseId, 
+        name: document.getElementById('zName').value || 'Pasillo', 
+        widthM: parseFloat(document.getElementById('zWidth').value) || 2, 
+        lengthM: parseFloat(document.getElementById('zLength').value) || 10,
+        x: 0, y: 0 // Inician en 0, luego se arrastran
+    };
+    
+    // Si ya existía, preservar coordenadas
+    const exist = ZONES.find(function(x) { return x.id === id; });
+    if(exist) { data.x = exist.x; data.y = exist.y; }
+
+    const idx = ZONES.findIndex(function(x) { return x.id === id; });
+    if(idx >= 0) ZONES[idx] = data;
+    else ZONES.push(data);
+    
+    sync(); closeModals();
+}
+
+function deleteZone() {
+    const id = document.getElementById('zId').value;
+    if(confirm("¿Eliminar pasillo/zona?")) {
+        ZONES = ZONES.filter(function(z) { return z.id !== id; });
+        sync(); closeModals();
     }
 }
