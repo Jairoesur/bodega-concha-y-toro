@@ -246,7 +246,7 @@
         <div class="field" style="text-align:left;"><label>Correo Corporativo</label><input type="email" id="loginEmail" placeholder="usuario@vctchile.com"></div>
         <div class="field" style="text-align:left;"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••••"></div>
         <button class="btn btn-primary" style="width:100%; padding: 14px; font-size: 1rem; margin-top: 15px;" onclick="handleLogin()">Ingresar al Sistema</button>
-        <p id="loginError" style="color:var(--danger); font-size:0.85rem; margin-top:15px; display:none; font-weight:500;">Credenciales incorrectas o problema de red.</p>
+        <p id="loginError" style="color:var(--danger); font-size:0.85rem; margin-top:15px; display:none; font-weight:500; background:rgba(239, 68, 68, 0.1); padding:10px; border-radius:4px;"></p>
     </div>
 </div>
 
@@ -289,7 +289,7 @@
   <div class="modal-content" style="width: 1000px;">
     <div class="editor-grid">
         <div class="editor-main">
-            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:2.2rem; margin-bottom:25px; letter-spacing:1px;">Ficha de Producto</h2>
+            <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:2.2rem; margin-bottom:25px; letter-spacing:1px;" id="pTitle">Ficha de Producto</h2>
             
             <div class="form-row">
                 <div class="field"><label>SKU / Código</label><input id="pSku" type="text" placeholder="Ej: VIN-001"></div>
@@ -502,6 +502,7 @@
 </div>
 
 <script>
+// Configuración inamovible de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyARv7i6uHqYHiuRfA7jkx8MdzmVKwWqxAo",
   authDomain: "bodega-concha-toro.firebaseapp.com",
@@ -513,7 +514,6 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const auth = firebase.auth();
 
 let ROWS = [];
 let PRODUCTS = [];
@@ -522,34 +522,53 @@ let ACTIVE_ORDER = [];
 let tempImg = null, currentH = null;
 let DB_CHANGES = {};
 
+// LOGIN ROBUSTO CON MANEJO EXPLÍCITO DE ERRORES FRONTEND
 function handleLogin() {
-    const email = document.getElementById('loginEmail').value;
-    const pass = document.getElementById('loginPass').value;
+    const emailInput = document.getElementById('loginEmail').value;
+    const passInput = document.getElementById('loginPass').value;
     const errEl = document.getElementById('loginError');
-    auth.signInWithEmailAndPassword(email, pass).catch(err => {
-        console.error("Error Auth:", err);
+    
+    // Evitar espacios al final que arruinan el login
+    const email = emailInput ? emailInput.trim() : '';
+    const pass = passInput ? passInput.trim() : '';
+
+    if (!email || !pass) {
         errEl.style.display = 'block';
+        errEl.innerText = "Por favor, ingresa correo y contraseña.";
+        return;
+    }
+
+    firebase.auth().signInWithEmailAndPassword(email, pass).catch(function(err) {
+        errEl.style.display = 'block';
+        // Si hay error, lo mostramos claramente al usuario
+        errEl.innerText = "Error de acceso: " + err.message;
+        console.error("Fallo de autenticación:", err);
     });
 }
 
-auth.onAuthStateChanged(user => {
+firebase.auth().onAuthStateChanged(function(user) {
     if(user) {
         document.getElementById('loginScreen').style.display = 'none';
         
-        db.ref('bodega/rows').on('value', snap => {
+        db.ref('bodega/rows').on('value', function(snap) {
             ROWS = snap.val() || [{id:'R1', name:'Fila A', sizeM:15}];
             render();
         });
 
-        db.ref('bodega/products').on('value', snap => {
+        db.ref('bodega/products').on('value', function(snap) {
             PRODUCTS = snap.val() || [];
             render();
             verificarYEnviarReporteDiario();
         });
 
-        db.ref('bodega/history').on('value', snap => {
+        db.ref('bodega/history').on('value', function(snap) {
             const data = snap.val();
-            HISTORY_LOG = data ? Object.values(data).sort((a,b) => new Date(b.dateRaw) - new Date(a.dateRaw)) : [];
+            if(data) {
+                const arr = Object.keys(data).map(function(k) { return data[k]; });
+                HISTORY_LOG = arr.sort(function(a,b) { return new Date(b.dateRaw) - new Date(a.dateRaw); });
+            } else {
+                HISTORY_LOG = [];
+            }
         });
     } else {
         document.getElementById('loginScreen').style.display = 'flex';
@@ -557,22 +576,32 @@ auth.onAuthStateChanged(user => {
 });
 
 function sync() {
-    if(auth.currentUser) {
+    if(firebase.auth().currentUser) {
         db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
         db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
     }
+    render();
 }
 
 function logMovement(sku, name, changeQty, reason) {
     if (changeQty === 0) return;
-    const user = auth.currentUser?.email || 'Admin';
+    const user = firebase.auth().currentUser ? firebase.auth().currentUser.email : 'Admin';
     const dateRaw = new Date().toISOString();
     const dateStr = new Date().toLocaleString('es-CL');
     const changeTxt = changeQty > 0 ? '+' + changeQty : changeQty;
     
-    db.ref('bodega/history').push({ date: dateStr, dateRaw: dateRaw, sku: sku, name: name, change: changeTxt, reason: reason, user: user });
+    db.ref('bodega/history').push({ 
+        date: dateStr, 
+        dateRaw: dateRaw, 
+        sku: sku, 
+        name: name, 
+        change: changeTxt, 
+        reason: reason, 
+        user: user 
+    });
 }
 
+// RENDER PRINCIPAL (Cero template literals para evitar SyntaxError)
 function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
@@ -581,15 +610,14 @@ function render() {
     const dot = document.getElementById('orderDotStatus');
     if(dot) dot.style.background = ACTIVE_ORDER.length > 0 ? 'var(--order-blue)' : 'grey';
 
-    ROWS.forEach(row => {
-        const rowProds = PRODUCTS.filter(p => p.rowId === row.id);
-        const used = rowProds.reduce((s, p) => s + p.widthM, 0);
+    ROWS.forEach(function(row) {
+        const rowProds = PRODUCTS.filter(function(p) { return p.rowId === row.id; });
+        const used = rowProds.reduce(function(s, p) { return s + p.widthM; }, 0);
         const perc = ((used / row.sizeM) * 100).toFixed(1);
 
         const container = document.createElement('div');
         container.className = 'row-container';
         
-        // Evitamos usar template literals con estilos complejos para no causar SyntaxErrors
         let headerHTML = '<div class="row-header"><div class="row-info"><b>' + row.name + '</b> <span>' + used.toFixed(2) + 'm / ' + row.sizeM + 'm (' + perc + '%)</span></div>';
         headerHTML += '<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRowModal(\'' + row.id + '\')">⚙️ Editar</button></div>';
         headerHTML += '<div class="row-scroll-wrapper"><div class="wh-row" id="' + row.id + '" ondragover="event.preventDefault()" ondrop="drop(event)"></div></div>';
@@ -597,11 +625,11 @@ function render() {
         container.innerHTML = headerHTML;
         const rowEl = container.querySelector('.wh-row');
         
-        rowProds.forEach((p, index) => {
+        rowProds.forEach(function(p, index) {
             if(p.current < p.min) alerts.push(p.name);
             const posLabel = row.name.split(' ').pop() + (index + 1);
             
-            const isInActiveOrder = ACTIVE_ORDER.some(item => item.sku.toLowerCase() === p.sku.toLowerCase());
+            const isInActiveOrder = ACTIVE_ORDER.some(function(item) { return item.sku.toLowerCase() === p.sku.toLowerCase(); });
 
             const pEl = document.createElement('div');
             let classes = 'product';
@@ -611,8 +639,8 @@ function render() {
             pEl.id = 'p-' + p.sku;
             pEl.draggable = true;
             pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
-            pEl.style.background = (p.color || '#c8a84b') + '22';
-            pEl.style.borderTop = '4px solid ' + (p.color || '#c8a84b');
+            pEl.style.background = (p.color || '#c8a84b') + '25';
+            pEl.style.borderTop = '6px solid ' + (p.color || '#c8a84b');
             
             let tooltipText = 'SKU: ' + p.sku + '\nProducto: ' + p.name + '\nStock Físico: ' + p.current + ' (Mín: ' + p.min + ' / Máx: ' + (p.max || 0) + ')';
             if (p.hasPO) tooltipText += '\n📦 Prov. Reservado: ' + (p.reservedStock || 0);
@@ -622,7 +650,7 @@ function render() {
 
             pEl.setAttribute('data-tooltip', tooltipText);
             
-            pEl.ondragstart = (e) => {
+            pEl.ondragstart = function(e) {
                 e.dataTransfer.setData("sku", p.sku);
                 const ghost = document.createElement('div');
                 ghost.style.width = '60px'; ghost.style.height = '85px'; ghost.style.background = pEl.style.background;
@@ -630,10 +658,10 @@ function render() {
                 ghost.style.borderRadius = '4px'; ghost.style.display = 'flex'; ghost.style.flexDirection = 'column';
                 ghost.style.alignItems = 'center'; ghost.style.justifyContent = 'center'; ghost.style.position = 'absolute';
                 ghost.style.top = '-1000px'; ghost.style.zIndex = '10000'; ghost.innerHTML = pEl.innerHTML;
-                document.body.appendChild(ghost); e.dataTransfer.setDragImage(ghost, 30, 42); setTimeout(() => document.body.removeChild(ghost), 0);
+                document.body.appendChild(ghost); e.dataTransfer.setDragImage(ghost, 30, 42); setTimeout(function(){ document.body.removeChild(ghost); }, 0);
             };
             
-            pEl.onclick = () => openProductModal(p.sku);
+            pEl.onclick = function() { openProductModal(p.sku); };
             
             let dotColor = 'var(--ok)';
             if(p.current < p.min) dotColor = 'var(--danger)';
@@ -659,26 +687,33 @@ function render() {
 function drop(e) {
     e.preventDefault();
     const sku = e.dataTransfer.getData("sku"); const targetRowId = e.currentTarget.id;
-    const p = PRODUCTS.find(x => x.sku === sku); const rowProds = PRODUCTS.filter(x => x.rowId === targetRowId && x.sku !== sku);
-    const used = rowProds.reduce((s, x) => s + x.widthM, 0); const targetRow = ROWS.find(r => r.id === targetRowId);
+    const p = PRODUCTS.find(function(x) { return x.sku === sku; }); 
+    const rowProds = PRODUCTS.filter(function(x) { return x.rowId === targetRowId && x.sku !== sku; });
+    const used = rowProds.reduce(function(s, x) { return s + x.widthM; }, 0); 
+    const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
 
-    if (used + p.widthM > targetRow.sizeM) return alert("Sin espacio en fila.");
-    const rowEl = document.getElementById(targetRowId); const children = Array.from(rowEl.children);
+    if (used + p.widthM > targetRow.sizeM) return alert("Sin espacio.");
+    const rowEl = document.getElementById(targetRowId); 
+    const children = Array.from(rowEl.children);
     let insertIdx = children.length;
-    children.forEach((child, idx) => { const rect = child.getBoundingClientRect(); if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx; });
+    children.forEach(function(child, idx) { 
+        const rect = child.getBoundingClientRect(); 
+        if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx; 
+    });
     rowProds.splice(insertIdx, 0, p); p.rowId = targetRowId;
-    PRODUCTS = [...PRODUCTS.filter(x => x.rowId !== targetRowId), ...rowProds]; sync();
-    logMovement(p.sku, p.name, 0, "Cambio a " + targetRow.name);
+    PRODUCTS = PRODUCTS.filter(function(x) { return x.rowId !== targetRowId; }).concat(rowProds); 
+    sync();
+    logMovement(p.sku, p.name, 0, "Cambio a fila " + targetRow.name);
 }
 
 function handleSearch(v, boxId, isDB) {
     const s = document.getElementById(boxId);
     if(!v) { s.style.display='none'; if(isDB) filterDB(''); return; }
-    const m = PRODUCTS.filter(p => p.sku.toLowerCase().includes(v.toLowerCase()) || p.name.toLowerCase().includes(v.toLowerCase()));
+    const m = PRODUCTS.filter(function(p) { return p.sku.toLowerCase().includes(v.toLowerCase()) || p.name.toLowerCase().includes(v.toLowerCase()); });
     s.style.display = m.length ? 'block' : 'none';
     
     let html = '';
-    m.forEach(p => {
+    m.forEach(function(p) {
         html += '<div class="suggestion-item" onclick="selectSuggestion(\'' + p.sku + '\', \'' + boxId + '\', ' + isDB + ')"><b>' + p.sku + '</b> - ' + p.name + '</div>';
     });
     s.innerHTML = html;
@@ -696,15 +731,16 @@ function selectSuggestion(sku, boxId, isDB) {
     } 
 }
 
-function openProductModal(sku = null) {
+function openProductModal(sku) {
     const sel = document.getElementById('pRowSelect'); 
     let options = '';
-    ROWS.forEach(r => { options += '<option value="' + r.id + '">' + r.name + '</option>'; });
+    ROWS.forEach(function(r) { options += '<option value="' + r.id + '">' + r.name + '</option>'; });
     sel.innerHTML = options;
     tempImg = null;
     
-    if(sku) {
-        const p = PRODUCTS.find(x => x.sku === sku); if(!p) return;
+    if(sku && typeof sku === 'string') {
+        const p = PRODUCTS.find(function(x) { return x.sku === sku; }); 
+        if(!p) return;
         document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
         document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
         document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
@@ -718,18 +754,16 @@ function openProductModal(sku = null) {
         document.getElementById('pPoDate').value = p.poDate || '';
         document.getElementById('pPoArrival').value = p.poArrival || '';
 
-        tempImg = p.photo || null; document.getElementById('pImgPreview').innerHTML = p.photo ? '<img src="' + p.photo + '">' : '<span style="font-size: 0.8rem; color:var(--muted);">Sin Imagen</span>';
+        tempImg = p.photo || null; document.getElementById('pImgPreview').innerHTML = p.photo ? '<img src="' + p.photo + '">' : '<span style="font-size: 0.85rem; color:var(--muted);">Sin Imagen</span>';
         document.getElementById('btnDelProd').style.display = 'block';
-        document.getElementById('pTitle').innerText = "Editor de Producto";
     } else {
         document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false; document.getElementById('pName').value = ''; 
         document.getElementById('pWidth').value = '0.56'; document.getElementById('pCurrent').value = '0'; document.getElementById('pMin').value = '0'; document.getElementById('pMax').value = '0';
         document.getElementById('pMasterQty').value = ''; document.getElementById('pInnerQty').value = ''; document.getElementById('pSupplier').value = '';
         document.getElementById('pLeadTime').value = ''; document.getElementById('pHasPO').checked = false; document.getElementById('pReservedStock').value = '0';
         document.getElementById('pPoDate').value = ''; document.getElementById('pPoArrival').value = '';
-        document.getElementById('pImgPreview').innerHTML = '<span style="font-size: 0.8rem; color:var(--muted);">Sin Imagen</span>'; 
+        document.getElementById('pImgPreview').innerHTML = '<span style="font-size: 0.85rem; color:var(--muted);">Sin Imagen</span>'; 
         document.getElementById('btnDelProd').style.display = 'none';
-        document.getElementById('pTitle').innerText = "Nuevo Producto";
     }
     document.getElementById('productModal').classList.add('open');
 }
@@ -746,7 +780,7 @@ function saveProduct() {
         hasPO: document.getElementById('pHasPO').checked, reservedStock: parseInt(document.getElementById('pReservedStock').value) || 0,
         poDate: document.getElementById('pPoDate').value, poArrival: document.getElementById('pPoArrival').value, photo: tempImg || null
     };
-    const idx = PRODUCTS.findIndex(p => p.sku === sku);
+    const idx = PRODUCTS.findIndex(function(p) { return p.sku === sku; });
     if(idx >= 0) {
         if(PRODUCTS[idx].current !== newStock) logMovement(sku, data.name, newStock - PRODUCTS[idx].current, "Edición Manual");
         PRODUCTS[idx] = Object.assign({}, PRODUCTS[idx], data);
@@ -757,13 +791,13 @@ function saveProduct() {
 }
 
 function openPoModal() {
-    const bActive = document.getElementById('poActiveTableBody'); bActive.innerHTML = '';
-    const bNew = document.getElementById('poNewTableBody'); bNew.innerHTML = '';
+    const bActive = document.getElementById('poActiveTableBody');
+    const bNew = document.getElementById('poNewTableBody');
     
     let activeRows = '';
     let newRows = '';
 
-    PRODUCTS.forEach(p => {
+    PRODUCTS.forEach(function(p) {
         const targetStock = p.max > 0 ? p.max : (p.min > 0 ? p.min * 2 : 100);
         const toOrder = targetStock > p.current ? targetStock - p.current : 0;
 
@@ -806,8 +840,9 @@ function filterDB(q) {
     const b = document.getElementById('dbTableBody'); 
     let html = '';
     
-    PRODUCTS.filter(p => p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase())).forEach((p) => {
-        const row = ROWS.find(r => r.id === p.rowId); const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
+    PRODUCTS.filter(function(p) { return p.sku.toLowerCase().includes(q.toLowerCase()) || p.name.toLowerCase().includes(q.toLowerCase()); }).forEach(function(p) {
+        const row = ROWS.find(function(r) { return r.id === p.rowId; }); 
+        const pIdx = PRODUCTS.filter(function(x) { return x.rowId === p.rowId; }).findIndex(function(x) { return x.sku === p.sku; }) + 1;
         const pos = row ? row.name.split(' ').pop() + pIdx : 'S/N';
         const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
         
@@ -830,12 +865,12 @@ function filterDB(q) {
 }
 
 function applyDBChanges() {
-    Object.keys(DB_CHANGES).forEach(sku => { 
-        const pIdx = PRODUCTS.findIndex(x => x.sku === sku); 
+    Object.keys(DB_CHANGES).forEach(function(sku) { 
+        const pIdx = PRODUCTS.findIndex(function(x) { return x.sku === sku; }); 
         if(pIdx >= 0) {
             const newStock = parseInt(DB_CHANGES[sku]) || 0;
             if (PRODUCTS[pIdx].current !== newStock) {
-                logMovement(sku, PRODUCTS[pIdx].name, newStock - PRODUCTS[pIdx].current, "Ajuste Masivo en Tabla");
+                logMovement(sku, PRODUCTS[pIdx].name, newStock - PRODUCTS[pIdx].current, "Ajuste Masivo Tabla");
                 PRODUCTS[pIdx].current = newStock;
             }
         } 
@@ -850,7 +885,7 @@ function openHistoryModal() {
     if(HISTORY_LOG.length === 0) { 
         html = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--muted);">No hay movimientos registrados.</td></tr>'; 
     } else {
-        HISTORY_LOG.forEach(log => {
+        HISTORY_LOG.forEach(function(log) {
             const isPos = String(log.change).startsWith('+');
             const color = isPos ? 'var(--ok)' : 'var(--danger)';
             html += '<tr>' +
@@ -877,7 +912,7 @@ function processSapPaste() {
     if (!inputData) return alert("El cuadro de texto está vacío.");
     const lines = inputData.split('\n'); let updatedCount = 0; let createdCount = 0;
     
-    lines.forEach(line => {
+    lines.forEach(function(line) {
         const delimiter = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : ',');
         const cols = line.split(delimiter);
         
@@ -887,7 +922,7 @@ function processSapPaste() {
             const qtyStr = cols[2] ? cols[2].trim() : ''; 
             const qty = qtyStr ? parseInt(qtyStr) : 0;
             
-            const pIdx = PRODUCTS.findIndex(p => p.sku.toLowerCase() === sku.toLowerCase());
+            const pIdx = PRODUCTS.findIndex(function(p) { return p.sku.toLowerCase() === sku.toLowerCase(); });
             
             if (pIdx >= 0) {
                 if (!isNaN(qty) && qtyStr !== "" && PRODUCTS[pIdx].current !== qty) { logMovement(sku, name, qty - PRODUCTS[pIdx].current, "Importación SAP"); PRODUCTS[pIdx].current = qty; updatedCount++; }
@@ -895,7 +930,7 @@ function processSapPaste() {
                 
                 if (cols[3] && cols[3].trim() !== '') {
                     const rowSearch = cols[3].trim().toLowerCase();
-                    const matchedRow = ROWS.find(r => r.name.toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch);
+                    const matchedRow = ROWS.find(function(r) { return r.name.toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch; });
                     if (matchedRow) PRODUCTS[pIdx].rowId = matchedRow.id;
                 }
                 
@@ -909,7 +944,7 @@ function processSapPaste() {
                 let targetRowId = ROWS.length > 0 ? ROWS[0].id : ''; 
                 if (cols[3] && cols[3].trim() !== '') {
                     const rowSearch = cols[3].trim().toLowerCase();
-                    const matchedRow = ROWS.find(r => r.name.toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch);
+                    const matchedRow = ROWS.find(function(r) { return r.name.toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch; });
                     if (matchedRow) targetRowId = matchedRow.id;
                 }
                 const newProd = { 
@@ -919,7 +954,7 @@ function processSapPaste() {
                     supplier: cols[8] ? cols[8].trim() : "", leadTime: parseInt(cols[9] ? cols[9].trim() : '') || 0,
                     hasPO: false, reservedStock: 0, photo: null 
                 };
-                PRODUCTS.push(newProd); logMovement(sku, name, newProd.current, "Alta desde SAP Extendido"); createdCount++;
+                PRODUCTS.push(newProd); logMovement(sku, name, newProd.current, "Alta SAP"); createdCount++;
             }
         }
     });
@@ -927,7 +962,7 @@ function processSapPaste() {
     sync(); filterDB('');
 }
 
-/* ─── 📦 MÓDULO INTERACTIVO DE PEDIDOS DE TIENDA ─── */
+/* ─── MÓDULO INTERACTIVO DE PEDIDOS DE TIENDA ─── */
 function openOrderModal() {
     document.getElementById('orderModal').classList.add('open');
     if (ACTIVE_ORDER.length > 0) {
@@ -948,7 +983,7 @@ function processOrderPaste() {
     const lines = inputData.split('\n');
     ACTIVE_ORDER = [];
     
-    lines.forEach(line => {
+    lines.forEach(function(line) {
         const delimiter = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : ',');
         const columns = line.split(delimiter);
         if (columns.length >= 2) {
@@ -976,13 +1011,13 @@ function renderOrderPrepTable() {
     const tbody = document.getElementById('orderTableBody');
     let html = '';
     
-    ACTIVE_ORDER.forEach((item, index) => {
-        const p = PRODUCTS.find(x => x.sku.toLowerCase() === item.sku.toLowerCase());
+    ACTIVE_ORDER.forEach(function(item, index) {
+        const p = PRODUCTS.find(function(x) { return x.sku.toLowerCase() === item.sku.toLowerCase(); });
         let locationLabel = "<span style='color:var(--danger); font-weight:600;'>⚠️ No está en racks</span>";
         
         if (p) {
-            const row = ROWS.find(r => r.id === p.rowId);
-            const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
+            const row = ROWS.find(function(r) { return r.id === p.rowId; });
+            const pIdx = PRODUCTS.filter(function(x) { return x.rowId === p.rowId; }).findIndex(function(x) { return x.sku === p.sku; }) + 1;
             locationLabel = row ? '<b style="color:var(--accent)">' + row.name + ' (Pos. ' + pIdx + ')</b>' : 'S/N';
         }
         
@@ -1010,8 +1045,8 @@ function cancelActiveOrder() {
 
 function finalizeOrder() {
     let countDespachados = 0;
-    ACTIVE_ORDER.forEach(item => {
-        const pIdx = PRODUCTS.findIndex(x => x.sku.toLowerCase() === item.sku.toLowerCase());
+    ACTIVE_ORDER.forEach(function(item) {
+        const pIdx = PRODUCTS.findIndex(function(x) { return x.sku.toLowerCase() === item.sku.toLowerCase(); });
         if (pIdx >= 0) {
             const oldStock = PRODUCTS[pIdx].current;
             PRODUCTS[pIdx].current -= item.picked;
@@ -1028,12 +1063,12 @@ function finalizeOrder() {
     ACTIVE_ORDER = []; sync(); closeModals();
 }
 
-function deleteProduct() { if(confirm("¿Seguro que deseas eliminar este producto?")) { const sku = document.getElementById('pSku').value; logMovement(sku, document.getElementById('pName').value, -document.getElementById('pCurrent').value, "Eliminado del Sistema"); PRODUCTS = PRODUCTS.filter(p => p.sku !== sku); sync(); closeProductModalOnly(); } }
-function openRowModal(id = null) { const r = id ? ROWS.find(x => x.id === id) : {id:'', name:'', sizeM:15}; document.getElementById('rId').value = r.id; document.getElementById('rName').value = r.name; document.getElementById('rSize').value = r.sizeM; document.getElementById('btnDelRow').style.display = id ? 'block' : 'none'; document.getElementById('rowModal').classList.add('open'); }
-function saveRow() { const id = document.getElementById('rId').value; const data = { id: id || 'R'+Date.now(), name: document.getElementById('rName').value, sizeM: parseFloat(document.getElementById('rSize').value) || 15 }; if(id) ROWS[ROWS.findIndex(x=>x.id===id)] = data; else ROWS.push(data); sync(); closeModals(); }
-function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos. Mueve los productos antes de eliminar."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
-function processImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.onload = () => { const canvas = document.createElement('canvas'); const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale; canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height); tempImg = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('pImgPreview').innerHTML = '<img src="' + tempImg + '">'; }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]); } }
-function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
+function deleteProduct() { if(confirm("¿Seguro de eliminar producto?")) { const sku = document.getElementById('pSku').value; logMovement(sku, document.getElementById('pName').value, -document.getElementById('pCurrent').value, "Eliminado del Sistema"); PRODUCTS = PRODUCTS.filter(function(p) { return p.sku !== sku; }); sync(); closeProductModalOnly(); } }
+function openRowModal(id) { const r = (id && typeof id === 'string') ? ROWS.find(function(x) { return x.id === id; }) : {id:'', name:'', sizeM:15}; document.getElementById('rId').value = r.id; document.getElementById('rName').value = r.name; document.getElementById('rSize').value = r.sizeM; document.getElementById('btnDelRow').style.display = id ? 'block' : 'none'; document.getElementById('rowModal').classList.add('open'); }
+function saveRow() { const id = document.getElementById('rId').value; const data = { id: id || 'R'+Date.now(), name: document.getElementById('rName').value, sizeM: parseFloat(document.getElementById('rSize').value) || 15 }; if(id) ROWS[ROWS.findIndex(function(x) { return x.id===id; })] = data; else ROWS.push(data); sync(); closeModals(); }
+function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(function(p) { return p.rowId === id; })) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(function(r) { return r.id !== id; }); sync(); closeModals(); } }
+function processImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { const img = new Image(); img.onload = function() { const canvas = document.createElement('canvas'); const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale; canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height); tempImg = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('pImgPreview').innerHTML = '<img src="' + tempImg + '">'; }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]); } }
+function closeModals() { document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); }); }
 function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 
 /* ─── ROBOT DE CORREOS AUTOMÁTICOS ─── */
@@ -1057,11 +1092,11 @@ function verificarYEnviarReporteDiario() {
         const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
         
         if (ultimoEnvio !== hoyStr) {
-            const criticos = PRODUCTS.filter(p => p && p.current < p.min);
+            const criticos = PRODUCTS.filter(function(p) { return p && p.current < p.min; });
             if (criticos.length === 0) { localStorage.setItem('ultimoReporteStock', hoyStr); return; }
 
             let filas = "";
-            criticos.forEach(p => { 
+            criticos.forEach(function(p) { 
                 filas += '<tr>' +
                     '<td style="padding:14px; border-bottom:1px solid #38352f; color:#d4af37; font-weight:bold;">' + p.sku + '</td>' +
                     '<td style="padding:14px; border-bottom:1px solid #38352f; color:#f0ede6;">' + p.name + '</td>' +
@@ -1083,9 +1118,9 @@ function verificarYEnviarReporteDiario() {
                     '<tbody style="font-size:14px;">' + filas + '</tbody>' +
                 '</table></div>';
 
-            CORREOS_DESTINATARIOS.forEach(correo => {
+            CORREOS_DESTINATARIOS.forEach(function(correo) {
                 emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: estructuraCompletaHTML, to_email: correo })
-                .catch(err => console.error("Error al enviar correo a " + correo + ":", err));
+                .catch(function(err) { console.error("Error al enviar a " + correo + ":", err); });
             });
             localStorage.setItem('ultimoReporteStock', hoyStr);
         }
