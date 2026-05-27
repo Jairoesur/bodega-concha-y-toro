@@ -13,7 +13,6 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-// Variables Globales base
 let ROWS = [];
 let PRODUCTS = [];
 let HISTORY_LOG = []; 
@@ -21,11 +20,16 @@ let ACTIVE_ORDER = [];
 let tempImg = null, currentH = null;
 let DB_CHANGES = {};
 
-// Variables Globales Nueva Función (Mapa 2D)
+// Mapa 2D
 let WAREHOUSES = [];
 let ZONES = [];
 let currentViewMode = 'racks';
 let activeWarehouseId = null;
+
+// Interacción Visual Mapa
+let selectedMapItem = null; // {type: 'row'|'zone', id: string}
+let draggingMapItem = null;
+let dragOffsetX = 0, dragOffsetY = 0;
 
 function handleLogin() {
     const emailInput = document.getElementById('loginEmail').value;
@@ -59,7 +63,6 @@ auth.onAuthStateChanged(function(user) {
             if (data.history) { HISTORY_LOG = Object.keys(data.history).map(function(k) { return data.history[k]; }).sort(function(a,b) { return new Date(b.dateRaw) - new Date(a.dateRaw); }); } 
             else { HISTORY_LOG = []; }
 
-            // Carga segura de nuevos nodos (Mapa)
             let rawWH = data.warehouses || [];
             if (!Array.isArray(rawWH) && typeof rawWH === 'object') { rawWH = Object.keys(rawWH).map(function(k) { return rawWH[k]; }); }
             WAREHOUSES = rawWH.filter(function(w) { return w !== null && w !== undefined; });
@@ -99,7 +102,7 @@ function logMovement(sku, name, changeQty, reason) {
     db.ref('bodega/history').push({ date: dateStr, dateRaw: dateRaw, sku: sku, name: name, change: changeTxt, reason: reason, user: user });
 }
 
-// RENDER CLÁSICO DE RACKS
+// ─── RENDER CLÁSICO DE RACKS (Intacto) ───
 function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
@@ -110,13 +113,19 @@ function render() {
 
     ROWS.forEach(function(row) {
         const rowProds = PRODUCTS.filter(function(p) { return p && p.rowId === row.id; });
+        // En vista clásica sumamos todo como si fuera una línea recta
         const used = rowProds.reduce(function(s, p) { return s + (p.widthM || 0); }, 0);
-        const perc = row.sizeM > 0 ? ((used / row.sizeM) * 100).toFixed(1) : 0;
+        
+        let totalSize = row.sizeM || 15;
+        if(row.shape === 'L') totalSize = (row.seg1 || 10) + (row.seg2 || 10);
+        if(row.shape === 'U') totalSize = (row.seg1 || 5) + (row.seg2 || 10) + (row.seg3 || 5);
+        
+        const perc = totalSize > 0 ? ((used / totalSize) * 100).toFixed(1) : 0;
 
         const container = document.createElement('div');
         container.className = 'row-container';
         
-        let headerHTML = '<div class="row-header"><div class="row-info"><b>' + row.name + '</b> <span>' + used.toFixed(2) + 'm / ' + row.sizeM + 'm (' + perc + '%)</span></div>';
+        let headerHTML = '<div class="row-header"><div class="row-info"><b>' + row.name + '</b> <span>' + used.toFixed(2) + 'm / ' + totalSize + 'm (' + perc + '%)</span></div>';
         headerHTML += '<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRowModal(\'' + row.id + '\')">⚙️ Editar</button></div>';
         headerHTML += '<div class="row-scroll-wrapper"><div class="wh-row" id="' + row.id + '" ondragover="event.preventDefault()" ondrop="drop(event)"></div></div>';
         
@@ -127,7 +136,7 @@ function render() {
             if(p.current < p.min) alerts.push(p.name);
             const posLabel = row.name.split(' ').pop() + (index + 1);
             
-            // CORRECCIÓN: Filtro de iluminación estricto para productos no completados
+            // Lógica corregida: si está en el pedido y NO ha sido completado, se ilumina.
             const isInActiveOrder = ACTIVE_ORDER.some(function(item) { return item.sku.toLowerCase() === p.sku.toLowerCase() && !item.completed; });
 
             const pEl = document.createElement('div');
@@ -137,7 +146,7 @@ function render() {
             pEl.className = classes;
             pEl.id = 'p-' + p.sku;
             pEl.draggable = true;
-            pEl.style.width = (p.widthM / row.sizeM * 100) + '%';
+            pEl.style.width = (p.widthM / totalSize * 100) + '%';
             pEl.style.background = (p.color || '#c8a84b') + '25';
             pEl.style.borderTop = '6px solid ' + (p.color || '#c8a84b');
             
@@ -188,10 +197,15 @@ function drop(e) {
     const sku = e.dataTransfer.getData("sku"); const targetRowId = e.currentTarget.id;
     const p = PRODUCTS.find(function(x) { return x.sku === sku; }); 
     const rowProds = PRODUCTS.filter(function(x) { return x.rowId === targetRowId && x.sku !== sku; });
-    const used = rowProds.reduce(function(s, x) { return s + (x.widthM||0); }, 0); 
+    const used = rowProds.reduce(function(s, x) { return s + (x.widthM || 0); }, 0); 
+    
     const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
+    let totalSize = targetRow.sizeM || 15;
+    if(targetRow.shape === 'L') totalSize = (targetRow.seg1 || 10) + (targetRow.seg2 || 10);
+    if(targetRow.shape === 'U') totalSize = (targetRow.seg1 || 5) + (targetRow.seg2 || 10) + (targetRow.seg3 || 5);
 
-    if (used + p.widthM > targetRow.sizeM) return alert("Sin espacio en fila.");
+    if (used + p.widthM > totalSize) return alert("Sin espacio en fila.");
+    
     const rowEl = document.getElementById(targetRowId); 
     const children = Array.from(rowEl.children);
     let insertIdx = children.length;
@@ -232,6 +246,7 @@ function selectSuggestion(sku, boxId, isDB) {
         currentH = sku; 
         render(); 
         if(currentViewMode === 'map') renderMap();
+        
         const prefix = currentViewMode === 'map' ? 'map-p-' : 'p-';
         const el = document.getElementById(prefix + sku);
         if(el) el.scrollIntoView({behavior:'smooth', block:'center'}); 
@@ -515,11 +530,13 @@ function renderOrderPrepTable() {
     tbody.innerHTML = html;
 }
 
+// CORRECCIÓN ILUMINACIÓN PEDIDOS
 function toggleOrderItem(index) { 
     ACTIVE_ORDER[index].completed = !ACTIVE_ORDER[index].completed; 
     renderOrderPrepTable(); 
     render(); 
     if(currentViewMode === 'map') renderMap();
+    sync(); // Guarda en DB para que todos vean el pedido actualizado
 }
 
 function updateOrderPickedQty(index, value) { ACTIVE_ORDER[index].picked = parseInt(value) || 0; }
@@ -548,11 +565,8 @@ function openRowModal(id) {
     document.getElementById('rId').value = r.id; 
     document.getElementById('rName').value = r.name; 
     document.getElementById('rSize').value = r.sizeM; 
-    
-    // Asignación Forma Estructural
     const shapeSelect = document.getElementById('rShape');
     if(shapeSelect) shapeSelect.value = r.shape || 'straight';
-
     document.getElementById('btnDelRow').style.display = id ? 'block' : 'none'; 
     document.getElementById('rowModal').classList.add('open'); 
 }
@@ -569,15 +583,10 @@ function saveRow() {
     
     const idx = ROWS.findIndex(function(x) { return x.id===id; });
     if(idx >= 0) {
-        // Preservar datos espaciales (mapa 2D) si ya existe
-        data.whId = ROWS[idx].whId;
-        data.x = ROWS[idx].x;
-        data.y = ROWS[idx].y;
-        data.rotation = ROWS[idx].rotation;
+        data.whId = ROWS[idx].whId; data.x = ROWS[idx].x; data.y = ROWS[idx].y; data.rotation = ROWS[idx].rotation;
+        data.seg1 = ROWS[idx].seg1; data.seg2 = ROWS[idx].seg2; data.seg3 = ROWS[idx].seg3; data.depthM = ROWS[idx].depthM;
         ROWS[idx] = data;
-    } else {
-        ROWS.push(data); 
-    }
+    } else { ROWS.push(data); }
     sync(); closeModals(); 
 }
 
@@ -595,26 +604,21 @@ if(typeof emailjs !== 'undefined') emailjs.init(EMAILJS_PUBLIC_KEY);
 
 function verificarYEnviarReporteDiario() {
     const ahora = new Date(); const hoyStr = ahora.toISOString().split('T')[0];
-    const horaActual = ahora.getHours(); const minutoActual = ahora.getMinutes();
+    const horaActual = ahora.getHours(); 
     
     if (horaActual >= 8) {
         const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
         if (ultimoEnvio !== hoyStr) {
             const criticos = PRODUCTS.filter(function(p) { return p && p.current < p.min; });
             if (criticos.length === 0) { localStorage.setItem('ultimoReporteStock', hoyStr); return; }
-
             let filas = "";
             criticos.forEach(function(p) { 
                 filas += '<tr><td style="padding:14px; border-bottom:1px solid #38352f; color:#d4af37; font-weight:bold;">' + p.sku + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#f0ede6;">' + p.name + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#ef4444; text-align:center; font-weight:bold;">' + p.current + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#a39c93; text-align:center;">' + p.min + '</td></tr>'; 
             });
-
             const htmlContent = '<div style="background:#0d0c0b; color:#f0ede6; font-family:sans-serif; padding:45px; max-width:650px; margin:auto; border:1px solid #38352f; border-radius:16px;"><h2 style="color:#d4af37; border-bottom:1px solid #38352f; padding-bottom:15px; text-transform:uppercase; letter-spacing:1px; margin-top:0;">Alerta de Reposición — Concha y Toro</h2><p style="color:#a39c93; font-size:15px;">Reporte automático diario de productos bajo el stock mínimo:</p><table style="width:100%; border-collapse:collapse; margin-top:25px;"><thead><tr style="background:#1a1916; color:#a39c93; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;"><th style="padding:14px; text-align:left; border-bottom:2px solid #38352f;">SKU</th><th style="padding:14px; text-align:left; border-bottom:2px solid #38352f;">Producto</th><th style="padding:14px; text-align:center; border-bottom:2px solid #38352f;">Stock</th><th style="padding:14px; text-align:center; border-bottom:2px solid #38352f;">Mín.</th></tr></thead><tbody style="font-size:14px;">' + filas + '</tbody></table></div>';
 
             if(typeof emailjs !== 'undefined') {
-                CORREOS_DESTINATARIOS.forEach(function(correo) {
-                    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: htmlContent, to_email: correo })
-                    .catch(function(err) { console.error("Error al enviar a " + correo + ":", err); });
-                });
+                CORREOS_DESTINATARIOS.forEach(function(correo) { emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: htmlContent, to_email: correo }).catch(function(err) { console.error("Error al enviar a " + correo + ":", err); }); });
             }
             localStorage.setItem('ultimoReporteStock', hoyStr);
         }
@@ -622,36 +626,125 @@ function verificarYEnviarReporteDiario() {
 }
 
 /* ===============================================================
-   VISTA AÉREA INTERACTIVA (MAPA 2D) - ROTACIÓN Y FORMAS
+   VISTA AÉREA INTERACTIVA (MAPA 2D) - ROTACIÓN, CONTEXTO Y FORMAS
    =============================================================== */
 let draggingMapItem = null;
-let dragOffsetX = 0;
-let dragOffsetY = 0;
+let dragOffsetX = 0, dragOffsetY = 0;
 
-function toggleViewMode() {
-    const whWrap = document.getElementById('whWrap');
-    const mapWrap = document.getElementById('mapWrap');
-    const btn = document.getElementById('btnToggleView');
-    
-    if (currentViewMode === 'racks') {
-        currentViewMode = 'map';
-        whWrap.style.display = 'none';
-        mapWrap.style.display = 'flex';
-        btn.innerText = "📄 Vista Racks Clásica";
-        btn.style.background = "var(--accent)";
-        btn.style.color = "#000";
-        renderMap();
-    } else {
-        currentViewMode = 'racks';
-        mapWrap.style.display = 'none';
-        whWrap.style.display = 'flex'; 
-        btn.innerText = "📍 Vista Aérea 2D";
-        btn.style.background = "transparent";
-        btn.style.color = "var(--accent)";
-    }
+function clearMapSelection() {
+    selectedMapItem = null;
+    document.getElementById('mapContextPanel').style.display = 'none';
+    renderMap();
 }
 
-function changeActiveWarehouse(whId) { activeWarehouseId = whId; renderMap(); }
+function selectMapItem(type, id) {
+    selectedMapItem = { type: type, id: id };
+    renderMap(); // Vuelve a renderizar para mostrar el borde .is-selected
+    
+    // Panel de Contexto (Sidebar dinámico)
+    const panel = document.getElementById('mapContextPanel');
+    const inputsWrap = document.getElementById('mapContextInputs');
+    document.getElementById('mapSaveFeedback').style.display = 'none';
+    let html = '';
+
+    if (type === 'row') {
+        const row = ROWS.find(function(r) { return r.id === id; });
+        if(!row) return;
+        
+        const shape = row.shape || 'straight';
+        let s1 = row.seg1 || 10, s2 = row.seg2 || 10, s3 = row.seg3 || 5;
+        let d = row.depthM || 1.2;
+        
+        html += '<div class="field small"><label>Nombre Fila</label><input type="text" id="ctxRowName" value="' + row.name + '"></div>';
+        html += '<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="' + (row.rotation||0) + '"></div>';
+        html += '<div class="field small"><label>Fondo de Fila (M)</label><input type="number" step="0.1" id="ctxDepth" value="' + d + '"></div>';
+        
+        if (shape === 'L') {
+            html += '<div class="field small"><label>Tramo Vertical 1 (M)</label><input type="number" step="0.5" id="ctxSeg1" value="' + s1 + '"></div>';
+            html += '<div class="field small"><label>Tramo Horizontal 2 (M)</label><input type="number" step="0.5" id="ctxSeg2" value="' + s2 + '"></div>';
+        } else if (shape === 'U') {
+            html += '<div class="field small"><label>Tramo Izquierdo 1 (M)</label><input type="number" step="0.5" id="ctxSeg1" value="' + s1 + '"></div>';
+            html += '<div class="field small"><label>Tramo Central 2 (M)</label><input type="number" step="0.5" id="ctxSeg2" value="' + s2 + '"></div>';
+            html += '<div class="field small"><label>Tramo Derecho 3 (M)</label><input type="number" step="0.5" id="ctxSeg3" value="' + s3 + '"></div>';
+        } else {
+            // Straight o Curvas simples
+            let size = row.sizeM || 15;
+            html += '<div class="field small"><label>Largo Total (M)</label><input type="number" step="0.5" id="ctxSize" value="' + size + '"></div>';
+        }
+    } else if (type === 'zone') {
+        const z = ZONES.find(function(x) { return x.id === id; });
+        if(!z) return;
+        html += '<div class="field small"><label>Nombre Pasillo</label><input type="text" id="ctxZoneName" value="' + z.name + '"></div>';
+        html += '<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="' + (z.rotation||0) + '"></div>';
+        html += '<div class="field small"><label>Ancho (M)</label><input type="number" step="0.5" id="ctxZoneW" value="' + z.widthM + '"></div>';
+        html += '<div class="field small"><label>Largo (M)</label><input type="number" step="0.5" id="ctxZoneL" value="' + z.lengthM + '"></div>';
+    }
+    
+    inputsWrap.innerHTML = html;
+    panel.style.display = 'block';
+}
+
+function saveMapItem() {
+    if(!selectedMapItem) return;
+    const t = selectedMapItem.type;
+    const id = selectedMapItem.id;
+    
+    if(t === 'row') {
+        const row = ROWS.find(function(r) { return r.id === id; });
+        row.name = document.getElementById('ctxRowName').value;
+        row.rotation = parseFloat(document.getElementById('ctxRot').value) || 0;
+        row.depthM = parseFloat(document.getElementById('ctxDepth').value) || 1.2;
+        
+        if(row.shape === 'L') {
+            row.seg1 = parseFloat(document.getElementById('ctxSeg1').value) || 10;
+            row.seg2 = parseFloat(document.getElementById('ctxSeg2').value) || 10;
+            row.sizeM = row.seg1 + row.seg2; // Automático
+        } else if (row.shape === 'U') {
+            row.seg1 = parseFloat(document.getElementById('ctxSeg1').value) || 5;
+            row.seg2 = parseFloat(document.getElementById('ctxSeg2').value) || 10;
+            row.seg3 = parseFloat(document.getElementById('ctxSeg3').value) || 5;
+            row.sizeM = row.seg1 + row.seg2 + row.seg3; // Automático
+        } else {
+            row.sizeM = parseFloat(document.getElementById('ctxSize').value) || 15;
+        }
+    } else {
+        const z = ZONES.find(function(x) { return x.id === id; });
+        z.name = document.getElementById('ctxZoneName').value;
+        z.rotation = parseFloat(document.getElementById('ctxRot').value) || 0;
+        z.widthM = parseFloat(document.getElementById('ctxZoneW').value) || 2;
+        z.lengthM = parseFloat(document.getElementById('ctxZoneL').value) || 10;
+    }
+    
+    const fbk = document.getElementById('mapSaveFeedback');
+    fbk.style.display = 'block';
+    setTimeout(function() { fbk.style.display = 'none'; }, 2000);
+    
+    sync();
+}
+
+function deleteMapItem() {
+    if(!selectedMapItem) return;
+    const t = selectedMapItem.type;
+    const id = selectedMapItem.id;
+    
+    if(t === 'row') {
+        if(PRODUCTS.some(function(p) { return p.rowId === id; })) {
+            alert("No puedes eliminar esta fila. Saca o elimina primero los productos que están dentro de ella.");
+            return;
+        }
+        if(confirm("¿Eliminar fila completamente del sistema?")) {
+            ROWS = ROWS.filter(function(r) { return r.id !== id; });
+            clearMapSelection();
+            sync();
+        }
+    } else {
+        if(confirm("¿Eliminar pasillo/zona?")) {
+            ZONES = ZONES.filter(function(z) { return z.id !== id; });
+            clearMapSelection();
+            sync();
+        }
+    }
+}
 
 function renderMap() {
     if (currentViewMode !== 'map') return;
@@ -670,31 +763,35 @@ function renderMap() {
     canvas.style.width = (activeWH.widthM * scale) + 'px';
     canvas.style.height = (activeWH.lengthM * scale) + 'px';
     canvas.innerHTML = ''; 
+    
+    // Tooltip global para rotación
+    const tooltip = document.createElement('div');
+    tooltip.className = 'rotation-tooltip';
+    tooltip.id = 'mapRotTooltip';
+    canvas.appendChild(tooltip);
 
     // Renderizar Zonas / Pasillos
     const whZones = ZONES.filter(function(z) { return z.whId === activeWH.id; });
     whZones.forEach(function(zone) {
         const zEl = document.createElement('div');
         zEl.className = 'map-entity-zone';
+        if(selectedMapItem && selectedMapItem.id === zone.id) zEl.className += ' is-selected';
+        
         zEl.id = 'map-zone-' + zone.id;
         zEl.style.width = (zone.widthM * scale) + 'px';
         zEl.style.height = (zone.lengthM * scale) + 'px';
         zEl.style.left = (zone.x * scale) + 'px';
         zEl.style.top = (zone.y * scale) + 'px';
-        
-        // Rotación de Pasillo
         zEl.style.transform = 'rotate(' + (zone.rotation || 0) + 'deg)';
         zEl.innerHTML = '<span>' + zone.name + '</span>';
         
-        // Tirador de Rotación Libre
         const rotHandle = document.createElement('div');
         rotHandle.className = 'rotator-handle';
         rotHandle.innerHTML = '<div class="rotator-line"></div>';
         rotHandle.onmousedown = function(e) { initRotate(e, 'zone', zone.id); };
         zEl.appendChild(rotHandle);
 
-        zEl.onmousedown = function(e) { initMapDrag(e, 'zone', zone.id); };
-        zEl.ondblclick = function(e) { e.stopPropagation(); openZoneModal(zone.id); }; 
+        zEl.onmousedown = function(e) { selectMapItem('zone', zone.id); initMapDrag(e, 'zone', zone.id); };
         canvas.appendChild(zEl);
     });
 
@@ -706,11 +803,10 @@ function renderMap() {
         else if (!r.whId) unassignedRows.push(r);
     });
 
-    // Renderizar Filas / Racks
+    // Renderizar Filas 
     assignedRows.forEach(function(row) {
         const rEl = document.createElement('div');
         
-        // Asignación dinámica de Clases de Forma (Curva, L, U)
         let shapeClass = '';
         if(row.shape === 'curve-soft') shapeClass = ' shape-curve-soft';
         else if(row.shape === 'curve-hard') shapeClass = ' shape-curve-hard';
@@ -718,26 +814,36 @@ function renderMap() {
         else if(row.shape === 'U') shapeClass = ' shape-U';
         
         rEl.className = 'map-entity-row' + shapeClass;
+        if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
+        
         rEl.id = 'map-row-' + row.id;
         
-        const rWidthPx = row.sizeM * scale;
-        const rDepthPx = 1.2 * scale; // Fondo estándar (1.2m)
+        const depthM = row.depthM || 1.2;
+        const dPx = depthM * scale;
         
-        rEl.style.width = rWidthPx + 'px';
-        rEl.style.height = rDepthPx + 'px';
-        
-        // Dependiendo de la forma (L, C), ajustamos las dimensiones para que el contenedor permita el quiebre de los productos internos
-        if(row.shape === 'L' || row.shape === 'U') {
-            rEl.style.height = (rWidthPx * 0.5) + 'px'; // Se hace más cuadrado para permitir el pliegue L o U
+        let totalW = row.sizeM || 15;
+        let totalH = dPx;
+
+        // Distribución física basada en forma
+        if(row.shape === 'L') {
+            const s1 = row.seg1 || 10; const s2 = row.seg2 || 10;
+            totalW = (s2 + depthM) * scale;
+            totalH = (s1 + depthM) * scale;
+            rEl.style.flexDirection = 'column';
+        } else if (row.shape === 'U') {
+            const s1 = row.seg1 || 5; const s2 = row.seg2 || 10; const s3 = row.seg3 || 5;
+            totalW = (s2 + (depthM*2)) * scale;
+            totalH = (Math.max(s1, s3) + depthM) * scale;
+        } else {
+            totalW = totalW * scale;
         }
 
+        rEl.style.width = totalW + 'px';
+        rEl.style.height = totalH + 'px';
         rEl.style.left = (row.x * scale) + 'px';
         rEl.style.top = (row.y * scale) + 'px';
-        
-        // Rotación Angular de Fila
         rEl.style.transform = 'rotate(' + (row.rotation || 0) + 'deg)';
 
-        // Tirador de Rotación Libre
         const rotHandle = document.createElement('div');
         rotHandle.className = 'rotator-handle';
         rotHandle.innerHTML = '<div class="rotator-line"></div>';
@@ -749,34 +855,76 @@ function renderMap() {
         lbl.innerText = row.name;
         rEl.appendChild(lbl);
 
+        // Lógica de llenado de productos en mapa
         const rowProds = PRODUCTS.filter(function(p) { return p && p.rowId === row.id; });
+        let currentUsed = 0;
+
+        // Si es L o U, creamos sub-segmentos contenedores
+        let seg1El = null, seg2El = null, seg3El = null;
+
+        if(row.shape === 'L') {
+            seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
+            seg1El.style.width = dPx + 'px'; seg1El.style.height = (row.seg1 * scale) + 'px';
+            seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
+            seg2El.style.height = dPx + 'px'; seg2El.style.width = (row.seg2 * scale) + 'px';
+            seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
+            rEl.appendChild(seg1El); rEl.appendChild(seg2El);
+        } else if (row.shape === 'U') {
+            seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
+            seg1El.style.width = dPx + 'px'; seg1El.style.height = (row.seg1 * scale) + 'px';
+            seg1El.style.position = 'absolute'; seg1El.style.bottom = '0'; seg1El.style.left = '0';
+            
+            seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
+            seg2El.style.height = dPx + 'px'; seg2El.style.width = (row.seg2 * scale) + 'px';
+            seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
+            
+            seg3El = document.createElement('div'); seg3El.className = 'map-segment map-segment-v';
+            seg3El.style.width = dPx + 'px'; seg3El.style.height = (row.seg3 * scale) + 'px';
+            seg3El.style.position = 'absolute'; seg3El.style.bottom = '0'; seg3El.style.right = '0';
+            
+            rEl.appendChild(seg1El); rEl.appendChild(seg2El); rEl.appendChild(seg3El);
+        }
+
         rowProds.forEach(function(p) {
             const pWidthPx = p.widthM * scale;
             const pEl = document.createElement('div');
             
-            // Re-evaluar orden para Tooltips aéreos y Color de Iluminación
             const isInActiveOrder = ACTIVE_ORDER.some(function(item) { return item.sku.toLowerCase() === p.sku.toLowerCase() && !item.completed; });
             
             pEl.className = 'map-mini-product';
             if (isInActiveOrder) pEl.className += ' is-ordered';
             
             pEl.style.background = p.color || '#c8a84b';
-            pEl.style.width = pWidthPx + 'px';
+            
+            let targetSeg = rEl; // Por defecto a la fila base
+            if (row.shape === 'L') {
+                if (currentUsed + (p.widthM/2) <= row.seg1) { targetSeg = seg1El; pEl.style.height = pWidthPx + 'px'; pEl.style.width = '100%'; }
+                else { targetSeg = seg2El; pEl.style.width = pWidthPx + 'px'; pEl.style.height = '100%'; }
+            } else if (row.shape === 'U') {
+                if (currentUsed + (p.widthM/2) <= row.seg1) { targetSeg = seg1El; pEl.style.height = pWidthPx + 'px'; pEl.style.width = '100%'; }
+                else if (currentUsed + (p.widthM/2) <= row.seg1 + row.seg2) { targetSeg = seg2El; pEl.style.width = pWidthPx + 'px'; pEl.style.height = '100%'; }
+                else { targetSeg = seg3El; pEl.style.height = pWidthPx + 'px'; pEl.style.width = '100%'; }
+            } else {
+                pEl.style.width = pWidthPx + 'px'; pEl.style.height = '100%';
+            }
+            currentUsed += p.widthM;
 
             if (currentH === p.sku) { pEl.style.boxShadow = '0 0 0 2px var(--bg), 0 0 10px var(--accent)'; pEl.style.zIndex = 10; }
 
+            // TOOLTIP MAPA IDÉNTICO
             let tooltipText = 'SKU: ' + p.sku + '\nProducto: ' + p.name + '\nStock Físico: ' + p.current;
+            if (isInActiveOrder) tooltipText += '\n\n📦 REQUERIDO EN PEDIDO';
             pEl.setAttribute('data-tooltip', tooltipText);
             
             pEl.onmousedown = function(e) { e.stopPropagation(); }; 
-            pEl.onclick = function() { openProductModal(p.sku); };
+            pEl.onclick = function(e) { e.stopPropagation(); openProductModal(p.sku); };
             
-            rEl.appendChild(pEl);
+            targetSeg.appendChild(pEl);
         });
 
-        rEl.onmousedown = function(e) { initMapDrag(e, 'row', row.id); };
+        rEl.onmousedown = function(e) { selectMapItem('row', row.id); initMapDrag(e, 'row', row.id); };
         
-        // Shift + Doble Clic saca la fila del plano. 
+        // Quitar fila del mapa
         rEl.ondblclick = function(e) {
             if (e.shiftKey) { row.whId = null; row.x = 0; row.y = 0; row.rotation = 0; sync(); } 
         };
@@ -798,43 +946,46 @@ function renderMap() {
 
 // ─── FUNCIONES DE ROTACIÓN Y DRAG DEDICADAS ───
 function initRotate(e, type, id) {
-    e.stopPropagation();
-    e.preventDefault();
+    e.stopPropagation(); e.preventDefault();
+    selectMapItem(type, id); // Auto-selecciona para abrir el panel
     
     const el = document.getElementById('map-' + type + '-' + id);
+    const tooltip = document.getElementById('mapRotTooltip');
     if(!el) return;
     
     const rect = el.getBoundingClientRect();
     const centerX = rect.left + (rect.width / 2);
     const centerY = rect.top + (rect.height / 2);
+    
+    tooltip.style.display = 'block';
 
     function onRotateDrag(ev) {
-        // Cálculo del ángulo según la posición del cursor respecto al centro de la figura
         const dx = ev.clientX - centerX;
         const dy = ev.clientY - centerY;
         let angle = Math.atan2(dy, dx) * (180 / Math.PI);
-        angle += 90; // Compensación debido a que el handle está arriba (Top)
+        angle += 90; 
         
-        // Suavizado en giros estándar
         angle = Math.round(angle);
         if (angle < 0) angle += 360;
 
         el.style.transform = 'rotate(' + angle + 'deg)';
+        tooltip.style.left = ev.clientX + 'px';
+        tooltip.style.top = (ev.clientY - 40) + 'px';
+        tooltip.innerText = angle + '°';
         
-        // Almacenar rotación en variable temporal
-        if(type === 'row') {
-            const r = ROWS.find(function(x) { return x.id === id; });
-            if(r) r.rotation = angle;
-        } else {
-            const z = ZONES.find(function(x) { return x.id === id; });
-            if(z) z.rotation = angle;
-        }
+        // Sincronizar input del panel de contexto en vivo
+        const ctxRot = document.getElementById('ctxRot');
+        if(ctxRot) ctxRot.value = angle;
+
+        if(type === 'row') { const r = ROWS.find(function(x) { return x.id === id; }); if(r) r.rotation = angle; } 
+        else { const z = ZONES.find(function(x) { return x.id === id; }); if(z) z.rotation = angle; }
     }
 
     function onRotateDrop() {
         document.removeEventListener('mousemove', onRotateDrag);
         document.removeEventListener('mouseup', onRotateDrop);
-        sync(); // Guardar ángulo en Firebase
+        tooltip.style.display = 'none';
+        sync(); 
     }
 
     document.addEventListener('mousemove', onRotateDrag);
@@ -855,13 +1006,15 @@ function initMapDrag(e, type, id) {
     e.stopPropagation();
     
     const el = document.getElementById('map-' + type + '-' + id);
-    if(e.target.classList.contains('rotator-handle')) return; // No arrastrar si presiona el rotador
+    if(e.target.classList.contains('rotator-handle')) return; 
     
     draggingMapItem = { type: type, id: id };
     
+    // Zoom/Scale calculation logic
+    const scaleFactor = 1; // Si luego añades zoom, cambia esto
     const rect = el.getBoundingClientRect();
-    dragOffsetX = e.clientX - rect.left;
-    dragOffsetY = e.clientY - rect.top;
+    dragOffsetX = (e.clientX - rect.left) / scaleFactor;
+    dragOffsetY = (e.clientY - rect.top) / scaleFactor;
 
     document.addEventListener('mousemove', onMapDrag);
     document.addEventListener('mouseup', onMapDrop);
@@ -905,104 +1058,4 @@ function onMapDrop(e) {
 
     draggingMapItem = null;
     sync(); 
-}
-
-// ─── MODALES DE CONFIGURACIÓN BODEGA Y ZONAS ───
-function openWarehouseModal(id) {
-    const wh = (id && typeof id === 'string') ? WAREHOUSES.find(function(x) { return x.id === id; }) : null;
-    if(wh) {
-        document.getElementById('whId').value = wh.id;
-        document.getElementById('whName').value = wh.name;
-        document.getElementById('whWidth').value = wh.widthM;
-        document.getElementById('whLength').value = wh.lengthM;
-        document.getElementById('whScale').value = wh.scale || 25;
-        document.getElementById('btnDelWh').style.display = 'block';
-        document.getElementById('whModalTitle').innerText = "Editar Bodega";
-    } else {
-        document.getElementById('whId').value = '';
-        document.getElementById('whName').value = '';
-        document.getElementById('whWidth').value = '';
-        document.getElementById('whLength').value = '';
-        document.getElementById('whScale').value = 25;
-        document.getElementById('btnDelWh').style.display = 'none';
-        document.getElementById('whModalTitle').innerText = "Nueva Bodega";
-    }
-    document.getElementById('warehouseModal').classList.add('open');
-}
-
-function saveWarehouse() {
-    const id = document.getElementById('whId').value || 'WH' + Date.now();
-    const name = document.getElementById('whName').value.trim();
-    const widthM = parseFloat(document.getElementById('whWidth').value) || 30;
-    const lengthM = parseFloat(document.getElementById('whLength').value) || 20;
-    const scale = parseFloat(document.getElementById('whScale').value) || 25;
-
-    if(!name) return alert("El nombre es requerido.");
-
-    const data = { id: id, name: name, widthM: widthM, lengthM: lengthM, scale: scale };
-    const idx = WAREHOUSES.findIndex(function(x) { return x.id === id; });
-    
-    if(idx >= 0) WAREHOUSES[idx] = data;
-    else WAREHOUSES.push(data);
-    
-    activeWarehouseId = id;
-    sync(); closeModals();
-}
-
-function deleteWarehouse() {
-    const id = document.getElementById('whId').value;
-    if(ROWS.some(function(r) { return r.whId === id; })) return alert("Saca todas las filas de esta bodega antes de eliminarla (Shift + Doble Clic).");
-    if(confirm("¿Eliminar Bodega? Se perderán sus pasillos (Las filas irán a 'Por asignar').")) {
-        WAREHOUSES = WAREHOUSES.filter(function(w) { return w.id !== id; });
-        ZONES = ZONES.filter(function(z) { return z.whId !== id; });
-        activeWarehouseId = WAREHOUSES.length ? WAREHOUSES[0].id : null;
-        sync(); closeModals();
-    }
-}
-
-function openZoneModal(id) {
-    if(!activeWarehouseId) return alert("Selecciona o crea una bodega primero.");
-    const z = (id && typeof id === 'string') ? ZONES.find(function(x) { return x.id === id; }) : null;
-    if(z) {
-        document.getElementById('zId').value = z.id;
-        document.getElementById('zName').value = z.name;
-        document.getElementById('zWidth').value = z.widthM;
-        document.getElementById('zLength').value = z.lengthM;
-        document.getElementById('btnDelZone').style.display = 'block';
-    } else {
-        document.getElementById('zId').value = '';
-        document.getElementById('zName').value = '';
-        document.getElementById('zWidth').value = 4;
-        document.getElementById('zLength').value = 10;
-        document.getElementById('btnDelZone').style.display = 'none';
-    }
-    document.getElementById('zoneModal').classList.add('open');
-}
-
-function saveZone() {
-    const id = document.getElementById('zId').value || 'Z' + Date.now();
-    const data = { 
-        id: id, whId: activeWarehouseId, 
-        name: document.getElementById('zName').value || 'Pasillo', 
-        widthM: parseFloat(document.getElementById('zWidth').value) || 2, 
-        lengthM: parseFloat(document.getElementById('zLength').value) || 10,
-        x: 0, y: 0, rotation: 0
-    };
-    
-    const exist = ZONES.find(function(x) { return x.id === id; });
-    if(exist) { data.x = exist.x; data.y = exist.y; data.rotation = exist.rotation; }
-
-    const idx = ZONES.findIndex(function(x) { return x.id === id; });
-    if(idx >= 0) ZONES[idx] = data;
-    else ZONES.push(data);
-    
-    sync(); closeModals();
-}
-
-function deleteZone() {
-    const id = document.getElementById('zId').value;
-    if(confirm("¿Eliminar pasillo/zona?")) {
-        ZONES = ZONES.filter(function(z) { return z.id !== id; });
-        sync(); closeModals();
-    }
 }
