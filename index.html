@@ -26,9 +26,11 @@
         </div>
         <h2 style="font-family:'Bebas Neue'; color:var(--accent); font-size:2.8rem; margin-bottom:5px; letter-spacing: 1.5px;">WMS BODEGA</h2>
         <p style="color:var(--muted); font-size:0.95rem; margin-bottom:30px; font-weight: 500;">Concha y Toro</p>
-        <div class="field" style="text-align:left;"><label>Correo Corporativo</label><input type="email" id="loginEmail" placeholder="usuario@vctchile.com"></div>
-        <div class="field" style="text-align:left;"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••••"></div>
-        <button class="btn btn-primary" style="width:100%; padding: 14px; font-size: 1rem; margin-top: 15px;" onclick="handleLogin()">Ingresar al Sistema</button>
+        
+        <div class="field" style="text-align:left;"><label>Correo Corporativo</label><input type="email" id="loginEmail" placeholder="usuario@vctchile.com" onkeydown="if(event.key === 'Enter') handleLogin(event)"></div>
+        <div class="field" style="text-align:left;"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key === 'Enter') handleLogin(event)"></div>
+        
+        <button class="btn btn-primary" style="width:100%; padding: 14px; font-size: 1rem; margin-top: 15px;" onclick="handleLogin(event)">Ingresar al Sistema</button>
         <p id="loginError" style="color:var(--danger); font-size:0.85rem; margin-top:15px; display:none; font-weight:500;">Credenciales incorrectas.</p>
     </div>
 </div>
@@ -168,6 +170,16 @@
           <input type="hidden" id="rId">
           <p style="font-size:0.75rem; color:var(--muted); margin-bottom:20px;">Para ediciones avanzadas de forma y tamaño, ubica la fila en el mapa y usa el Inspector 2D lateral.</p>
           <div class="field"><label>Nombre de Fila</label><input id="rName" type="text" placeholder="Ej: Fila A"></div>
+          <div class="field" style="margin-top: 20px;">
+              <label style="color:var(--accent);">Forma Estructural (Vista Aérea)</label>
+              <select id="rShape">
+                  <option value="straight">Línea Recta (Estándar)</option>
+                  <option value="curve-soft">Curva Suave</option>
+                  <option value="curve-hard">Curva Pronunciada</option>
+                  <option value="L">Forma de "L"</option>
+                  <option value="U">Forma de "C" / "U"</option>
+              </select>
+          </div>
           <div style="display:flex; justify-content:space-between; margin-top:35px;">
             <button id="btnDelRow" class="btn btn-danger" style="display:none" onclick="deleteRow()">Eliminar</button>
             <div style="display:flex; gap:10px; margin-left:auto;">
