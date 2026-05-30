@@ -28,15 +28,7 @@ let selectedMapItem = null;
 let draggingMapItem = null;
 let dragOffsetX = 0, dragOffsetY = 0;
 
-// MEJORA SCROLL EN DRAG CLÁSICO
-document.addEventListener("dragover", function(e) {
-    e.preventDefault();
-    const edge = 100;
-    const speed = 15;
-    if (e.clientY > window.innerHeight - edge) window.scrollBy(0, speed);
-    else if (e.clientY < edge) window.scrollBy(0, -speed);
-});
-
+// BLINDADO: LOGIN
 function handleLogin(e) {
     if(e && e.preventDefault) e.preventDefault();
     const emailInput = document.getElementById('loginEmail').value;
@@ -51,6 +43,7 @@ function handleLogin(e) {
     });
 }
 
+// BLINDADO EXTREMO: PROTECCIÓN CONTRA TYPE ERRORS EN FIREBASE
 auth.onAuthStateChanged(function(user) {
     if(user) {
         document.getElementById('loginScreen').style.display = 'none';
@@ -114,6 +107,7 @@ function logMovement(sku, name, changeQty, reason) {
     db.ref('bodega/history').push({ date: dateStr, dateRaw: dateRaw, sku: sku, name: name, change: changeTxt, reason: reason, user: user });
 }
 
+// ─── RENDER CLÁSICO DE RACKS (Intacto) ───
 function render() {
     const wrap = document.getElementById('whWrap');
     wrap.innerHTML = '';
@@ -216,7 +210,7 @@ function drop(e) {
     if(targetRow.shape === 'L') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10)) * 0.6;
     if(targetRow.shape === 'U') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
 
-    if (used + p.widthM > totalSize) return alert("Sin espacio visual configurado para esta fila.");
+    if (used + p.widthM > totalSize) return alert("Sin espacio en fila.");
     
     const rowEl = document.getElementById(targetRowId); 
     const children = Array.from(rowEl.children);
@@ -515,7 +509,7 @@ function toggleOrderItem(index) {
     ACTIVE_ORDER[index].completed = !ACTIVE_ORDER[index].completed; 
     renderOrderPrepTable(); render(); 
     if(currentViewMode === 'map') renderMap();
-    sync(); // Guardado dinámico del estado del pedido
+    sync(); // Guardado dinámico
 }
 
 function updateOrderPickedQty(index, value) { ACTIVE_ORDER[index].picked = parseInt(value) || 0; }
@@ -541,7 +535,11 @@ function deleteProduct() { if(confirm("¿Seguro de eliminar producto?")) { const
 
 // ─── EDICIÓN CLÁSICA DE FILAS (Blindada y Estable) ───
 function openRowModal(id) { 
-    const r = (id && typeof id === 'string') ? ROWS.find(function(x) { return x.id === id; }) : {id:'', name:'', sizeM:15, shape:'straight'}; 
+    let r = {id:'', name:'', sizeM:15, shape:'straight'};
+    if (id && typeof id === 'string' && id.trim() !== '') {
+        const found = ROWS.find(function(x) { return x.id === id; });
+        if (found) r = found;
+    }
     document.getElementById('rId').value = r.id; 
     document.getElementById('rName').value = r.name || ''; 
     document.getElementById('rSize').value = r.sizeM || 15; 
@@ -563,7 +561,7 @@ function saveRow() {
         shape: shapeSelect ? shapeSelect.value : 'straight'
     }; 
     
-    const idx = ROWS.findIndex(function(x) { return x.id===id; });
+    const idx = ROWS.findIndex(function(x) { return x.id === data.id; });
     if(idx >= 0) {
         // Mantiene las propiedades espaciales del mapa intactas
         data.whId = ROWS[idx].whId; data.x = ROWS[idx].x; data.y = ROWS[idx].y; data.rotation = ROWS[idx].rotation;
@@ -610,7 +608,7 @@ function verificarYEnviarReporteDiario() {
 }
 
 /* ===============================================================
-   VISTA AÉREA INTERACTIVA (MAPA 2D)
+   VISTA AÉREA INTERACTIVA (MAPA 2D) - ROTACIÓN, CONTEXTO Y RECUPERACIÓN
    =============================================================== */
 function clearMapSelection() {
     selectedMapItem = null;
@@ -716,11 +714,36 @@ function deleteMapItem() {
     }
 }
 
-function toggleLayoutMode() {
-    const canvas = document.getElementById('mapCanvas');
-    const isLayout = document.getElementById('modeMoveRows').checked;
-    if(isLayout) { canvas.classList.add('layout-mode'); } 
-    else { canvas.classList.remove('layout-mode'); }
+// CORRECCIÓN: Botón "Desasignar Fila (Bandeja)"
+function unassignMapItem() {
+    if(!selectedMapItem) return;
+    if(selectedMapItem.type === 'row') {
+        const row = ROWS.find(function(r) { return r.id === selectedMapItem.id; });
+        if(row) {
+            row.whId = ""; row.x = 0; row.y = 0; row.rotation = 0;
+            sync(); clearMapSelection();
+        }
+    } else {
+        alert("Los pasillos no se pueden desasignar. Puedes eliminarlos si no los necesitas.");
+    }
+}
+
+// CORRECCIÓN: Recuperar filas perdidas fuera de los límites de la bodega
+function recoverLostRows() {
+    if(!activeWarehouseId) return;
+    const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; });
+    if(!activeWH) return;
+    
+    let recovered = 0;
+    ROWS.forEach(function(r) {
+        if(r.whId === activeWH.id) {
+            if(r.x < 0 || r.y < 0 || r.x > activeWH.widthM || r.y > activeWH.lengthM || isNaN(r.x) || isNaN(r.y)) {
+                r.x = 0; r.y = 0; recovered++;
+            }
+        }
+    });
+    if(recovered > 0) { sync(); alert("Se recuperaron " + recovered + " filas que estaban fuera del plano."); } 
+    else { alert("Todas las filas están dentro de la bodega."); }
 }
 
 function toggleViewMode() {
@@ -748,24 +771,6 @@ function toggleViewMode() {
 
 function changeActiveWarehouse(whId) { activeWarehouseId = whId; renderMap(); }
 
-// Recuperación de Filas Perdidas OOB (Out of Bounds)
-function recoverLostRows() {
-    if(!activeWarehouseId) return;
-    const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; });
-    if(!activeWH) return;
-    
-    let recovered = 0;
-    ROWS.forEach(function(r) {
-        if(r.whId === activeWH.id) {
-            if(r.x < 0 || r.y < 0 || r.x > activeWH.widthM || r.y > activeWH.lengthM || isNaN(r.x) || isNaN(r.y)) {
-                r.x = 0; r.y = 0; recovered++;
-            }
-        }
-    });
-    if(recovered > 0) { sync(); alert("Se recuperaron " + recovered + " filas que estaban fuera del plano."); } 
-    else { alert("Todas las filas están dentro de la bodega."); }
-}
-
 function renderMap() {
     if (currentViewMode !== 'map') return;
     
@@ -783,8 +788,6 @@ function renderMap() {
     
     canvas.style.width = (activeWH.widthM * scale) + 'px';
     canvas.style.height = (activeWH.lengthM * scale) + 'px';
-    
-    // Inyecta el Tooltip de rotación de manera segura
     canvas.innerHTML = '<div id="mapRotTooltip" class="rotation-tooltip"></div>'; 
 
     const whZones = ZONES.filter(function(z) { return z.whId === activeWH.id; });
@@ -874,15 +877,11 @@ function renderMap() {
         rEl.style.left = ((row.x||0) * scale) + 'px'; rEl.style.top = ((row.y||0) * scale) + 'px';
         rEl.style.transform = 'rotate(' + (row.rotation || 0) + 'deg)';
 
-        const rotHandle = document.createElement('div');
-        rotHandle.className = 'rotator-handle';
-        rotHandle.innerHTML = '<div class="rotator-line"></div>';
-        rotHandle.onmousedown = function(e) { initRotate(e, 'row', row.id); };
-        rEl.appendChild(rotHandle);
-
+        // CORRECCIÓN: Separar interacción de fila. El único Drag/Select es a través de la Etiqueta (Label)
         const lbl = document.createElement('div');
         lbl.className = 'map-entity-row-label';
-        lbl.innerText = row.name || 'Sin Nombre';
+        lbl.innerHTML = '🖐️ ' + (row.name || 'Sin Nombre');
+        lbl.onmousedown = function(e) { selectMapItem('row', row.id); initMapDrag(e, 'row', row.id); };
         rEl.appendChild(lbl);
 
         const rowProds = PRODUCTS.filter(function(p) { return p && p.rowId === row.id; });
@@ -890,7 +889,7 @@ function renderMap() {
 
         rowProds.forEach(function(p) {
             pCount++;
-            const pWidthPx = p.widthM * scale;
+            const pWidthPx = (p.widthM || 0) * scale;
             const pEl = document.createElement('div');
             
             const isInActiveOrder = ACTIVE_ORDER.some(function(item) { 
@@ -910,7 +909,7 @@ function renderMap() {
                 else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
                 else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
             } else {
-                pEl.style.width = ((p.widthM||0) * scale) + 'px'; pEl.style.height = '100%';
+                pEl.style.width = pWidthPx + 'px'; pEl.style.height = '100%';
             }
 
             if (currentH === p.sku) { pEl.style.boxShadow = '0 0 0 2px var(--bg), 0 0 10px var(--accent)'; pEl.style.zIndex = 10; }
@@ -925,8 +924,6 @@ function renderMap() {
             targetSeg.appendChild(pEl);
         });
 
-        rEl.onmousedown = function(e) { selectMapItem('row', row.id); initMapDrag(e, 'row', row.id); };
-        rEl.ondblclick = function(e) { if (e.shiftKey) { row.whId = null; row.x = 0; row.y = 0; row.rotation = 0; sync(); } };
         canvas.appendChild(rEl);
     });
 
@@ -1002,7 +999,7 @@ function initMapDrag(e, type, id) {
     e.stopPropagation();
     
     const el = document.getElementById('map-' + type + '-' + id);
-    if(!el || e.target.classList.contains('rotator-handle')) return; 
+    if(!el) return; 
     
     draggingMapItem = { type: type, id: id };
     const rect = el.getBoundingClientRect();
@@ -1042,7 +1039,7 @@ function onMapDrop(e) {
     let xM = Math.max(0, parseFloat((x / scale).toFixed(2)));
     let yM = Math.max(0, parseFloat((y / scale).toFixed(2)));
 
-    // Clamper de Seguridad (Evita que se pierdan filas)
+    // Clamper de Seguridad - Evita que se pierdan las filas fuera del plano
     if (activeWH) {
         if (xM > activeWH.widthM - 1) xM = activeWH.widthM - 1;
         if (yM > activeWH.lengthM - 1) yM = activeWH.lengthM - 1;
@@ -1080,21 +1077,37 @@ function saveWarehouse() {
     const id = document.getElementById('whId').value || 'WH' + Date.now();
     const name = document.getElementById('whName').value.trim();
     if(!name) return alert("El nombre es requerido.");
-    const data = { id: id, name: name, widthM: parseFloat(document.getElementById('whWidth').value) || 30, lengthM: parseFloat(document.getElementById('whLength').value) || 20, scale: parseFloat(document.getElementById('whScale').value) || 25 };
+    
+    const widthM = parseFloat(document.getElementById('whWidth').value) || 30;
+    const lengthM = parseFloat(document.getElementById('whLength').value) || 20;
+
+    const data = { id: id, name: name, widthM: widthM, lengthM: lengthM, scale: parseFloat(document.getElementById('whScale').value) || 25 };
     const idx = WAREHOUSES.findIndex(function(x) { return x.id === id; });
     if(idx >= 0) WAREHOUSES[idx] = data; else WAREHOUSES.push(data);
+    
+    // Auto-clamper: Si achican la bodega, trae de vuelta las filas que quedaron fuera
+    ROWS.forEach(function(r) {
+        if (r.whId === id) {
+            if (r.x > widthM || r.y > lengthM) { r.x = 0; r.y = 0; }
+        }
+    });
+
     activeWarehouseId = id; sync(); closeModals();
 }
 
-// CORRECCIÓN: Evita pérdida de filas al borrar bodega
 function deleteWarehouse() {
     const id = document.getElementById('whId').value;
     if(confirm("¿Eliminar Bodega? Se perderán los pasillos trazados. Sus filas volverán a 'Por Asignar' intactas.")) {
-        ROWS.forEach(function(r) { if(r.whId === id) r.whId = null; });
+        // CORRECCIÓN ELIMINAR BODEGA: Reasigna las filas vaciando la propiedad whId a String vacío ("")
+        ROWS.forEach(function(r) { 
+            if(r.whId === id) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; } 
+        });
         WAREHOUSES = WAREHOUSES.filter(function(w) { return w.id !== id; });
         ZONES = ZONES.filter(function(z) { return z.whId !== id; });
         activeWarehouseId = WAREHOUSES.length ? WAREHOUSES[0].id : null;
-        sync(); closeModals();
+        clearMapSelection();
+        sync(); 
+        closeModals();
     }
 }
 
