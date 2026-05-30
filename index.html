@@ -73,19 +73,14 @@
 <div id="mapWrap" style="display:none;" onclick="clearMapSelection()">
     <div class="map-sidebar" onclick="event.stopPropagation()">
         
-        <div class="field small" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; display: flex; align-items: center; border: 1px solid var(--order-blue);">
-            <input type="checkbox" id="modeMoveRows" onchange="toggleLayoutMode()">
-            <label style="margin:0 0 0 10px; cursor: pointer; color: var(--text);" for="modeMoveRows">Modo Layout (Bloquear productos para mover filas)</label>
-        </div>
-
         <div id="mapContextPanel" style="display:none;">
             <h3 style="color:var(--accent); font-size:1.1rem; margin-bottom:15px; border-bottom:1px solid var(--border); padding-bottom:8px;">Inspector 2D</h3>
             <div id="mapContextInputs"></div>
             <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="btn btn-danger" style="flex:1; padding:8px; font-size:0.75rem;" onclick="deleteMapItem()">🗑️ Eliminar</button>
-                <button class="btn btn-primary" style="flex:2; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Guardar Cambios</button>
+                <button class="btn btn-secondary" style="flex:1; padding:8px; font-size:0.75rem;" onclick="unassignMapItem()">📥 Bandeja</button>
+                <button class="btn btn-primary" style="flex:2; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Actualizar Fila</button>
             </div>
-            <p id="mapSaveFeedback" style="color:var(--ok); font-size:0.75rem; margin-top:10px; display:none; text-align:center; font-weight:bold;">¡Cambios guardados!</p>
+            <p id="mapSaveFeedback" style="color:var(--ok); font-size:0.75rem; margin-top:10px; display:none; text-align:center; font-weight:bold;">¡Fila Actualizada!</p>
         </div>
 
         <h3 style="color:var(--accent); font-size:1.1rem; margin-bottom:15px; border-bottom:1px solid var(--border); padding-bottom:8px;">Gestión de Bodegas</h3>
@@ -96,9 +91,7 @@
         </div>
 
         <h3 style="color:var(--warn); font-size:1rem; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:8px;">Filas Por Asignar</h3>
-        <div id="mapUnassignedRows" style="margin-bottom: 10px; flex:1; overflow-y:auto; padding-right:5px;"></div>
-        
-        <button class="btn btn-secondary" style="width:100%; margin-bottom: 20px; font-size:0.75rem;" onclick="recoverLostRows()">🔍 Recuperar filas perdidas en el plano</button>
+        <div id="mapUnassignedRows" style="margin-bottom: 25px; flex:1; overflow-y:auto; padding-right:5px;"></div>
 
         <h3 style="color:var(--text); font-size:1rem; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:8px;">Zonas y Pasillos</h3>
         <button class="btn btn-secondary" style="width:100%; margin-bottom: 10px; font-size:0.75rem;" onclick="openZoneModal()">+ Trazar Pasillo Nuevo</button>
@@ -175,7 +168,7 @@
       <div class="modal-header"><h2>Configurar Fila</h2><button class="close-btn" onclick="closeModals()">✖</button></div>
       <div class="modal-body">
           <input type="hidden" id="rId">
-          <p style="font-size:0.75rem; color:var(--muted); margin-bottom:20px;">Para ediciones avanzadas de forma y cantidad de cajas, usa el Inspector 2D lateral en la Vista Aérea.</p>
+          <p style="font-size:0.75rem; color:var(--muted); margin-bottom:20px;">Para ediciones avanzadas de forma y redimensionamiento, ubica la fila en el mapa y usa el Inspector 2D lateral.</p>
           <div class="field"><label>Nombre de Fila</label><input id="rName" type="text" placeholder="Ej: Fila A"></div>
           <div class="field"><label>Capacidad Total (Metros)</label><input id="rSize" type="number" step="0.1"></div>
           <div class="field" style="margin-top: 20px;">
