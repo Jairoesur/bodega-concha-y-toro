@@ -1,10 +1,9 @@
-// CERROJO DE SESIÓN: Evita carga doble si el script se llama dos veces.
+// CERROJO DE SESIÓN ABSOLUTO: Evita doble ejecución de código.
 if (window.WMS_INITIALIZED) {
     console.warn("WMS: Bloqueando ejecución duplicada del script.");
 } else {
     window.WMS_INITIALIZED = true;
 
-    // Configuración inamovible de Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyARv7i6uHqYHiuRfA7jkx8MdzmVKwWqxAo",
         authDomain: "bodega-concha-toro.firebaseapp.com",
@@ -35,12 +34,9 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
-    // MEJORA SCROLL EN DRAG CLÁSICO SIN ROMPER COMPATIBILIDAD
+    // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
-        const edge = 80;
-        const speed = 20;
-        if (e.clientY > window.innerHeight - edge) window.scrollBy(0, speed);
-        else if (e.clientY < edge) window.scrollBy(0, -speed);
+        e.preventDefault(); // Indispensable para que funcione el Drop HTML5
     });
 
     function handleLogin(e) {
@@ -249,47 +245,6 @@ if (window.WMS_INITIALIZED) {
         if(isDB) filterDB(v);
     }
 
-    // Funciones globales requeridas en HTML
-    window.handleLogin = handleLogin;
-    window.drop = drop;
-    window.handleSearch = handleSearch;
-    window.selectSuggestion = selectSuggestion;
-    window.openProductModal = openProductModal;
-    window.saveProduct = saveProduct;
-    window.openPoModal = openPoModal;
-    window.openInventoryDB = openInventoryDB;
-    window.applyDBChanges = applyDBChanges;
-    window.openHistoryModal = openHistoryModal;
-    window.toggleSapSection = toggleSapSection;
-    window.processSapPaste = processSapPaste;
-    window.openOrderModal = openOrderModal;
-    window.processOrderPaste = processOrderPaste;
-    window.toggleOrderItem = toggleOrderItem;
-    window.updateOrderPickedQty = updateOrderPickedQty;
-    window.cancelActiveOrder = cancelActiveOrder;
-    window.finalizeOrder = finalizeOrder;
-    window.deleteProduct = deleteProduct;
-    window.openRowModal = openRowModal;
-    window.saveRow = saveRow;
-    window.deleteRow = deleteRow;
-    window.processImage = processImage;
-    window.closeModals = closeModals;
-    window.closeProductModalOnly = closeProductModalOnly;
-    window.clearMapSelection = clearMapSelection;
-    window.unassignMapItem = unassignMapItem;
-    window.saveMapItem = saveMapItem;
-    window.deleteMapItem = deleteMapItem;
-    window.toggleLayoutMode = toggleLayoutMode;
-    window.toggleViewMode = toggleViewMode;
-    window.changeActiveWarehouse = changeActiveWarehouse;
-    window.recoverLostRows = recoverLostRows;
-    window.openWarehouseModal = openWarehouseModal;
-    window.saveWarehouse = saveWarehouse;
-    window.deleteWarehouse = deleteWarehouse;
-    window.openZoneModal = openZoneModal;
-    window.saveZone = saveZone;
-    window.deleteZone = deleteZone;
-
     function selectSuggestion(sku, boxId, isDB) { 
         document.getElementById(boxId).style.display = 'none'; 
         if(isDB) { filterDB(sku); } 
@@ -337,6 +292,7 @@ if (window.WMS_INITIALIZED) {
         document.getElementById('productModal').classList.add('open');
     }
 
+    // CORRECCIÓN RACE CONDITION (PRIMERO SYNC, LUEGO LOGMOVEMENT)
     function saveProduct() {
         const skuRaw = document.getElementById('pSku').value;
         const nameRaw = document.getElementById('pName').value;
@@ -362,13 +318,26 @@ if (window.WMS_INITIALIZED) {
         };
 
         const idx = PRODUCTS.findIndex(function(p) { return p.sku === sku; });
+        let stockDiff = 0;
+        let isEdit = false;
+
         if(idx >= 0) {
-            if(PRODUCTS[idx].current !== newStock) logMovement(sku, data.name, newStock - PRODUCTS[idx].current, "Edición Manual");
+            isEdit = true;
+            stockDiff = newStock - PRODUCTS[idx].current;
             PRODUCTS[idx] = Object.assign({}, PRODUCTS[idx], data);
         } else {
-            logMovement(sku, data.name, newStock, "Creación de Producto"); PRODUCTS.push(data);
+            PRODUCTS.push(data);
         }
-        sync(); closeProductModalOnly();
+        
+        // Bloqueo en Firebase primero para evitar que el log sobrescriba la RAM
+        sync(); 
+
+        if (isEdit && stockDiff !== 0) {
+            logMovement(sku, data.name, stockDiff, "Edición Manual");
+        } else if (!isEdit) {
+            logMovement(sku, data.name, newStock, "Creación de Producto");
+        }
+        closeProductModalOnly();
     }
 
     function openPoModal() {
@@ -418,17 +387,20 @@ if (window.WMS_INITIALIZED) {
     function openInventoryDB() { DB_CHANGES = {}; document.getElementById('sapImportSection').style.display = 'none'; document.getElementById('sapPasteInput').value = ''; document.getElementById('dbModal').classList.add('open'); filterDB(''); }
 
     function applyDBChanges() {
+        let pendingLogs = [];
         Object.keys(DB_CHANGES).forEach(function(sku) { 
             const pIdx = PRODUCTS.findIndex(function(x) { return x.sku === sku; }); 
             if(pIdx >= 0) {
                 const newStock = parseInt(DB_CHANGES[sku]) || 0;
                 if (PRODUCTS[pIdx].current !== newStock) {
-                    logMovement(sku, PRODUCTS[pIdx].name, newStock - PRODUCTS[pIdx].current, "Ajuste Masivo Tabla");
+                    pendingLogs.push({sku: sku, name: PRODUCTS[pIdx].name, change: newStock - PRODUCTS[pIdx].current, reason: "Ajuste Masivo Tabla"});
                     PRODUCTS[pIdx].current = newStock;
                 }
             } 
         });
-        sync(); closeModals();
+        sync(); 
+        pendingLogs.forEach(function(log) { logMovement(log.sku, log.name, log.change, log.reason); });
+        closeModals();
     }
 
     function openHistoryModal() {
@@ -447,36 +419,40 @@ if (window.WMS_INITIALIZED) {
 
     function toggleSapSection() { const section = document.getElementById('sapImportSection'); section.style.display = section.style.display === 'none' ? 'block' : 'none'; }
 
-    // BLINDADO: IMPORTACIÓN SAP CON CONVERSIÓN SEGURA Y EVITANDO DOBLE CARGA
+    // BLINDADO EXTREMO Y DEPURACIÓN: IMPORTACIÓN SAP CON CONVERSIÓN SEGURA
     function processSapPaste() {
         const inputData = document.getElementById('sapPasteInput').value.trim(); 
         if (!inputData) return alert("El cuadro de texto está vacío.");
         const lines = inputData.split('\n'); let updatedCount = 0; let createdCount = 0;
         
+        let pendingLogs = [];
+        console.log("[DEBUG] Inicio importación SAP. Líneas detectadas:", lines.length);
+
         lines.forEach(function(line) {
-            const delimiter = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : ',');
-            const cols = line.split(delimiter);
+            // Conversión y limpieza rígida para evitar caracteres ocultos de Excel
+            const cleanLine = line.replace(/\r/g, ''); 
+            const delimiter = cleanLine.includes('\t') ? '\t' : (cleanLine.includes(';') ? ';' : ',');
+            const cols = cleanLine.split(delimiter);
             
             if (cols.length >= 2) {
                 const sku = cols[0] ? String(cols[0]).trim() : ''; 
                 if (!sku) return; 
                 
                 const name = cols[1] ? String(cols[1]).trim() : "Vino Importado";
-                const qtyStr = cols[2] ? String(cols[2]).trim() : ''; 
-                const qty = qtyStr ? parseInt(qtyStr) : 0;
+                const qtyStr = cols[2] ? String(cols[2]).trim() : ''; const qty = qtyStr ? parseInt(qtyStr) : 0;
                 
-                const pIdx = PRODUCTS.findIndex(function(p) { return p && p.sku && String(p.sku).toLowerCase() === sku.toLowerCase(); });
+                const pIdx = PRODUCTS.findIndex(function(p) { return p.sku && String(p.sku).toLowerCase() === sku.toLowerCase(); });
                 
                 if (pIdx >= 0) {
                     if (!isNaN(qty) && qtyStr !== "" && PRODUCTS[pIdx].current !== qty) { 
-                        logMovement(sku, name, qty - PRODUCTS[pIdx].current, "Importación SAP"); 
+                        pendingLogs.push({sku: sku, name: name, change: qty - PRODUCTS[pIdx].current, reason: "Importación SAP"});
                         PRODUCTS[pIdx].current = qty; 
                         updatedCount++; 
                     }
                     if (cols[1] && String(cols[1]).trim() !== '') PRODUCTS[pIdx].name = String(cols[1]).trim();
                     if (cols[3] && String(cols[3]).trim() !== '') {
                         const rowSearch = String(cols[3]).trim().toLowerCase();
-                        const matchedRow = ROWS.find(function(r) { return r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch); });
+                        const matchedRow = ROWS.find(function(r) { return (r.name||'').toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch; });
                         if (matchedRow) PRODUCTS[pIdx].rowId = matchedRow.id;
                     }
                     if (cols[4] && String(cols[4]).trim() !== '') PRODUCTS[pIdx].masterQty = parseInt(cols[4]) || 0;
@@ -489,7 +465,7 @@ if (window.WMS_INITIALIZED) {
                     let targetRowId = ROWS.length > 0 ? ROWS[0].id : ''; 
                     if (cols[3] && String(cols[3]).trim() !== '') {
                         const rowSearch = String(cols[3]).trim().toLowerCase();
-                        const matchedRow = ROWS.find(function(r) { return r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch); });
+                        const matchedRow = ROWS.find(function(r) { return (r.name||'').toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch; });
                         if (matchedRow) targetRowId = matchedRow.id;
                     }
                     const newProd = { 
@@ -500,15 +476,27 @@ if (window.WMS_INITIALIZED) {
                         hasPO: false, reservedStock: 0, photo: null 
                     };
                     PRODUCTS.push(newProd); 
-                    logMovement(sku, name, newProd.current, "Alta desde SAP/Excel"); 
+                    console.log("[DEBUG] Nuevo producto creado en array local:", sku);
+                    pendingLogs.push({sku: sku, name: name, change: newProd.current, reason: "Alta desde SAP/Excel"});
                     createdCount++;
                 }
             }
         });
-        
+
+        console.log("[DEBUG] Productos totales en RAM listos para Sync:", PRODUCTS.length);
         document.getElementById('sapPasteInput').value = '';
         alert("Proceso finalizado.\nActualizados: " + updatedCount + "\nCreados: " + createdCount); 
-        sync(); filterDB('');
+        
+        // CORRECCIÓN RACE CONDITION
+        sync(); 
+        console.log("[DEBUG] SYNC ejecutado hacia Firebase.");
+        
+        pendingLogs.forEach(function(log) {
+            logMovement(log.sku, log.name, log.change, log.reason);
+        });
+        console.log("[DEBUG] Logs del Kardex enviados.");
+        
+        filterDB('');
     }
 
     function openOrderModal() {
@@ -544,7 +532,7 @@ if (window.WMS_INITIALIZED) {
         if (ACTIVE_ORDER.length > 0) {
             document.getElementById('orderLoadSection').style.display = 'none';
             document.getElementById('orderPrepSection').style.display = 'flex';
-            renderOrderPrepTable(); sync(); alert("¡Pedido cargado! " + ACTIVE_ORDER.length + " productos resaltados en azul.");
+            renderOrderPrepTable(); sync(); alert("¡Pedido cargado! " + ACTIVE_ORDER.length + " productos resaltados en azul en los racks.");
         }
     }
 
@@ -581,10 +569,11 @@ if (window.WMS_INITIALIZED) {
     }
 
     function updateOrderPickedQty(index, value) { ACTIVE_ORDER[index].picked = parseInt(value) || 0; }
-    function cancelActiveOrder() { if (confirm("¿Vaciar pedido y quitar alertas azules?")) { ACTIVE_ORDER = []; sync(); closeModals(); } }
+    function cancelActiveOrder() { if (confirm("¿Vaciar pedido y quitar alertas azules en bodega?")) { ACTIVE_ORDER = []; sync(); closeModals(); } }
 
     function finalizeOrder() {
         let countDespachados = 0;
+        let pendingLogs = [];
         ACTIVE_ORDER.forEach(function(item) {
             const pIdx = PRODUCTS.findIndex(function(x) { return x.sku && x.sku.toLowerCase() === item.sku.toLowerCase(); });
             if (pIdx >= 0) {
@@ -592,16 +581,72 @@ if (window.WMS_INITIALIZED) {
                 PRODUCTS[pIdx].current -= item.picked;
                 if (PRODUCTS[pIdx].current < 0) PRODUCTS[pIdx].current = 0; 
                 const descontado = oldStock - PRODUCTS[pIdx].current;
-                if(descontado > 0) { logMovement(PRODUCTS[pIdx].sku, PRODUCTS[pIdx].name, -descontado, "Despacho Pedido (" + item.requested + ")"); countDespachados++; }
+                if(descontado > 0) { 
+                    pendingLogs.push({sku: PRODUCTS[pIdx].sku, name: PRODUCTS[pIdx].name, change: -descontado, reason: "Despacho Pedido (" + item.requested + ")"});
+                    countDespachados++; 
+                }
             }
         });
         alert("¡Inventario Descontado! Se actualizó el stock de " + countDespachados + " productos.");
-        ACTIVE_ORDER = []; sync(); closeModals();
+        ACTIVE_ORDER = []; 
+        sync(); 
+        pendingLogs.forEach(function(log) { logMovement(log.sku, log.name, log.change, log.reason); });
+        closeModals();
     }
 
-    function deleteProduct() { if(confirm("¿Seguro de eliminar producto?")) { const sku = document.getElementById('pSku').value; logMovement(sku, document.getElementById('pName').value, -document.getElementById('pCurrent').value, "Eliminado del Sistema"); PRODUCTS = PRODUCTS.filter(function(p) { return p.sku !== sku; }); sync(); closeProductModalOnly(); } }
-    
-    // BLINDADO: ABRIR MODAL EDICIÓN
+    function deleteProduct() { 
+        if(confirm("¿Seguro de eliminar producto?")) { 
+            const sku = document.getElementById('pSku').value; 
+            const name = document.getElementById('pName').value;
+            const current = document.getElementById('pCurrent').value;
+            PRODUCTS = PRODUCTS.filter(function(p) { return p.sku !== sku; }); 
+            sync(); 
+            logMovement(sku, name, -current, "Eliminado del Sistema"); 
+            closeProductModalOnly(); 
+        } 
+    }
+
+    // EXPOSICIÓN GLOBAL
+    window.handleLogin = handleLogin;
+    window.drop = drop;
+    window.handleSearch = handleSearch;
+    window.selectSuggestion = selectSuggestion;
+    window.openProductModal = openProductModal;
+    window.saveProduct = saveProduct;
+    window.openPoModal = openPoModal;
+    window.openInventoryDB = openInventoryDB;
+    window.applyDBChanges = applyDBChanges;
+    window.openHistoryModal = openHistoryModal;
+    window.toggleSapSection = toggleSapSection;
+    window.processSapPaste = processSapPaste;
+    window.openOrderModal = openOrderModal;
+    window.processOrderPaste = processOrderPaste;
+    window.toggleOrderItem = toggleOrderItem;
+    window.updateOrderPickedQty = updateOrderPickedQty;
+    window.cancelActiveOrder = cancelActiveOrder;
+    window.finalizeOrder = finalizeOrder;
+    window.deleteProduct = deleteProduct;
+    window.openRowModal = openRowModal;
+    window.saveRow = saveRow;
+    window.deleteRow = deleteRow;
+    window.processImage = processImage;
+    window.closeModals = closeModals;
+    window.closeProductModalOnly = closeProductModalOnly;
+    window.clearMapSelection = clearMapSelection;
+    window.unassignMapItem = unassignMapItem;
+    window.saveMapItem = saveMapItem;
+    window.deleteMapItem = deleteMapItem;
+    window.toggleLayoutMode = toggleLayoutMode;
+    window.toggleViewMode = toggleViewMode;
+    window.changeActiveWarehouse = changeActiveWarehouse;
+    window.recoverLostRows = recoverLostRows;
+    window.openWarehouseModal = openWarehouseModal;
+    window.saveWarehouse = saveWarehouse;
+    window.deleteWarehouse = deleteWarehouse;
+    window.openZoneModal = openZoneModal;
+    window.saveZone = saveZone;
+    window.deleteZone = deleteZone;
+
     function openRowModal(id) { 
         let r = {id:'', name:'', sizeM:15, shape:'straight'};
         if (id && typeof id === 'string' && id.trim() !== '') {
@@ -645,31 +690,26 @@ if (window.WMS_INITIALIZED) {
     function closeModals() { document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); }); }
     function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 
-    /* ─── ROBOT DE CORREOS AUTOMÁTICOS (BLINDADO ANTI-DUPLICADOS) ─── */
+    /* ─── ROBOT DE CORREOS AUTOMÁTICOS (BLINDADO) ─── */
     const EMAILJS_PUBLIC_KEY = "cdusqn38kGYK4HyVj"; 
     const EMAILJS_SERVICE_ID = "service_00sszf8"; 
     const EMAILJS_TEMPLATE_ID = "template_1n41bpp"; 
     const CORREOS_DESTINATARIOS = [ "bodegavct@gmail.com", "nestor.mellado@vctchile.com", "jairo.escobedo@vctchile.com" ];
     if(typeof emailjs !== 'undefined') emailjs.init(EMAILJS_PUBLIC_KEY);
 
-    let reportSentSession = false; // Cerrojo temporal de sesión
-
     function verificarYEnviarReporteDiario() {
-        if (reportSentSession) return; 
-
         const ahora = new Date(); const hoyStr = ahora.toISOString().split('T')[0];
         const horaActual = ahora.getHours(); 
         
         if (horaActual >= 8) {
             const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
             if (ultimoEnvio !== hoyStr) {
-                // Doble bloqueo simultáneo
-                reportSentSession = true;
+                // Cerrojo Inmediato para evitar envíos múltiples si Firebase dispara dos snapshots rápidos
                 localStorage.setItem('ultimoReporteStock', hoyStr); 
                 
                 const criticos = PRODUCTS.filter(function(p) { return p && p.current < p.min; });
                 if (criticos.length === 0) return; 
-                
+
                 let filas = "";
                 criticos.forEach(function(p) { 
                     filas += '<tr><td style="padding:14px; border-bottom:1px solid #38352f; color:#d4af37; font-weight:bold;">' + (p.sku||'') + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#f0ede6;">' + (p.name||'') + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#ef4444; text-align:center; font-weight:bold;">' + (p.current||0) + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#a39c93; text-align:center;">' + (p.min||0) + '</td></tr>'; 
@@ -678,14 +718,17 @@ if (window.WMS_INITIALIZED) {
                 
                 if(typeof emailjs !== 'undefined') {
                     CORREOS_DESTINATARIOS.forEach(function(correo) { 
-                        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: htmlContent, to_email: correo }).catch(function(err) { console.error("Error envío:", err); }); 
+                        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: htmlContent, to_email: correo })
+                        .catch(function(err) { console.error("Error al enviar a " + correo + ":", err); }); 
                     });
                 }
             }
         }
     }
 
-    /* ─── VISTA AÉREA INTERACTIVA (MAPA 2D) ─── */
+    /* ===============================================================
+       VISTA AÉREA INTERACTIVA (MAPA 2D)
+       =============================================================== */
     function clearMapSelection() {
         selectedMapItem = null;
         const panel = document.getElementById('mapContextPanel');
@@ -1166,7 +1209,7 @@ if (window.WMS_INITIALIZED) {
 
     function deleteWarehouse() {
         const id = document.getElementById('whId').value;
-        if(confirm("¿Eliminar Bodega? Sus filas volverán a 'Por Asignar'.")) {
+        if(confirm("¿Eliminar Bodega? Se perderán los pasillos. Sus filas volverán a la bandeja de Por Asignar.")) {
             ROWS.forEach(function(r) { if(r.whId === id) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; } });
             WAREHOUSES = WAREHOUSES.filter(function(w) { return w.id !== id; });
             ZONES = ZONES.filter(function(z) { return z.whId !== id; });
@@ -1204,45 +1247,4 @@ if (window.WMS_INITIALIZED) {
         const id = document.getElementById('zId').value;
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(function(z) { return z.id !== id; }); sync(); closeModals(); }
     }
-
-    // EXPOSICIÓN GLOBAL
-    window.handleLogin = handleLogin;
-    window.drop = drop;
-    window.handleSearch = handleSearch;
-    window.selectSuggestion = selectSuggestion;
-    window.openProductModal = openProductModal;
-    window.saveProduct = saveProduct;
-    window.openPoModal = openPoModal;
-    window.openInventoryDB = openInventoryDB;
-    window.applyDBChanges = applyDBChanges;
-    window.openHistoryModal = openHistoryModal;
-    window.toggleSapSection = toggleSapSection;
-    window.processSapPaste = processSapPaste;
-    window.openOrderModal = openOrderModal;
-    window.processOrderPaste = processOrderPaste;
-    window.toggleOrderItem = toggleOrderItem;
-    window.updateOrderPickedQty = updateOrderPickedQty;
-    window.cancelActiveOrder = cancelActiveOrder;
-    window.finalizeOrder = finalizeOrder;
-    window.deleteProduct = deleteProduct;
-    window.openRowModal = openRowModal;
-    window.saveRow = saveRow;
-    window.deleteRow = deleteRow;
-    window.processImage = processImage;
-    window.closeModals = closeModals;
-    window.closeProductModalOnly = closeProductModalOnly;
-    window.clearMapSelection = clearMapSelection;
-    window.unassignMapItem = unassignMapItem;
-    window.saveMapItem = saveMapItem;
-    window.deleteMapItem = deleteMapItem;
-    window.toggleLayoutMode = toggleLayoutMode;
-    window.toggleViewMode = toggleViewMode;
-    window.changeActiveWarehouse = changeActiveWarehouse;
-    window.recoverLostRows = recoverLostRows;
-    window.openWarehouseModal = openWarehouseModal;
-    window.saveWarehouse = saveWarehouse;
-    window.deleteWarehouse = deleteWarehouse;
-    window.openZoneModal = openZoneModal;
-    window.saveZone = saveZone;
-    window.deleteZone = deleteZone;
 }
