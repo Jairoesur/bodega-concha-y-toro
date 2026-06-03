@@ -34,7 +34,10 @@ if (window.WMS_INITIALIZED) {
     let dragOffsetX = 0, dragOffsetY = 0;
 
     document.addEventListener("dragover", function(e) {
-        e.preventDefault(); 
+        const edge = 80;
+        const speed = 20;
+        if (e.clientY > window.innerHeight - edge) window.scrollBy(0, speed);
+        else if (e.clientY < edge) window.scrollBy(0, -speed);
     });
 
     function handleLogin(e) {
@@ -636,7 +639,7 @@ if (window.WMS_INITIALIZED) {
     function closeModals() { document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); }); }
     function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 
-    /* ─── ROBOT DE CORREOS AUTOMÁTICOS (BLINDADO) ─── */
+    /* ─── ROBOT DE CORREOS AUTOMÁTICOS ─── */
     const EMAILJS_PUBLIC_KEY = "cdusqn38kGYK4HyVj"; 
     const EMAILJS_SERVICE_ID = "service_00sszf8"; 
     const EMAILJS_TEMPLATE_ID = "template_1n41bpp"; 
@@ -702,7 +705,7 @@ if (window.WMS_INITIALIZED) {
             if (shape === 'L') {
                 html += '<div class="field small"><label>Cajas Vertical (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Horizontal (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
-            } else if (shape === 'U' || shape === 'C') {
+            } else if (shape === 'U') {
                 html += '<div class="field small"><label>Cajas Izquierda (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Central (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
                 html += '<div class="field small"><label>Cajas Derecha (Capacidad)</label><input type="number" step="1" id="ctxCap3" value="' + c3 + '"></div>';
@@ -738,7 +741,7 @@ if (window.WMS_INITIALIZED) {
             if(row.shape === 'L') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
-            } else if (row.shape === 'U' || row.shape === 'C') {
+            } else if (row.shape === 'U') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
                 row.cap3 = parseInt(document.getElementById('ctxCap3').value) || 5;
@@ -783,7 +786,6 @@ if (window.WMS_INITIALIZED) {
         } else { alert("Los pasillos no se pueden desasignar."); }
     }
 
-    // CORRECCIÓN: Reset Total del Plano
     function resetAllRowsToTray() {
         if(!activeWarehouseId) return;
         if(!confirm("¿Seguro que deseas devolver TODAS las filas de este plano a la bandeja de 'Por Asignar'? No perderás los productos.")) return;
@@ -889,7 +891,6 @@ if (window.WMS_INITIALIZED) {
             let shapeClass = '';
             if(row.shape === 'L') shapeClass = ' shape-L';
             else if(row.shape === 'U') shapeClass = ' shape-U';
-            else if(row.shape === 'C') shapeClass = ' shape-C';
             
             rEl.className = 'map-entity-row' + shapeClass;
             if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
@@ -917,7 +918,7 @@ if (window.WMS_INITIALIZED) {
                 seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
                 seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
                 rEl.appendChild(seg1El); rEl.appendChild(seg2El);
-            } else if (row.shape === 'U' || row.shape === 'C') {
+            } else if (row.shape === 'U') {
                 const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
                 totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
                 
@@ -968,7 +969,7 @@ if (window.WMS_INITIALIZED) {
                 if (row.shape === 'L') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
-                } else if (row.shape === 'U' || row.shape === 'C') {
+                } else if (row.shape === 'U') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
                     else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
@@ -1058,17 +1059,24 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
+    // CORRECCIÓN EXACTA DRAG Y DROP MAPA (Coordenadas independientes de la rotación)
     function initMapDrag(e, type, id) {
         if (e.button !== 0) return; 
         e.stopPropagation();
         
         const el = document.getElementById('map-' + type + '-' + id);
-        if(!el) return; 
+        if(!el || e.target.classList.contains('rotator-handle')) return; 
         
         draggingMapItem = { type: type, id: id };
-        const rect = el.getBoundingClientRect();
-        dragOffsetX = (e.clientX - rect.left);
-        dragOffsetY = (e.clientY - rect.top);
+        
+        const canvas = document.getElementById('mapCanvas');
+        const canvasRect = canvas.getBoundingClientRect();
+        
+        const currentLeft = parseFloat(el.style.left) || 0;
+        const currentTop = parseFloat(el.style.top) || 0;
+        
+        dragOffsetX = (e.clientX - canvasRect.left) - currentLeft;
+        dragOffsetY = (e.clientY - canvasRect.top) - currentTop;
 
         document.addEventListener('mousemove', onMapDrag);
         document.addEventListener('mouseup', onMapDrop);
@@ -1080,8 +1088,8 @@ if (window.WMS_INITIALIZED) {
         if(!canvas) return;
         const canvasRect = canvas.getBoundingClientRect();
         
-        let x = e.clientX - canvasRect.left - dragOffsetX;
-        let y = e.clientY - canvasRect.top - dragOffsetY;
+        let x = (e.clientX - canvasRect.left) - dragOffsetX;
+        let y = (e.clientY - canvasRect.top) - dragOffsetY;
 
         const el = document.getElementById('map-' + draggingMapItem.type + '-' + draggingMapItem.id);
         if(el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
@@ -1097,8 +1105,8 @@ if (window.WMS_INITIALIZED) {
         const scale = activeWH ? (activeWH.scale || 25) : 25;
 
         const canvasRect = canvas.getBoundingClientRect();
-        let x = e.clientX - canvasRect.left - dragOffsetX;
-        let y = e.clientY - canvasRect.top - dragOffsetY;
+        let x = (e.clientX - canvasRect.left) - dragOffsetX;
+        let y = (e.clientY - canvasRect.top) - dragOffsetY;
 
         let xM = Math.max(0, parseFloat((x / scale).toFixed(2)));
         let yM = Math.max(0, parseFloat((y / scale).toFixed(2)));
@@ -1157,12 +1165,16 @@ if (window.WMS_INITIALIZED) {
 
     function deleteWarehouse() {
         const id = document.getElementById('whId').value;
-        if(confirm("¿Eliminar Bodega? Se perderán los pasillos. Sus filas volverán a la bandeja de Por Asignar.")) {
-            ROWS.forEach(function(r) { if(r.whId === id) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; } });
+        if(confirm("¿Eliminar Bodega? Se perderán los pasillos trazados. Sus filas volverán a 'Por Asignar' intactas.")) {
+            ROWS.forEach(function(r) { 
+                if(r.whId === id) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; } 
+            });
             WAREHOUSES = WAREHOUSES.filter(function(w) { return w.id !== id; });
             ZONES = ZONES.filter(function(z) { return z.whId !== id; });
             activeWarehouseId = WAREHOUSES.length ? WAREHOUSES[0].id : null;
-            clearMapSelection(); sync(); closeModals();
+            clearMapSelection();
+            sync(); 
+            closeModals();
         }
     }
 
@@ -1230,6 +1242,7 @@ if (window.WMS_INITIALIZED) {
     window.toggleViewMode = toggleViewMode;
     window.changeActiveWarehouse = changeActiveWarehouse;
     window.resetAllRowsToTray = resetAllRowsToTray;
+    window.recoverLostRows = recoverLostRows;
     window.openWarehouseModal = openWarehouseModal;
     window.saveWarehouse = saveWarehouse;
     window.deleteWarehouse = deleteWarehouse;
