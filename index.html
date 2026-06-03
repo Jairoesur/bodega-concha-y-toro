@@ -98,7 +98,7 @@
         <h3 style="color:var(--warn); font-size:1rem; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:8px;">Filas Por Asignar</h3>
         <div id="mapUnassignedRows" style="margin-bottom: 10px; flex:1; overflow-y:auto; padding-right:5px;"></div>
         
-        <button class="btn btn-secondary" style="width:100%; margin-bottom: 20px; font-size:0.75rem;" onclick="recoverLostRows()">🔍 Recuperar filas perdidas en el plano</button>
+        <button class="btn btn-secondary" style="width:100%; margin-bottom: 20px; font-size:0.75rem;" onclick="resetAllRowsToTray()">🔄 Enviar plano actual a 'Por Asignar'</button>
 
         <h3 style="color:var(--text); font-size:1rem; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:8px;">Zonas y Pasillos</h3>
         <button class="btn btn-secondary" style="width:100%; margin-bottom: 10px; font-size:0.75rem;" onclick="openZoneModal()">+ Trazar Pasillo Nuevo</button>
@@ -178,16 +178,17 @@
           <p style="font-size:0.75rem; color:var(--muted); margin-bottom:20px;">Para ediciones avanzadas de forma y redimensionamiento, ubica la fila en el mapa y usa el Inspector 2D lateral.</p>
           <div class="field"><label>Nombre de Fila</label><input id="rName" type="text" placeholder="Ej: Fila A"></div>
           <div class="field"><label>Capacidad Total (Metros)</label><input id="rSize" type="number" step="0.1"></div>
+          
           <div class="field" style="margin-top: 20px;">
               <label style="color:var(--accent);">Forma Estructural (Vista Aérea)</label>
               <select id="rShape">
-                  <option value="straight">Línea Recta (Estándar)</option>
-                  <option value="curve-soft">Curva Suave</option>
-                  <option value="curve-hard">Curva Pronunciada</option>
-                  <option value="L">Forma de "L" (Angular)</option>
-                  <option value="U">Forma de "C" / "U"</option>
+                  <option value="straight">Línea recta</option>
+                  <option value="L">Forma L</option>
+                  <option value="C">Forma C</option>
+                  <option value="U">Forma U</option>
               </select>
           </div>
+
           <div style="display:flex; justify-content:space-between; margin-top:35px;">
             <button id="btnDelRow" class="btn btn-danger" style="display:none" onclick="deleteRow()">Eliminar</button>
             <div style="display:flex; gap:10px; margin-left:auto;">
