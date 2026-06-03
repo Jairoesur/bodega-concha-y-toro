@@ -1,4 +1,3 @@
-// CERROJO DE SESIÓN ABSOLUTO: Evita doble ejecución de código.
 if (window.WMS_INITIALIZED) {
     console.warn("WMS: Bloqueando ejecución duplicada del script.");
 } else {
@@ -34,9 +33,8 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
-    // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
-        e.preventDefault(); // Indispensable para que funcione el Drop HTML5
+        e.preventDefault(); 
     });
 
     function handleLogin(e) {
@@ -131,7 +129,7 @@ if (window.WMS_INITIALIZED) {
             
             let totalSize = row.sizeM || 15;
             if(row.shape === 'L') totalSize = ((row.cap1 || 5) + (row.cap2 || 10)) * 0.6;
-            if(row.shape === 'U') totalSize = ((row.cap1 || 5) + (row.cap2 || 10) + (row.cap3 || 5)) * 0.6;
+            if(row.shape === 'U' || row.shape === 'C') totalSize = ((row.cap1 || 5) + (row.cap2 || 10) + (row.cap3 || 5)) * 0.6;
             
             const perc = totalSize > 0 ? ((used / totalSize) * 100).toFixed(1) : 0;
             const safeName = row.name || 'Sin Nombre';
@@ -217,9 +215,9 @@ if (window.WMS_INITIALIZED) {
         const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
         let totalSize = targetRow.sizeM || 15;
         if(targetRow.shape === 'L') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10)) * 0.6;
-        if(targetRow.shape === 'U') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
+        if(targetRow.shape === 'U' || targetRow.shape === 'C') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
 
-        if (used + p.widthM > totalSize) return alert("Sin espacio en fila.");
+        if (used + p.widthM > totalSize) return alert("Sin espacio visual configurado para esta fila.");
         
         const rowEl = document.getElementById(targetRowId); 
         const children = Array.from(rowEl.children);
@@ -292,7 +290,6 @@ if (window.WMS_INITIALIZED) {
         document.getElementById('productModal').classList.add('open');
     }
 
-    // CORRECCIÓN RACE CONDITION (PRIMERO SYNC, LUEGO LOGMOVEMENT)
     function saveProduct() {
         const skuRaw = document.getElementById('pSku').value;
         const nameRaw = document.getElementById('pName').value;
@@ -329,7 +326,6 @@ if (window.WMS_INITIALIZED) {
             PRODUCTS.push(data);
         }
         
-        // Bloqueo en Firebase primero para evitar que el log sobrescriba la RAM
         sync(); 
 
         if (isEdit && stockDiff !== 0) {
@@ -419,17 +415,14 @@ if (window.WMS_INITIALIZED) {
 
     function toggleSapSection() { const section = document.getElementById('sapImportSection'); section.style.display = section.style.display === 'none' ? 'block' : 'none'; }
 
-    // BLINDADO EXTREMO Y DEPURACIÓN: IMPORTACIÓN SAP CON CONVERSIÓN SEGURA
     function processSapPaste() {
         const inputData = document.getElementById('sapPasteInput').value.trim(); 
         if (!inputData) return alert("El cuadro de texto está vacío.");
         const lines = inputData.split('\n'); let updatedCount = 0; let createdCount = 0;
         
         let pendingLogs = [];
-        console.log("[DEBUG] Inicio importación SAP. Líneas detectadas:", lines.length);
 
         lines.forEach(function(line) {
-            // Conversión y limpieza rígida para evitar caracteres ocultos de Excel
             const cleanLine = line.replace(/\r/g, ''); 
             const delimiter = cleanLine.includes('\t') ? '\t' : (cleanLine.includes(';') ? ';' : ',');
             const cols = cleanLine.split(delimiter);
@@ -452,7 +445,7 @@ if (window.WMS_INITIALIZED) {
                     if (cols[1] && String(cols[1]).trim() !== '') PRODUCTS[pIdx].name = String(cols[1]).trim();
                     if (cols[3] && String(cols[3]).trim() !== '') {
                         const rowSearch = String(cols[3]).trim().toLowerCase();
-                        const matchedRow = ROWS.find(function(r) { return (r.name||'').toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch; });
+                        const matchedRow = ROWS.find(function(r) { return r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch); });
                         if (matchedRow) PRODUCTS[pIdx].rowId = matchedRow.id;
                     }
                     if (cols[4] && String(cols[4]).trim() !== '') PRODUCTS[pIdx].masterQty = parseInt(cols[4]) || 0;
@@ -465,7 +458,7 @@ if (window.WMS_INITIALIZED) {
                     let targetRowId = ROWS.length > 0 ? ROWS[0].id : ''; 
                     if (cols[3] && String(cols[3]).trim() !== '') {
                         const rowSearch = String(cols[3]).trim().toLowerCase();
-                        const matchedRow = ROWS.find(function(r) { return (r.name||'').toLowerCase() === rowSearch || r.id.toLowerCase() === rowSearch; });
+                        const matchedRow = ROWS.find(function(r) { return r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch); });
                         if (matchedRow) targetRowId = matchedRow.id;
                     }
                     const newProd = { 
@@ -476,25 +469,19 @@ if (window.WMS_INITIALIZED) {
                         hasPO: false, reservedStock: 0, photo: null 
                     };
                     PRODUCTS.push(newProd); 
-                    console.log("[DEBUG] Nuevo producto creado en array local:", sku);
                     pendingLogs.push({sku: sku, name: name, change: newProd.current, reason: "Alta desde SAP/Excel"});
                     createdCount++;
                 }
             }
         });
 
-        console.log("[DEBUG] Productos totales en RAM listos para Sync:", PRODUCTS.length);
         document.getElementById('sapPasteInput').value = '';
         alert("Proceso finalizado.\nActualizados: " + updatedCount + "\nCreados: " + createdCount); 
         
-        // CORRECCIÓN RACE CONDITION
         sync(); 
-        console.log("[DEBUG] SYNC ejecutado hacia Firebase.");
-        
         pendingLogs.forEach(function(log) {
             logMovement(log.sku, log.name, log.change, log.reason);
         });
-        console.log("[DEBUG] Logs del Kardex enviados.");
         
         filterDB('');
     }
@@ -606,47 +593,6 @@ if (window.WMS_INITIALIZED) {
         } 
     }
 
-    // EXPOSICIÓN GLOBAL
-    window.handleLogin = handleLogin;
-    window.drop = drop;
-    window.handleSearch = handleSearch;
-    window.selectSuggestion = selectSuggestion;
-    window.openProductModal = openProductModal;
-    window.saveProduct = saveProduct;
-    window.openPoModal = openPoModal;
-    window.openInventoryDB = openInventoryDB;
-    window.applyDBChanges = applyDBChanges;
-    window.openHistoryModal = openHistoryModal;
-    window.toggleSapSection = toggleSapSection;
-    window.processSapPaste = processSapPaste;
-    window.openOrderModal = openOrderModal;
-    window.processOrderPaste = processOrderPaste;
-    window.toggleOrderItem = toggleOrderItem;
-    window.updateOrderPickedQty = updateOrderPickedQty;
-    window.cancelActiveOrder = cancelActiveOrder;
-    window.finalizeOrder = finalizeOrder;
-    window.deleteProduct = deleteProduct;
-    window.openRowModal = openRowModal;
-    window.saveRow = saveRow;
-    window.deleteRow = deleteRow;
-    window.processImage = processImage;
-    window.closeModals = closeModals;
-    window.closeProductModalOnly = closeProductModalOnly;
-    window.clearMapSelection = clearMapSelection;
-    window.unassignMapItem = unassignMapItem;
-    window.saveMapItem = saveMapItem;
-    window.deleteMapItem = deleteMapItem;
-    window.toggleLayoutMode = toggleLayoutMode;
-    window.toggleViewMode = toggleViewMode;
-    window.changeActiveWarehouse = changeActiveWarehouse;
-    window.recoverLostRows = recoverLostRows;
-    window.openWarehouseModal = openWarehouseModal;
-    window.saveWarehouse = saveWarehouse;
-    window.deleteWarehouse = deleteWarehouse;
-    window.openZoneModal = openZoneModal;
-    window.saveZone = saveZone;
-    window.deleteZone = deleteZone;
-
     function openRowModal(id) { 
         let r = {id:'', name:'', sizeM:15, shape:'straight'};
         if (id && typeof id === 'string' && id.trim() !== '') {
@@ -704,7 +650,6 @@ if (window.WMS_INITIALIZED) {
         if (horaActual >= 8) {
             const ultimoEnvio = localStorage.getItem('ultimoReporteStock');
             if (ultimoEnvio !== hoyStr) {
-                // Cerrojo Inmediato para evitar envíos múltiples si Firebase dispara dos snapshots rápidos
                 localStorage.setItem('ultimoReporteStock', hoyStr); 
                 
                 const criticos = PRODUCTS.filter(function(p) { return p && p.current < p.min; });
@@ -726,9 +671,7 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
-    /* ===============================================================
-       VISTA AÉREA INTERACTIVA (MAPA 2D)
-       =============================================================== */
+    /* ─── VISTA AÉREA INTERACTIVA (MAPA 2D) ─── */
     function clearMapSelection() {
         selectedMapItem = null;
         const panel = document.getElementById('mapContextPanel');
@@ -759,7 +702,7 @@ if (window.WMS_INITIALIZED) {
             if (shape === 'L') {
                 html += '<div class="field small"><label>Cajas Vertical (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Horizontal (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
-            } else if (shape === 'U') {
+            } else if (shape === 'U' || shape === 'C') {
                 html += '<div class="field small"><label>Cajas Izquierda (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Central (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
                 html += '<div class="field small"><label>Cajas Derecha (Capacidad)</label><input type="number" step="1" id="ctxCap3" value="' + c3 + '"></div>';
@@ -795,7 +738,7 @@ if (window.WMS_INITIALIZED) {
             if(row.shape === 'L') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
-            } else if (row.shape === 'U') {
+            } else if (row.shape === 'U' || row.shape === 'C') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
                 row.cap3 = parseInt(document.getElementById('ctxCap3').value) || 5;
@@ -840,21 +783,27 @@ if (window.WMS_INITIALIZED) {
         } else { alert("Los pasillos no se pueden desasignar."); }
     }
 
-    function recoverLostRows() {
+    // CORRECCIÓN: Reset Total del Plano
+    function resetAllRowsToTray() {
         if(!activeWarehouseId) return;
-        const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; });
-        if(!activeWH) return;
-        
+        if(!confirm("¿Seguro que deseas devolver TODAS las filas de este plano a la bandeja de 'Por Asignar'? No perderás los productos.")) return;
+
         let recovered = 0;
         ROWS.forEach(function(r) {
-            if(r.whId === activeWH.id) {
-                if(r.x < 0 || r.y < 0 || r.x > activeWH.widthM || r.y > activeWH.lengthM || isNaN(r.x) || isNaN(r.y)) {
-                    r.x = 0; r.y = 0; recovered++;
-                }
+            if(r.whId === activeWarehouseId) {
+                r.whId = ""; 
+                r.x = 0; 
+                r.y = 0; 
+                r.rotation = 0; 
+                recovered++;
             }
         });
-        if(recovered > 0) { sync(); alert("Se recuperaron " + recovered + " filas perdidas."); } 
-        else { alert("Todas las filas están dentro de la bodega."); }
+        if(recovered > 0) { 
+            sync(); 
+            alert("Se devolvieron " + recovered + " filas a la bandeja."); 
+        } else { 
+            alert("No hay filas en el plano para mover."); 
+        }
     }
 
     function toggleLayoutMode() {
@@ -938,10 +887,9 @@ if (window.WMS_INITIALIZED) {
         assignedRows.forEach(function(row) {
             const rEl = document.createElement('div');
             let shapeClass = '';
-            if(row.shape === 'curve-soft') shapeClass = ' shape-curve-soft';
-            else if(row.shape === 'curve-hard') shapeClass = ' shape-curve-hard';
-            else if(row.shape === 'L') shapeClass = ' shape-L';
+            if(row.shape === 'L') shapeClass = ' shape-L';
             else if(row.shape === 'U') shapeClass = ' shape-U';
+            else if(row.shape === 'C') shapeClass = ' shape-C';
             
             rEl.className = 'map-entity-row' + shapeClass;
             if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
@@ -969,7 +917,7 @@ if (window.WMS_INITIALIZED) {
                 seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
                 seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
                 rEl.appendChild(seg1El); rEl.appendChild(seg2El);
-            } else if (row.shape === 'U') {
+            } else if (row.shape === 'U' || row.shape === 'C') {
                 const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
                 totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
                 
@@ -1020,7 +968,7 @@ if (window.WMS_INITIALIZED) {
                 if (row.shape === 'L') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
-                } else if (row.shape === 'U') {
+                } else if (row.shape === 'U' || row.shape === 'C') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
                     else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
@@ -1247,4 +1195,45 @@ if (window.WMS_INITIALIZED) {
         const id = document.getElementById('zId').value;
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(function(z) { return z.id !== id; }); sync(); closeModals(); }
     }
+
+    // EXPOSICIÓN GLOBAL
+    window.handleLogin = handleLogin;
+    window.drop = drop;
+    window.handleSearch = handleSearch;
+    window.selectSuggestion = selectSuggestion;
+    window.openProductModal = openProductModal;
+    window.saveProduct = saveProduct;
+    window.openPoModal = openPoModal;
+    window.openInventoryDB = openInventoryDB;
+    window.applyDBChanges = applyDBChanges;
+    window.openHistoryModal = openHistoryModal;
+    window.toggleSapSection = toggleSapSection;
+    window.processSapPaste = processSapPaste;
+    window.openOrderModal = openOrderModal;
+    window.processOrderPaste = processOrderPaste;
+    window.toggleOrderItem = toggleOrderItem;
+    window.updateOrderPickedQty = updateOrderPickedQty;
+    window.cancelActiveOrder = cancelActiveOrder;
+    window.finalizeOrder = finalizeOrder;
+    window.deleteProduct = deleteProduct;
+    window.openRowModal = openRowModal;
+    window.saveRow = saveRow;
+    window.deleteRow = deleteRow;
+    window.processImage = processImage;
+    window.closeModals = closeModals;
+    window.closeProductModalOnly = closeProductModalOnly;
+    window.clearMapSelection = clearMapSelection;
+    window.unassignMapItem = unassignMapItem;
+    window.saveMapItem = saveMapItem;
+    window.deleteMapItem = deleteMapItem;
+    window.toggleLayoutMode = toggleLayoutMode;
+    window.toggleViewMode = toggleViewMode;
+    window.changeActiveWarehouse = changeActiveWarehouse;
+    window.resetAllRowsToTray = resetAllRowsToTray;
+    window.openWarehouseModal = openWarehouseModal;
+    window.saveWarehouse = saveWarehouse;
+    window.deleteWarehouse = deleteWarehouse;
+    window.openZoneModal = openZoneModal;
+    window.saveZone = saveZone;
+    window.deleteZone = deleteZone;
 }
