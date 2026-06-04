@@ -34,6 +34,7 @@ if (window.WMS_INITIALIZED) {
     let dragOffsetX = 0, dragOffsetY = 0;
 
     document.addEventListener("dragover", function(e) {
+        e.preventDefault(); 
         const edge = 80;
         const speed = 20;
         if (e.clientY > window.innerHeight - edge) window.scrollBy(0, speed);
@@ -132,7 +133,7 @@ if (window.WMS_INITIALIZED) {
             
             let totalSize = row.sizeM || 15;
             if(row.shape === 'L') totalSize = ((row.cap1 || 5) + (row.cap2 || 10)) * 0.6;
-            if(row.shape === 'U' || row.shape === 'C') totalSize = ((row.cap1 || 5) + (row.cap2 || 10) + (row.cap3 || 5)) * 0.6;
+            if(row.shape === 'U') totalSize = ((row.cap1 || 5) + (row.cap2 || 10) + (row.cap3 || 5)) * 0.6;
             
             const perc = totalSize > 0 ? ((used / totalSize) * 100).toFixed(1) : 0;
             const safeName = row.name || 'Sin Nombre';
@@ -218,9 +219,9 @@ if (window.WMS_INITIALIZED) {
         const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
         let totalSize = targetRow.sizeM || 15;
         if(targetRow.shape === 'L') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10)) * 0.6;
-        if(targetRow.shape === 'U' || targetRow.shape === 'C') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
+        if(targetRow.shape === 'U') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
 
-        if (used + p.widthM > totalSize) return alert("Sin espacio visual configurado para esta fila.");
+        if (used + p.widthM > totalSize) return alert("Sin espacio en fila.");
         
         const rowEl = document.getElementById(targetRowId); 
         const children = Array.from(rowEl.children);
@@ -705,7 +706,7 @@ if (window.WMS_INITIALIZED) {
             if (shape === 'L') {
                 html += '<div class="field small"><label>Cajas Vertical (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Horizontal (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
-            } else if (shape === 'U') {
+            } else if (shape === 'U' || shape === 'C') {
                 html += '<div class="field small"><label>Cajas Izquierda (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Central (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
                 html += '<div class="field small"><label>Cajas Derecha (Capacidad)</label><input type="number" step="1" id="ctxCap3" value="' + c3 + '"></div>';
@@ -741,7 +742,7 @@ if (window.WMS_INITIALIZED) {
             if(row.shape === 'L') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
-            } else if (row.shape === 'U') {
+            } else if (row.shape === 'U' || row.shape === 'C') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
                 row.cap3 = parseInt(document.getElementById('ctxCap3').value) || 5;
@@ -891,6 +892,7 @@ if (window.WMS_INITIALIZED) {
             let shapeClass = '';
             if(row.shape === 'L') shapeClass = ' shape-L';
             else if(row.shape === 'U') shapeClass = ' shape-U';
+            else if(row.shape === 'C') shapeClass = ' shape-C';
             
             rEl.className = 'map-entity-row' + shapeClass;
             if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
@@ -918,7 +920,7 @@ if (window.WMS_INITIALIZED) {
                 seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
                 seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
                 rEl.appendChild(seg1El); rEl.appendChild(seg2El);
-            } else if (row.shape === 'U') {
+            } else if (row.shape === 'U' || row.shape === 'C') {
                 const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
                 totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
                 
@@ -969,7 +971,7 @@ if (window.WMS_INITIALIZED) {
                 if (row.shape === 'L') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
-                } else if (row.shape === 'U') {
+                } else if (row.shape === 'U' || row.shape === 'C') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
                     else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
@@ -1059,7 +1061,7 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
-    // CORRECCIÓN EXACTA DRAG Y DROP MAPA (Coordenadas independientes de la rotación)
+    // CORRECCIÓN EXACTA DRAG Y DROP: Offsets independientes de rotación visual.
     function initMapDrag(e, type, id) {
         if (e.button !== 0) return; 
         e.stopPropagation();
@@ -1108,12 +1110,15 @@ if (window.WMS_INITIALIZED) {
         let x = (e.clientX - canvasRect.left) - dragOffsetX;
         let y = (e.clientY - canvasRect.top) - dragOffsetY;
 
-        let xM = Math.max(0, parseFloat((x / scale).toFixed(2)));
-        let yM = Math.max(0, parseFloat((y / scale).toFixed(2)));
+        let xM = parseFloat((x / scale).toFixed(2));
+        let yM = parseFloat((y / scale).toFixed(2));
 
+        // Limites suaves para no perder los elementos (evita rebotes bruscos en dragOffset negativos)
         if (activeWH) {
-            if (xM > activeWH.widthM - 1) xM = activeWH.widthM - 1;
-            if (yM > activeWH.lengthM - 1) yM = activeWH.lengthM - 1;
+            if (xM < 0) xM = 0;
+            if (yM < 0) yM = 0;
+            if (xM > activeWH.widthM) xM = activeWH.widthM;
+            if (yM > activeWH.lengthM) yM = activeWH.lengthM;
         }
 
         if(draggingMapItem.type === 'row') {
@@ -1207,46 +1212,4 @@ if (window.WMS_INITIALIZED) {
         const id = document.getElementById('zId').value;
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(function(z) { return z.id !== id; }); sync(); closeModals(); }
     }
-
-    // EXPOSICIÓN GLOBAL
-    window.handleLogin = handleLogin;
-    window.drop = drop;
-    window.handleSearch = handleSearch;
-    window.selectSuggestion = selectSuggestion;
-    window.openProductModal = openProductModal;
-    window.saveProduct = saveProduct;
-    window.openPoModal = openPoModal;
-    window.openInventoryDB = openInventoryDB;
-    window.applyDBChanges = applyDBChanges;
-    window.openHistoryModal = openHistoryModal;
-    window.toggleSapSection = toggleSapSection;
-    window.processSapPaste = processSapPaste;
-    window.openOrderModal = openOrderModal;
-    window.processOrderPaste = processOrderPaste;
-    window.toggleOrderItem = toggleOrderItem;
-    window.updateOrderPickedQty = updateOrderPickedQty;
-    window.cancelActiveOrder = cancelActiveOrder;
-    window.finalizeOrder = finalizeOrder;
-    window.deleteProduct = deleteProduct;
-    window.openRowModal = openRowModal;
-    window.saveRow = saveRow;
-    window.deleteRow = deleteRow;
-    window.processImage = processImage;
-    window.closeModals = closeModals;
-    window.closeProductModalOnly = closeProductModalOnly;
-    window.clearMapSelection = clearMapSelection;
-    window.unassignMapItem = unassignMapItem;
-    window.saveMapItem = saveMapItem;
-    window.deleteMapItem = deleteMapItem;
-    window.toggleLayoutMode = toggleLayoutMode;
-    window.toggleViewMode = toggleViewMode;
-    window.changeActiveWarehouse = changeActiveWarehouse;
-    window.resetAllRowsToTray = resetAllRowsToTray;
-    window.recoverLostRows = recoverLostRows;
-    window.openWarehouseModal = openWarehouseModal;
-    window.saveWarehouse = saveWarehouse;
-    window.deleteWarehouse = deleteWarehouse;
-    window.openZoneModal = openZoneModal;
-    window.saveZone = saveZone;
-    window.deleteZone = deleteZone;
 }
