@@ -221,7 +221,7 @@ if (window.WMS_INITIALIZED) {
         if(targetRow.shape === 'L') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10)) * 0.6;
         if(targetRow.shape === 'U') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
 
-        if (used + p.widthM > totalSize) return alert("Sin espacio en fila.");
+        if (used + p.widthM > totalSize) return alert("Sin espacio visual configurado para esta fila.");
         
         const rowEl = document.getElementById(targetRowId); 
         const children = Array.from(rowEl.children);
@@ -606,6 +606,7 @@ if (window.WMS_INITIALIZED) {
         document.getElementById('rId').value = r.id; 
         document.getElementById('rName').value = r.name || ''; 
         document.getElementById('rSize').value = r.sizeM || 15; 
+        document.getElementById('rDepth').value = r.depthM || 1.2;
         
         const shapeSelect = document.getElementById('rShape');
         if(shapeSelect) shapeSelect.value = r.shape || 'straight';
@@ -621,13 +622,14 @@ if (window.WMS_INITIALIZED) {
             id: id || 'R'+Date.now(), 
             name: document.getElementById('rName').value || 'Nueva Fila', 
             sizeM: parseFloat(document.getElementById('rSize').value) || 15,
-            shape: shapeSelect ? shapeSelect.value : 'straight'
+            shape: shapeSelect ? shapeSelect.value : 'straight',
+            depthM: parseFloat(document.getElementById('rDepth').value) || 1.2
         }; 
         
         const idx = ROWS.findIndex(function(x) { return x.id === data.id; });
         if(idx >= 0) {
             data.whId = ROWS[idx].whId; data.x = ROWS[idx].x; data.y = ROWS[idx].y; data.rotation = ROWS[idx].rotation;
-            data.cap1 = ROWS[idx].cap1; data.cap2 = ROWS[idx].cap2; data.cap3 = ROWS[idx].cap3; data.depthM = ROWS[idx].depthM;
+            data.cap1 = ROWS[idx].cap1; data.cap2 = ROWS[idx].cap2; data.cap3 = ROWS[idx].cap3;
             ROWS[idx] = data;
         } else { 
             ROWS.push(data); 
@@ -689,8 +691,11 @@ if (window.WMS_INITIALIZED) {
         
         const panel = document.getElementById('mapContextPanel');
         const inputsWrap = document.getElementById('mapContextInputs');
+        const actionBtnWrap = document.getElementById('mapContextActionButtons');
         document.getElementById('mapSaveFeedback').style.display = 'none';
+        
         let html = '';
+        let buttonsHtml = '';
 
         if (type === 'row') {
             const row = ROWS.find(function(r) { return r.id === id; });
@@ -701,12 +706,12 @@ if (window.WMS_INITIALIZED) {
             
             html += '<div class="field small"><label>Nombre Fila</label><input type="text" id="ctxRowName" value="' + (row.name||'') + '"></div>';
             html += '<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="' + (row.rotation||0) + '"></div>';
-            html += '<div class="field small"><label>Fondo de Fila (M)</label><input type="number" step="0.1" id="ctxDepth" value="' + d + '"></div>';
+            html += '<div class="field small"><label>Alto / Profundidad Visual (M)</label><input type="number" step="0.1" id="ctxDepth" value="' + d + '"></div>';
             
             if (shape === 'L') {
                 html += '<div class="field small"><label>Cajas Vertical (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Horizontal (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
-            } else if (shape === 'U' || shape === 'C') {
+            } else if (shape === 'U') {
                 html += '<div class="field small"><label>Cajas Izquierda (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Central (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
                 html += '<div class="field small"><label>Cajas Derecha (Capacidad)</label><input type="number" step="1" id="ctxCap3" value="' + c3 + '"></div>';
@@ -714,6 +719,9 @@ if (window.WMS_INITIALIZED) {
                 let size = row.sizeM || 15;
                 html += '<div class="field small"><label>Largo Visual (M)</label><input type="number" step="0.5" id="ctxSize" value="' + size + '"></div>';
             }
+            
+            buttonsHtml = '<button class="btn btn-secondary" style="flex:1; padding:8px; font-size:0.75rem;" onclick="unassignMapItem()">📥 Bandeja</button><button class="btn btn-primary" style="flex:2; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Guardar Fila</button>';
+            
         } else if (type === 'zone') {
             const z = ZONES.find(function(x) { return x.id === id; });
             if(!z) return;
@@ -721,9 +729,12 @@ if (window.WMS_INITIALIZED) {
             html += '<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="' + (z.rotation||0) + '"></div>';
             html += '<div class="field small"><label>Ancho (M)</label><input type="number" step="0.5" id="ctxZoneW" value="' + (z.widthM||2) + '"></div>';
             html += '<div class="field small"><label>Largo (M)</label><input type="number" step="0.5" id="ctxZoneL" value="' + (z.lengthM||10) + '"></div>';
+            
+            buttonsHtml = '<button class="btn btn-danger" style="flex:1; padding:8px; font-size:0.75rem;" onclick="deleteMapItem()">🗑️ Eliminar Pasillo</button><button class="btn btn-primary" style="flex:2; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Guardar Pasillo</button>';
         }
         
         inputsWrap.innerHTML = html;
+        actionBtnWrap.innerHTML = buttonsHtml;
         panel.style.display = 'block';
     }
 
@@ -742,7 +753,7 @@ if (window.WMS_INITIALIZED) {
             if(row.shape === 'L') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
-            } else if (row.shape === 'U' || row.shape === 'C') {
+            } else if (row.shape === 'U') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
                 row.cap3 = parseInt(document.getElementById('ctxCap3').value) || 5;
@@ -892,7 +903,6 @@ if (window.WMS_INITIALIZED) {
             let shapeClass = '';
             if(row.shape === 'L') shapeClass = ' shape-L';
             else if(row.shape === 'U') shapeClass = ' shape-U';
-            else if(row.shape === 'C') shapeClass = ' shape-C';
             
             rEl.className = 'map-entity-row' + shapeClass;
             if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
@@ -920,7 +930,7 @@ if (window.WMS_INITIALIZED) {
                 seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
                 seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
                 rEl.appendChild(seg1El); rEl.appendChild(seg2El);
-            } else if (row.shape === 'U' || row.shape === 'C') {
+            } else if (row.shape === 'U') {
                 const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
                 totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
                 
@@ -971,7 +981,7 @@ if (window.WMS_INITIALIZED) {
                 if (row.shape === 'L') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
-                } else if (row.shape === 'U' || row.shape === 'C') {
+                } else if (row.shape === 'U') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
                     else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
@@ -1061,7 +1071,6 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
-    // CORRECCIÓN EXACTA DRAG Y DROP: Offsets independientes de rotación visual.
     function initMapDrag(e, type, id) {
         if (e.button !== 0) return; 
         e.stopPropagation();
@@ -1077,6 +1086,7 @@ if (window.WMS_INITIALIZED) {
         const currentLeft = parseFloat(el.style.left) || 0;
         const currentTop = parseFloat(el.style.top) || 0;
         
+        // CORRECCIÓN EXACTA DRAG Y DROP: Offset independiente de rotación
         dragOffsetX = (e.clientX - canvasRect.left) - currentLeft;
         dragOffsetY = (e.clientY - canvasRect.top) - currentTop;
 
@@ -1112,14 +1122,6 @@ if (window.WMS_INITIALIZED) {
 
         let xM = parseFloat((x / scale).toFixed(2));
         let yM = parseFloat((y / scale).toFixed(2));
-
-        // Limites suaves para no perder los elementos (evita rebotes bruscos en dragOffset negativos)
-        if (activeWH) {
-            if (xM < 0) xM = 0;
-            if (yM < 0) yM = 0;
-            if (xM > activeWH.widthM) xM = activeWH.widthM;
-            if (yM > activeWH.lengthM) yM = activeWH.lengthM;
-        }
 
         if(draggingMapItem.type === 'row') {
             const row = ROWS.find(function(r) { return r.id === draggingMapItem.id; });
@@ -1212,4 +1214,46 @@ if (window.WMS_INITIALIZED) {
         const id = document.getElementById('zId').value;
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(function(z) { return z.id !== id; }); sync(); closeModals(); }
     }
+
+    // EXPOSICIÓN GLOBAL
+    window.handleLogin = handleLogin;
+    window.drop = drop;
+    window.handleSearch = handleSearch;
+    window.selectSuggestion = selectSuggestion;
+    window.openProductModal = openProductModal;
+    window.saveProduct = saveProduct;
+    window.openPoModal = openPoModal;
+    window.openInventoryDB = openInventoryDB;
+    window.applyDBChanges = applyDBChanges;
+    window.openHistoryModal = openHistoryModal;
+    window.toggleSapSection = toggleSapSection;
+    window.processSapPaste = processSapPaste;
+    window.openOrderModal = openOrderModal;
+    window.processOrderPaste = processOrderPaste;
+    window.toggleOrderItem = toggleOrderItem;
+    window.updateOrderPickedQty = updateOrderPickedQty;
+    window.cancelActiveOrder = cancelActiveOrder;
+    window.finalizeOrder = finalizeOrder;
+    window.deleteProduct = deleteProduct;
+    window.openRowModal = openRowModal;
+    window.saveRow = saveRow;
+    window.deleteRow = deleteRow;
+    window.processImage = processImage;
+    window.closeModals = closeModals;
+    window.closeProductModalOnly = closeProductModalOnly;
+    window.clearMapSelection = clearMapSelection;
+    window.unassignMapItem = unassignMapItem;
+    window.saveMapItem = saveMapItem;
+    window.deleteMapItem = deleteMapItem;
+    window.toggleLayoutMode = toggleLayoutMode;
+    window.toggleViewMode = toggleViewMode;
+    window.changeActiveWarehouse = changeActiveWarehouse;
+    window.resetAllRowsToTray = resetAllRowsToTray;
+    window.recoverLostRows = recoverLostRows;
+    window.openWarehouseModal = openWarehouseModal;
+    window.saveWarehouse = saveWarehouse;
+    window.deleteWarehouse = deleteWarehouse;
+    window.openZoneModal = openZoneModal;
+    window.saveZone = saveZone;
+    window.deleteZone = deleteZone;
 }
