@@ -1,4 +1,4 @@
-// CERROJO DE SESIÓN ABSOLUTO
+// CERROJO DE SESIÓN ABSOLUTO: Evita doble ejecución de código.
 if (window.WMS_INITIALIZED) {
     console.warn("WMS: Bloqueando ejecución duplicada del script.");
 } else {
@@ -34,10 +34,9 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
-    // SCROLL FLUIDO DURANTE DRAG
+    // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
         e.preventDefault(); 
-        if (e.clientY === undefined) return;
         const edge = 80;
         const speed = 20;
         if (e.clientY > window.innerHeight - edge) window.scrollBy(0, speed);
@@ -178,11 +177,19 @@ if (window.WMS_INITIALIZED) {
 
                 pEl.setAttribute('data-tooltip', tooltipText);
                 
-                // CORRECCIÓN DRAGSTART: Motor HTML5 puro sin destrucción de nodos (Ghost removal bug fix)
+                // CORRECCIÓN DRAGSTART: Compatibilidad de lectura en navegadores modernos
                 pEl.ondragstart = function(e) {
-                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.effectAllowed = 'move';
                     e.dataTransfer.setData("text/plain", p.sku); 
                     e.dataTransfer.setData("sku", p.sku);
+                    
+                    const ghost = document.createElement('div');
+                    ghost.style.width = '60px'; ghost.style.height = '85px'; ghost.style.background = pEl.style.background;
+                    ghost.style.borderTop = pEl.style.borderTop; ghost.style.border = '1px solid rgba(255,255,255,0.2)';
+                    ghost.style.borderRadius = '4px'; ghost.style.display = 'flex'; ghost.style.flexDirection = 'column';
+                    ghost.style.alignItems = 'center'; ghost.style.justifyContent = 'center'; ghost.style.position = 'absolute';
+                    ghost.style.top = '-1000px'; ghost.style.zIndex = '10000'; ghost.innerHTML = pEl.innerHTML;
+                    document.body.appendChild(ghost); e.dataTransfer.setDragImage(ghost, 30, 42); setTimeout(function(){ document.body.removeChild(ghost); }, 0);
                 };
                 
                 pEl.onclick = function() { openProductModal(p.sku); };
@@ -208,55 +215,46 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
-    // CORRECCIÓN QUIRÚRGICA: DRAG & DROP CLÁSICO BLINDADO
+    // CORRECCIÓN EXACTA DRAG & DROP CLÁSICO
     function drop(e) {
         e.preventDefault();
+        const sku = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("sku"); 
+        if (!sku) return;
         
-        // 1. Obtener el SKU de forma segura
-        const sku = e.dataTransfer.getData("sku") || e.dataTransfer.getData("text/plain"); 
-        if (!sku) return; 
-
-        // 2. Localizar la fila a prueba de fallos (Closest)
-        const rowElement = e.target.closest('.wh-row');
-        if (!rowElement) return;
-        const targetRowId = rowElement.id;
-        
+        const targetRowId = e.currentTarget.id;
         const p = PRODUCTS.find(function(x) { return x.sku === sku; }); 
         if (!p) return;
-
-        const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
-        if (!targetRow) return;
 
         const rowProds = PRODUCTS.filter(function(x) { return x.rowId === targetRowId && x.sku !== sku; });
         const used = rowProds.reduce(function(s, x) { return s + (x.widthM || 0); }, 0); 
         
+        const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
+        if (!targetRow) return;
+
         let totalSize = targetRow.sizeM || 15;
         if(targetRow.shape === 'L') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10)) * 0.6;
         if(targetRow.shape === 'U' || targetRow.shape === 'C') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
 
-        if (used + (p.widthM || 0.56) > totalSize) {
-            alert("Sin espacio visual configurado para esta fila.");
-            return;
-        }
+        // Corrección decimal: Evita que falsos positivos de punto flotante bloqueen el movimiento (+0.1 de tolerancia)
+        if (used + p.widthM > totalSize + 0.1) return alert("Sin espacio visual configurado para esta fila.");
         
-        // 3. Cálculo de Inserción Perfecto (Excluyendo al propio nodo si se mueve en la misma fila)
-        const children = Array.from(rowElement.children).filter(function(c) { return c.id !== 'p-' + sku; });
+        const rowEl = document.getElementById(targetRowId); 
+        
+        // Corrección de Índice: Excluimos el nodo "fantasma" que estamos arrastrando para que no altere el cálculo de la posición
+        const children = Array.from(rowEl.children).filter(c => c.id !== 'p-' + p.sku);
         let insertIdx = children.length;
         children.forEach(function(child, idx) { 
             const rect = child.getBoundingClientRect(); 
             if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx; 
         });
-
+        
         rowProds.splice(insertIdx, 0, p); 
-        const oldRowId = p.rowId;
         p.rowId = targetRowId;
         
-        PRODUCTS = PRODUCTS.filter(function(x) { return x.rowId !== targetRowId; }).concat(rowProds); 
+        // Re-ensamblaje exacto para evitar duplicados
+        PRODUCTS = PRODUCTS.filter(function(x) { return x.rowId !== targetRowId && x.sku !== p.sku; }).concat(rowProds); 
         sync();
-        
-        if (oldRowId !== targetRowId) {
-            logMovement(p.sku, p.name, 0, "Movido a fila " + (targetRow.name || 'N/A'));
-        }
+        logMovement(p.sku, p.name, 0, "Movimiento en Rack");
     }
 
     function handleSearch(v, boxId, isDB) {
@@ -620,6 +618,49 @@ if (window.WMS_INITIALIZED) {
         } 
     }
 
+    function openRowModal(id) { 
+        let r = {id:'', name:'', sizeM:15, shape:'straight'};
+        if (id && typeof id === 'string' && id.trim() !== '') {
+            const found = ROWS.find(function(x) { return x.id === id; });
+            if (found) r = found;
+        }
+        document.getElementById('rId').value = r.id; 
+        document.getElementById('rName').value = r.name || ''; 
+        document.getElementById('rSize').value = r.sizeM || 15; 
+        
+        const shapeSelect = document.getElementById('rShape');
+        if(shapeSelect) shapeSelect.value = r.shape || 'straight';
+        
+        document.getElementById('btnDelRow').style.display = id ? 'block' : 'none'; 
+        document.getElementById('rowModal').classList.add('open'); 
+    }
+
+    function saveRow() { 
+        const id = document.getElementById('rId').value; 
+        const shapeSelect = document.getElementById('rShape');
+        const data = { 
+            id: id || 'R'+Date.now(), 
+            name: document.getElementById('rName').value || 'Nueva Fila', 
+            sizeM: parseFloat(document.getElementById('rSize').value) || 15,
+            shape: shapeSelect ? shapeSelect.value : 'straight'
+        }; 
+        
+        const idx = ROWS.findIndex(function(x) { return x.id === data.id; });
+        if(idx >= 0) {
+            data.whId = ROWS[idx].whId; data.x = ROWS[idx].x; data.y = ROWS[idx].y; data.rotation = ROWS[idx].rotation;
+            data.cap1 = ROWS[idx].cap1; data.cap2 = ROWS[idx].cap2; data.cap3 = ROWS[idx].cap3; data.depthM = ROWS[idx].depthM;
+            ROWS[idx] = data;
+        } else { 
+            ROWS.push(data); 
+        }
+        sync(); closeModals(); 
+    }
+
+    function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(function(p) { return p.rowId === id; })) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(function(r) { return r.id !== id; }); sync(); closeModals(); } }
+    function processImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { const img = new Image(); img.onload = function() { const canvas = document.createElement('canvas'); const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale; canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height); tempImg = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('pImgPreview').innerHTML = '<img src="' + tempImg + '" style="max-height:160px; border-radius:4px;">'; }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]); } }
+    function closeModals() { document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); }); }
+    function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
+
     /* ─── ROBOT DE CORREOS AUTOMÁTICOS ─── */
     const EMAILJS_PUBLIC_KEY = "cdusqn38kGYK4HyVj"; 
     const EMAILJS_SERVICE_ID = "service_00sszf8"; 
@@ -778,4 +819,459 @@ if (window.WMS_INITIALIZED) {
 
     function resetAllRowsToTray() {
         if(!activeWarehouseId) return;
-        if(!confirm("¿Seguro que deseas devolver TODAS las filas de este plano a
+        if(!confirm("¿Seguro que deseas devolver TODAS las filas de este plano a la bandeja de 'Por Asignar'? No perderás los productos.")) return;
+
+        let recovered = 0;
+        ROWS.forEach(function(r) {
+            if(r.whId === activeWarehouseId) {
+                r.whId = ""; 
+                r.x = 0; 
+                r.y = 0; 
+                r.rotation = 0; 
+                recovered++;
+            }
+        });
+        if(recovered > 0) { 
+            sync(); 
+            alert("Se devolvieron " + recovered + " filas a la bandeja."); 
+        } else { 
+            alert("No hay filas en el plano para mover."); 
+        }
+    }
+
+    function toggleLayoutMode() {
+        const canvas = document.getElementById('mapCanvas');
+        if(document.getElementById('modeMoveRows').checked) canvas.classList.add('layout-mode'); 
+        else canvas.classList.remove('layout-mode'); 
+    }
+
+    function toggleViewMode() {
+        const whWrap = document.getElementById('whWrap');
+        const mapWrap = document.getElementById('mapWrap');
+        const btn = document.getElementById('btnToggleView');
+        
+        if (currentViewMode === 'racks') {
+            currentViewMode = 'map';
+            whWrap.style.display = 'none';
+            mapWrap.style.display = 'flex';
+            btn.innerText = "📄 Vista Racks Clásica";
+            btn.style.background = "var(--accent)";
+            btn.style.color = "#000";
+            renderMap();
+        } else {
+            currentViewMode = 'racks';
+            mapWrap.style.display = 'none';
+            whWrap.style.display = 'flex'; 
+            btn.innerText = "📍 Vista Aérea 2D";
+            btn.style.background = "transparent";
+            btn.style.color = "var(--accent)";
+        }
+    }
+
+    function changeActiveWarehouse(whId) { activeWarehouseId = whId; renderMap(); }
+
+    function renderMap() {
+        if (currentViewMode !== 'map') return;
+        
+        const sel = document.getElementById('mapBodegaSelect');
+        let selHtml = '';
+        WAREHOUSES.forEach(function(w) { selHtml += '<option value="' + w.id + '" ' + (w.id === activeWarehouseId ? 'selected' : '') + '>' + w.name + '</option>'; });
+        if(sel) sel.innerHTML = selHtml;
+
+        const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; }) || WAREHOUSES[0];
+        if (!activeWH) return;
+
+        const scale = activeWH.scale || 25;
+        const canvas = document.getElementById('mapCanvas');
+        if(!canvas) return;
+        
+        canvas.style.width = (activeWH.widthM * scale) + 'px';
+        canvas.style.height = (activeWH.lengthM * scale) + 'px';
+        canvas.innerHTML = '<div id="mapRotTooltip" class="rotation-tooltip"></div>'; 
+
+        const whZones = ZONES.filter(function(z) { return z.whId === activeWH.id; });
+        whZones.forEach(function(zone) {
+            const zEl = document.createElement('div');
+            zEl.className = 'map-entity-zone';
+            if(selectedMapItem && selectedMapItem.id === zone.id) zEl.className += ' is-selected';
+            
+            zEl.id = 'map-zone-' + zone.id;
+            zEl.style.width = (zone.widthM * scale) + 'px';
+            zEl.style.height = (zone.lengthM * scale) + 'px';
+            zEl.style.left = (zone.x * scale) + 'px';
+            zEl.style.top = (zone.y * scale) + 'px';
+            zEl.style.transform = 'rotate(' + (zone.rotation || 0) + 'deg)';
+            zEl.innerHTML = '<span>' + (zone.name||'') + '</span>';
+            
+            const rotHandle = document.createElement('div');
+            rotHandle.className = 'rotator-handle';
+            rotHandle.innerHTML = '<div class="rotator-line"></div>';
+            rotHandle.onmousedown = function(e) { initRotate(e, 'zone', zone.id); };
+            zEl.appendChild(rotHandle);
+
+            zEl.onmousedown = function(e) { selectMapItem('zone', zone.id); initMapDrag(e, 'zone', zone.id); };
+            canvas.appendChild(zEl);
+        });
+
+        const assignedRows = [];
+        const unassignedRows = [];
+        ROWS.forEach(function(r) { if (r.whId === activeWH.id) assignedRows.push(r); else if (!r.whId) unassignedRows.push(r); });
+
+        assignedRows.forEach(function(row) {
+            const rEl = document.createElement('div');
+            let shapeClass = '';
+            if(row.shape === 'L') shapeClass = ' shape-L';
+            else if(row.shape === 'U' || row.shape === 'C') shapeClass = ' shape-U';
+            
+            rEl.className = 'map-entity-row' + shapeClass;
+            if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
+            rEl.id = 'map-row-' + row.id;
+            
+            const depthM = row.depthM || 1.2;
+            const dPx = depthM * scale;
+            
+            let totalW = row.sizeM || 15;
+            let totalH = dPx;
+            
+            const boxVisualW = 0.6; 
+            let cap1 = row.cap1 || 5; let cap2 = row.cap2 || 10; let cap3 = row.cap3 || 5;
+
+            let seg1El = null, seg2El = null, seg3El = null;
+
+            if(row.shape === 'L') {
+                const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW;
+                totalW = (s2 + depthM) * scale; totalH = (s1 + depthM) * scale;
+                rEl.style.flexDirection = 'column';
+                
+                seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
+                seg1El.style.width = dPx + 'px'; seg1El.style.height = (s1 * scale) + 'px';
+                seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
+                seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
+                seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
+                rEl.appendChild(seg1El); rEl.appendChild(seg2El);
+            } else if (row.shape === 'U' || row.shape === 'C') {
+                const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
+                totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
+                
+                seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
+                seg1El.style.width = dPx + 'px'; seg1El.style.height = (s1 * scale) + 'px';
+                seg1El.style.position = 'absolute'; seg1El.style.bottom = '0'; seg1El.style.left = '0';
+                
+                seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
+                seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
+                seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
+                
+                seg3El = document.createElement('div'); seg3El.className = 'map-segment map-segment-v';
+                seg3El.style.width = dPx + 'px'; seg3El.style.height = (s3 * scale) + 'px';
+                seg3El.style.position = 'absolute'; seg3El.style.bottom = '0'; seg3El.style.right = '0';
+                
+                rEl.appendChild(seg1El); rEl.appendChild(seg2El); rEl.appendChild(seg3El);
+            } else {
+                totalW = totalW * scale;
+            }
+
+            rEl.style.width = totalW + 'px'; rEl.style.height = totalH + 'px';
+            rEl.style.left = ((row.x||0) * scale) + 'px'; rEl.style.top = ((row.y||0) * scale) + 'px';
+            rEl.style.transform = 'rotate(' + (row.rotation || 0) + 'deg)';
+
+            const lbl = document.createElement('div');
+            lbl.className = 'map-entity-row-label';
+            lbl.innerHTML = '🖐️ ' + (row.name || 'Fila');
+            lbl.onmousedown = function(e) { selectMapItem('row', row.id); initMapDrag(e, 'row', row.id); };
+            rEl.appendChild(lbl);
+
+            const rowProds = PRODUCTS.filter(function(p) { return p && p.rowId === row.id; });
+            let pCount = 0;
+
+            rowProds.forEach(function(p) {
+                pCount++;
+                const pWidthPx = (p.widthM || 0) * scale;
+                const pEl = document.createElement('div');
+                
+                const isInActiveOrder = ACTIVE_ORDER.some(function(item) { 
+                    return item.sku && p.sku && item.sku.toLowerCase() === p.sku.toLowerCase() && !item.completed; 
+                });
+                
+                pEl.className = 'map-mini-product';
+                if (isInActiveOrder) pEl.className += ' is-ordered';
+                pEl.style.background = p.color || '#c8a84b';
+                
+                let targetSeg = rEl; 
+                if (row.shape === 'L') {
+                    if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
+                    else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
+                } else if (row.shape === 'U' || row.shape === 'C') {
+                    if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
+                    else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
+                    else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
+                } else {
+                    pEl.style.width = pWidthPx + 'px'; pEl.style.height = '100%';
+                }
+
+                if (currentH === p.sku) { pEl.style.boxShadow = '0 0 0 2px var(--bg), 0 0 10px var(--accent)'; pEl.style.zIndex = 10; }
+
+                let tooltipText = 'SKU: ' + (p.sku||'') + '\nProducto: ' + (p.name||'') + '\nStock Físico: ' + (p.current||0);
+                if (isInActiveOrder) tooltipText += '\n\n📦 REQUERIDO EN PEDIDO';
+                pEl.setAttribute('data-tooltip', tooltipText);
+                
+                pEl.onmousedown = function(e) { e.stopPropagation(); }; 
+                pEl.onclick = function(e) { e.stopPropagation(); openProductModal(p.sku); };
+                
+                targetSeg.appendChild(pEl);
+            });
+
+            canvas.appendChild(rEl);
+        });
+
+        const unassignWrap = document.getElementById('mapUnassignedRows');
+        let uHtml = '';
+        if (unassignedRows.length === 0) {
+            uHtml = '<p style="color:var(--ok); font-size:0.8rem; text-align:center;">Todas las filas están ubicadas.</p>';
+        } else {
+            unassignedRows.forEach(function(ur) {
+                uHtml += '<div class="unassigned-row-card"><b>' + (ur.name||'') + '</b><button class="btn btn-secondary" style="padding:4px 8px; font-size:0.7rem;" onclick="assignRowToMap(\'' + ur.id + '\')">Al Plano ➡️</button></div>';
+            });
+        }
+        if(unassignWrap) unassignWrap.innerHTML = uHtml;
+    }
+
+    function initRotate(e, type, id) {
+        e.stopPropagation(); e.preventDefault();
+        selectMapItem(type, id); 
+        
+        const el = document.getElementById('map-' + type + '-' + id);
+        const tooltip = document.getElementById('mapRotTooltip');
+        if(!el || !tooltip) return;
+        
+        const rect = el.getBoundingClientRect();
+        const centerX = rect.left + (rect.width / 2);
+        const centerY = rect.top + (rect.height / 2);
+        
+        tooltip.style.display = 'block';
+
+        function onRotateDrag(ev) {
+            const dx = ev.clientX - centerX;
+            const dy = ev.clientY - centerY;
+            let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+            angle += 90; 
+            angle = Math.round(angle);
+            if (angle < 0) angle += 360;
+
+            el.style.transform = 'rotate(' + angle + 'deg)';
+            
+            const canvasRect = document.getElementById('mapCanvas').getBoundingClientRect();
+            tooltip.style.left = (ev.clientX - canvasRect.left) + 'px';
+            tooltip.style.top = (ev.clientY - canvasRect.top - 40) + 'px';
+            tooltip.innerText = angle + '°';
+            
+            const ctxRot = document.getElementById('ctxRot');
+            if(ctxRot) ctxRot.value = angle;
+
+            if(type === 'row') { const r = ROWS.find(function(x) { return x.id === id; }); if(r) r.rotation = angle; } 
+            else { const z = ZONES.find(function(x) { return x.id === id; }); if(z) z.rotation = angle; }
+        }
+
+        function onRotateDrop() {
+            document.removeEventListener('mousemove', onRotateDrag);
+            document.removeEventListener('mouseup', onRotateDrop);
+            tooltip.style.display = 'none';
+            sync(); 
+        }
+
+        document.addEventListener('mousemove', onRotateDrag);
+        document.addEventListener('mouseup', onRotateDrop);
+    }
+
+    function assignRowToMap(rowId) {
+        const row = ROWS.find(function(r) { return r.id === rowId; });
+        if(row && activeWarehouseId) {
+            row.whId = activeWarehouseId; row.x = 0; row.y = 0; row.rotation = 0;
+            sync();
+        }
+    }
+
+    function initMapDrag(e, type, id) {
+        if (e.button !== 0) return; 
+        e.stopPropagation();
+        
+        const el = document.getElementById('map-' + type + '-' + id);
+        if(!el) return; 
+        
+        draggingMapItem = { type: type, id: id };
+        
+        const canvas = document.getElementById('mapCanvas');
+        const canvasRect = canvas.getBoundingClientRect();
+        
+        const currentLeft = parseFloat(el.style.left) || 0;
+        const currentTop = parseFloat(el.style.top) || 0;
+        
+        dragOffsetX = (e.clientX - canvasRect.left) - currentLeft;
+        dragOffsetY = (e.clientY - canvasRect.top) - currentTop;
+
+        document.addEventListener('mousemove', onMapDrag);
+        document.addEventListener('mouseup', onMapDrop);
+    }
+
+    function onMapDrag(e) {
+        if(!draggingMapItem) return;
+        const canvas = document.getElementById('mapCanvas');
+        if(!canvas) return;
+        const canvasRect = canvas.getBoundingClientRect();
+        
+        let x = (e.clientX - canvasRect.left) - dragOffsetX;
+        let y = (e.clientY - canvasRect.top) - dragOffsetY;
+
+        const el = document.getElementById('map-' + draggingMapItem.type + '-' + draggingMapItem.id);
+        if(el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
+    }
+
+    function onMapDrop(e) {
+        document.removeEventListener('mousemove', onMapDrag);
+        document.removeEventListener('mouseup', onMapDrop);
+        if(!draggingMapItem) return;
+
+        const canvas = document.getElementById('mapCanvas');
+        const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; });
+        const scale = activeWH ? (activeWH.scale || 25) : 25;
+
+        const canvasRect = canvas.getBoundingClientRect();
+        let x = (e.clientX - canvasRect.left) - dragOffsetX;
+        let y = (e.clientY - canvasRect.top) - dragOffsetY;
+
+        let xM = parseFloat((x / scale).toFixed(2));
+        let yM = parseFloat((y / scale).toFixed(2));
+
+        if(draggingMapItem.type === 'row') {
+            const row = ROWS.find(function(r) { return r.id === draggingMapItem.id; });
+            if(row) { row.x = xM; row.y = yM; }
+        } else if (draggingMapItem.type === 'zone') {
+            const zone = ZONES.find(function(z) { return z.id === draggingMapItem.id; });
+            if(zone) { zone.x = xM; zone.y = yM; }
+        }
+
+        draggingMapItem = null;
+        sync(); 
+    }
+
+    function openWarehouseModal(id) {
+        const wh = (id && typeof id === 'string') ? WAREHOUSES.find(function(x) { return x.id === id; }) : null;
+        if(wh) {
+            document.getElementById('whId').value = wh.id; document.getElementById('whName').value = wh.name;
+            document.getElementById('whWidth').value = wh.widthM; document.getElementById('whLength').value = wh.lengthM;
+            document.getElementById('whScale').value = wh.scale || 25; document.getElementById('btnDelWh').style.display = 'block';
+            document.getElementById('whModalTitle').innerText = "Editar Bodega";
+        } else {
+            document.getElementById('whId').value = ''; document.getElementById('whName').value = '';
+            document.getElementById('whWidth').value = ''; document.getElementById('whLength').value = '';
+            document.getElementById('whScale').value = 25; document.getElementById('btnDelWh').style.display = 'none';
+            document.getElementById('whModalTitle').innerText = "Nueva Bodega";
+        }
+        document.getElementById('warehouseModal').classList.add('open');
+    }
+
+    function saveWarehouse() {
+        const id = document.getElementById('whId').value || 'WH' + Date.now();
+        const name = document.getElementById('whName').value.trim();
+        if(!name) return alert("El nombre es requerido.");
+        
+        const widthM = parseFloat(document.getElementById('whWidth').value) || 30;
+        const lengthM = parseFloat(document.getElementById('whLength').value) || 20;
+
+        const data = { id: id, name: name, widthM: widthM, lengthM: lengthM, scale: parseFloat(document.getElementById('whScale').value) || 25 };
+        const idx = WAREHOUSES.findIndex(function(x) { return x.id === id; });
+        if(idx >= 0) WAREHOUSES[idx] = data; else WAREHOUSES.push(data);
+        
+        ROWS.forEach(function(r) {
+            if (r.whId === id) { if (r.x > widthM || r.y > lengthM) { r.x = 0; r.y = 0; } }
+        });
+
+        activeWarehouseId = id; sync(); closeModals();
+    }
+
+    function deleteWarehouse() {
+        const id = document.getElementById('whId').value;
+        if(confirm("¿Eliminar Bodega? Se perderán los pasillos trazados. Sus filas volverán a 'Por Asignar' intactas.")) {
+            ROWS.forEach(function(r) { 
+                if(r.whId === id) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; } 
+            });
+            WAREHOUSES = WAREHOUSES.filter(function(w) { return w.id !== id; });
+            ZONES = ZONES.filter(function(z) { return z.whId !== id; });
+            activeWarehouseId = WAREHOUSES.length ? WAREHOUSES[0].id : null;
+            clearMapSelection();
+            sync(); 
+            closeModals();
+        }
+    }
+
+    function openZoneModal(id) {
+        if(!activeWarehouseId) return alert("Selecciona o crea una bodega primero.");
+        const z = (id && typeof id === 'string') ? ZONES.find(function(x) { return x.id === id; }) : null;
+        if(z) {
+            document.getElementById('zId').value = z.id; document.getElementById('zName').value = z.name;
+            document.getElementById('zWidth').value = z.widthM; document.getElementById('zLength').value = z.lengthM;
+            document.getElementById('btnDelZone').style.display = 'block';
+        } else {
+            document.getElementById('zId').value = ''; document.getElementById('zName').value = '';
+            document.getElementById('zWidth').value = 4; document.getElementById('zLength').value = 10;
+            document.getElementById('btnDelZone').style.display = 'none';
+        }
+        document.getElementById('zoneModal').classList.add('open');
+    }
+
+    function saveZone() {
+        const id = document.getElementById('zId').value || 'Z' + Date.now();
+        const data = { id: id, whId: activeWarehouseId, name: document.getElementById('zName').value || 'Pasillo', widthM: parseFloat(document.getElementById('zWidth').value) || 2, lengthM: parseFloat(document.getElementById('zLength').value) || 10, x: 0, y: 0, rotation: 0 };
+        const exist = ZONES.find(function(x) { return x.id === id; });
+        if(exist) { data.x = exist.x; data.y = exist.y; data.rotation = exist.rotation; }
+        const idx = ZONES.findIndex(function(x) { return x.id === id; });
+        if(idx >= 0) ZONES[idx] = data; else ZONES.push(data);
+        sync(); closeModals();
+    }
+
+    function deleteZone() {
+        const id = document.getElementById('zId').value;
+        if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(function(z) { return z.id !== id; }); sync(); closeModals(); }
+    }
+
+    // EXPOSICIÓN GLOBAL
+    window.handleLogin = handleLogin;
+    window.drop = drop;
+    window.handleSearch = handleSearch;
+    window.selectSuggestion = selectSuggestion;
+    window.openProductModal = openProductModal;
+    window.saveProduct = saveProduct;
+    window.openPoModal = openPoModal;
+    window.openInventoryDB = openInventoryDB;
+    window.applyDBChanges = applyDBChanges;
+    window.openHistoryModal = openHistoryModal;
+    window.toggleSapSection = toggleSapSection;
+    window.processSapPaste = processSapPaste;
+    window.openOrderModal = openOrderModal;
+    window.processOrderPaste = processOrderPaste;
+    window.toggleOrderItem = toggleOrderItem;
+    window.updateOrderPickedQty = updateOrderPickedQty;
+    window.cancelActiveOrder = cancelActiveOrder;
+    window.finalizeOrder = finalizeOrder;
+    window.deleteProduct = deleteProduct;
+    window.openRowModal = openRowModal;
+    window.saveRow = saveRow;
+    window.deleteRow = deleteRow;
+    window.processImage = processImage;
+    window.closeModals = closeModals;
+    window.closeProductModalOnly = closeProductModalOnly;
+    window.clearMapSelection = clearMapSelection;
+    window.unassignMapItem = unassignMapItem;
+    window.saveMapItem = saveMapItem;
+    window.deleteMapItem = deleteMapItem;
+    window.toggleLayoutMode = toggleLayoutMode;
+    window.toggleViewMode = toggleViewMode;
+    window.changeActiveWarehouse = changeActiveWarehouse;
+    window.resetAllRowsToTray = resetAllRowsToTray;
+    window.recoverLostRows = recoverLostRows;
+    window.openWarehouseModal = openWarehouseModal;
+    window.saveWarehouse = saveWarehouse;
+    window.deleteWarehouse = deleteWarehouse;
+    window.openZoneModal = openZoneModal;
+    window.saveZone = saveZone;
+    window.deleteZone = deleteZone;
+}
