@@ -34,7 +34,6 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
-    // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
         e.preventDefault(); 
         const edge = 80;
@@ -143,9 +142,14 @@ if (window.WMS_INITIALIZED) {
             const container = document.createElement('div');
             container.className = 'row-container';
             
+            // CORRECCIÓN DRAG: Convertimos la tarjeta entera en un receptor de Drop válido
+            container.setAttribute('data-row-id', row.id);
+            container.addEventListener('dragover', function(ev) { ev.preventDefault(); });
+            container.addEventListener('drop', drop);
+            
             let headerHTML = '<div class="row-header"><div class="row-info"><b>' + safeName + '</b> <span>' + used.toFixed(2) + 'm / ' + totalSize.toFixed(1) + 'm (' + perc + '%)</span></div>';
             headerHTML += '<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRowModal(\'' + row.id + '\')">⚙️ Editar</button></div>';
-            headerHTML += '<div class="row-scroll-wrapper"><div class="wh-row" id="' + row.id + '" ondragover="event.preventDefault()" ondrop="drop(event)"></div></div>';
+            headerHTML += '<div class="row-scroll-wrapper"><div class="wh-row" id="' + row.id + '"></div></div>';
             
             container.innerHTML = headerHTML;
             const rowEl = container.querySelector('.wh-row');
@@ -177,7 +181,6 @@ if (window.WMS_INITIALIZED) {
 
                 pEl.setAttribute('data-tooltip', tooltipText);
                 
-                // CORRECCIÓN DRAGSTART: Compatibilidad de lectura en navegadores modernos
                 pEl.ondragstart = function(e) {
                     e.dataTransfer.effectAllowed = 'move';
                     e.dataTransfer.setData("text/plain", p.sku); 
@@ -215,13 +218,18 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
-    // CORRECCIÓN EXACTA DRAG & DROP CLÁSICO
+    // CORRECCIÓN EXACTA DRAG Y DROP CLÁSICO (Recupera movimiento entre filas distintas)
     function drop(e) {
         e.preventDefault();
         const sku = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("sku"); 
         if (!sku) return;
         
-        const targetRowId = e.currentTarget.id;
+        let targetRowId = e.currentTarget.getAttribute('data-row-id') || e.currentTarget.id;
+        if (!targetRowId && e.target.closest('.row-container')) {
+            targetRowId = e.target.closest('.row-container').getAttribute('data-row-id');
+        }
+        if(!targetRowId) return;
+
         const p = PRODUCTS.find(function(x) { return x.sku === sku; }); 
         if (!p) return;
 
@@ -229,18 +237,17 @@ if (window.WMS_INITIALIZED) {
         const used = rowProds.reduce(function(s, x) { return s + (x.widthM || 0); }, 0); 
         
         const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
-        if (!targetRow) return;
+        if(!targetRow) return;
 
         let totalSize = targetRow.sizeM || 15;
         if(targetRow.shape === 'L') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10)) * 0.6;
         if(targetRow.shape === 'U' || targetRow.shape === 'C') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
 
-        // Corrección decimal: Evita que falsos positivos de punto flotante bloqueen el movimiento (+0.1 de tolerancia)
         if (used + p.widthM > totalSize + 0.1) return alert("Sin espacio visual configurado para esta fila.");
         
         const rowEl = document.getElementById(targetRowId); 
-        
-        // Corrección de Índice: Excluimos el nodo "fantasma" que estamos arrastrando para que no altere el cálculo de la posición
+        if(!rowEl) return;
+
         const children = Array.from(rowEl.children).filter(c => c.id !== 'p-' + p.sku);
         let insertIdx = children.length;
         children.forEach(function(child, idx) { 
@@ -249,12 +256,18 @@ if (window.WMS_INITIALIZED) {
         });
         
         rowProds.splice(insertIdx, 0, p); 
+        
+        const previousRowId = p.rowId;
         p.rowId = targetRowId;
         
-        // Re-ensamblaje exacto para evitar duplicados
         PRODUCTS = PRODUCTS.filter(function(x) { return x.rowId !== targetRowId && x.sku !== p.sku; }).concat(rowProds); 
         sync();
-        logMovement(p.sku, p.name, 0, "Movimiento en Rack");
+        
+        if(previousRowId !== targetRowId) {
+            logMovement(p.sku, p.name, 0, "Movido a fila " + (targetRow.name || 'N/A'));
+        } else {
+            logMovement(p.sku, p.name, 0, "Reorganización en fila " + (targetRow.name || 'N/A'));
+        }
     }
 
     function handleSearch(v, boxId, isDB) {
@@ -730,7 +743,7 @@ if (window.WMS_INITIALIZED) {
             if (shape === 'L') {
                 html += '<div class="field small"><label>Cajas Vertical (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Horizontal (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
-            } else if (shape === 'U' || shape === 'C') {
+            } else if (shape === 'U') {
                 html += '<div class="field small"><label>Cajas Izquierda (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Central (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
                 html += '<div class="field small"><label>Cajas Derecha (Capacidad)</label><input type="number" step="1" id="ctxCap3" value="' + c3 + '"></div>';
@@ -772,7 +785,7 @@ if (window.WMS_INITIALIZED) {
             if(row.shape === 'L') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
-            } else if (row.shape === 'U' || row.shape === 'C') {
+            } else if (row.shape === 'U') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
                 row.cap3 = parseInt(document.getElementById('ctxCap3').value) || 5;
@@ -921,7 +934,7 @@ if (window.WMS_INITIALIZED) {
             const rEl = document.createElement('div');
             let shapeClass = '';
             if(row.shape === 'L') shapeClass = ' shape-L';
-            else if(row.shape === 'U' || row.shape === 'C') shapeClass = ' shape-U';
+            else if(row.shape === 'U') shapeClass = ' shape-U';
             
             rEl.className = 'map-entity-row' + shapeClass;
             if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
@@ -949,7 +962,7 @@ if (window.WMS_INITIALIZED) {
                 seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
                 seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
                 rEl.appendChild(seg1El); rEl.appendChild(seg2El);
-            } else if (row.shape === 'U' || row.shape === 'C') {
+            } else if (row.shape === 'U') {
                 const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
                 totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
                 
@@ -1000,7 +1013,7 @@ if (window.WMS_INITIALIZED) {
                 if (row.shape === 'L') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
-                } else if (row.shape === 'U' || row.shape === 'C') {
+                } else if (row.shape === 'U') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
                     else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
@@ -1125,6 +1138,7 @@ if (window.WMS_INITIALIZED) {
         if(el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
     }
 
+    // CORRECCIÓN FINAL DRAG & DROP AÉREO: Posicionamiento 100% libre sin Clamper matemático
     function onMapDrop(e) {
         document.removeEventListener('mousemove', onMapDrag);
         document.removeEventListener('mouseup', onMapDrop);
@@ -1138,6 +1152,7 @@ if (window.WMS_INITIALIZED) {
         let x = (e.clientX - canvasRect.left) - dragOffsetX;
         let y = (e.clientY - canvasRect.top) - dragOffsetY;
 
+        // Se guarda el offset puro sin restricciones de borde.
         let xM = parseFloat((x / scale).toFixed(2));
         let yM = parseFloat((y / scale).toFixed(2));
 
@@ -1180,10 +1195,6 @@ if (window.WMS_INITIALIZED) {
         const data = { id: id, name: name, widthM: widthM, lengthM: lengthM, scale: parseFloat(document.getElementById('whScale').value) || 25 };
         const idx = WAREHOUSES.findIndex(function(x) { return x.id === id; });
         if(idx >= 0) WAREHOUSES[idx] = data; else WAREHOUSES.push(data);
-        
-        ROWS.forEach(function(r) {
-            if (r.whId === id) { if (r.x > widthM || r.y > lengthM) { r.x = 0; r.y = 0; } }
-        });
 
         activeWarehouseId = id; sync(); closeModals();
     }
