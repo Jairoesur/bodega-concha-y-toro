@@ -34,12 +34,57 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
+    // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
         e.preventDefault(); 
         const edge = 80;
         const speed = 20;
         if (e.clientY > window.innerHeight - edge) window.scrollBy(0, speed);
         else if (e.clientY < edge) window.scrollBy(0, -speed);
+    });
+
+    // NUEVO: Motor de Tooltip Global en JS (Evita cortes y soluciona el escudo invisible)
+    let globalTooltip = document.getElementById('global-tooltip');
+    if(!globalTooltip) {
+        globalTooltip = document.createElement('div');
+        globalTooltip.id = 'global-tooltip';
+        document.body.appendChild(globalTooltip);
+    }
+
+    document.addEventListener('mousemove', function(e) {
+        const p = e.target.closest('.product, .map-mini-product');
+        if(p) {
+            const text = p.getAttribute('data-tooltip');
+            if(text) {
+                globalTooltip.innerText = text;
+                globalTooltip.classList.add('show');
+                
+                const rect = p.getBoundingClientRect();
+                let left = rect.left + (rect.width / 2);
+                let top = rect.top - 10;
+                
+                let transformY = '-100%';
+                if (top - globalTooltip.offsetHeight < 0) {
+                    top = rect.bottom + 10; 
+                    transformY = '0';
+                }
+                
+                let transformX = '-50%';
+                if (left - (globalTooltip.offsetWidth / 2) < 10) {
+                    left = 10;
+                    transformX = '0';
+                } else if (left + (globalTooltip.offsetWidth / 2) > window.innerWidth - 10) {
+                    left = window.innerWidth - 10;
+                    transformX = '-100%';
+                }
+
+                globalTooltip.style.transform = `translate(${transformX}, ${transformY})`;
+                globalTooltip.style.left = left + 'px';
+                globalTooltip.style.top = top + 'px';
+            }
+        } else {
+            globalTooltip.classList.remove('show');
+        }
     });
 
     function handleLogin(e) {
@@ -128,7 +173,7 @@ if (window.WMS_INITIALIZED) {
         const dot = document.getElementById('orderDotStatus');
         if(dot) dot.style.background = ACTIVE_ORDER.length > 0 ? 'var(--order-blue)' : 'grey';
 
-        ROWS.forEach(function(row) {
+        ROWS.forEach(function(row, idx) {
             const rowProds = PRODUCTS.filter(function(p) { return p && p.rowId === row.id; });
             const used = rowProds.reduce(function(s, p) { return s + (p.widthM || 0); }, 0);
             
@@ -141,8 +186,9 @@ if (window.WMS_INITIALIZED) {
 
             const container = document.createElement('div');
             container.className = 'row-container';
+            // CORRECCIÓN Z-INDEX: Elimina el solapamiento invisible que bloqueaba los clics
+            container.style.zIndex = 5000 - idx; 
             
-            // CORRECCIÓN DRAG: Convertimos la tarjeta entera en un receptor de Drop válido
             container.setAttribute('data-row-id', row.id);
             container.addEventListener('dragover', function(ev) { ev.preventDefault(); });
             container.addEventListener('drop', drop);
@@ -182,6 +228,7 @@ if (window.WMS_INITIALIZED) {
                 pEl.setAttribute('data-tooltip', tooltipText);
                 
                 pEl.ondragstart = function(e) {
+                    globalTooltip.classList.remove('show');
                     e.dataTransfer.effectAllowed = 'move';
                     e.dataTransfer.setData("text/plain", p.sku); 
                     e.dataTransfer.setData("sku", p.sku);
@@ -218,7 +265,7 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
-    // CORRECCIÓN EXACTA DRAG Y DROP CLÁSICO (Recupera movimiento entre filas distintas)
+    // CORRECCIÓN EXACTA DRAG Y DROP CLÁSICO (Recupera movimiento entre filas distintas sin escudos)
     function drop(e) {
         e.preventDefault();
         const sku = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("sku"); 
@@ -640,6 +687,7 @@ if (window.WMS_INITIALIZED) {
         document.getElementById('rId').value = r.id; 
         document.getElementById('rName').value = r.name || ''; 
         document.getElementById('rSize').value = r.sizeM || 15; 
+        document.getElementById('rDepth').value = r.depthM || 1.2;
         
         const shapeSelect = document.getElementById('rShape');
         if(shapeSelect) shapeSelect.value = r.shape || 'straight';
@@ -655,13 +703,14 @@ if (window.WMS_INITIALIZED) {
             id: id || 'R'+Date.now(), 
             name: document.getElementById('rName').value || 'Nueva Fila', 
             sizeM: parseFloat(document.getElementById('rSize').value) || 15,
-            shape: shapeSelect ? shapeSelect.value : 'straight'
+            shape: shapeSelect ? shapeSelect.value : 'straight',
+            depthM: parseFloat(document.getElementById('rDepth').value) || 1.2
         }; 
         
         const idx = ROWS.findIndex(function(x) { return x.id === data.id; });
         if(idx >= 0) {
             data.whId = ROWS[idx].whId; data.x = ROWS[idx].x; data.y = ROWS[idx].y; data.rotation = ROWS[idx].rotation;
-            data.cap1 = ROWS[idx].cap1; data.cap2 = ROWS[idx].cap2; data.cap3 = ROWS[idx].cap3; data.depthM = ROWS[idx].depthM;
+            data.cap1 = ROWS[idx].cap1; data.cap2 = ROWS[idx].cap2; data.cap3 = ROWS[idx].cap3;
             ROWS[idx] = data;
         } else { 
             ROWS.push(data); 
@@ -743,7 +792,7 @@ if (window.WMS_INITIALIZED) {
             if (shape === 'L') {
                 html += '<div class="field small"><label>Cajas Vertical (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Horizontal (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
-            } else if (shape === 'U') {
+            } else if (shape === 'U' || shape === 'C') {
                 html += '<div class="field small"><label>Cajas Izquierda (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
                 html += '<div class="field small"><label>Cajas Central (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
                 html += '<div class="field small"><label>Cajas Derecha (Capacidad)</label><input type="number" step="1" id="ctxCap3" value="' + c3 + '"></div>';
@@ -785,7 +834,7 @@ if (window.WMS_INITIALIZED) {
             if(row.shape === 'L') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
-            } else if (row.shape === 'U') {
+            } else if (row.shape === 'U' || row.shape === 'C') {
                 row.cap1 = parseInt(document.getElementById('ctxCap1').value) || 5;
                 row.cap2 = parseInt(document.getElementById('ctxCap2').value) || 10;
                 row.cap3 = parseInt(document.getElementById('ctxCap3').value) || 5;
@@ -934,7 +983,7 @@ if (window.WMS_INITIALIZED) {
             const rEl = document.createElement('div');
             let shapeClass = '';
             if(row.shape === 'L') shapeClass = ' shape-L';
-            else if(row.shape === 'U') shapeClass = ' shape-U';
+            else if(row.shape === 'U' || row.shape === 'C') shapeClass = ' shape-U';
             
             rEl.className = 'map-entity-row' + shapeClass;
             if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
@@ -962,7 +1011,7 @@ if (window.WMS_INITIALIZED) {
                 seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
                 seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
                 rEl.appendChild(seg1El); rEl.appendChild(seg2El);
-            } else if (row.shape === 'U') {
+            } else if (row.shape === 'U' || row.shape === 'C') {
                 const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
                 totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
                 
@@ -1013,7 +1062,7 @@ if (window.WMS_INITIALIZED) {
                 if (row.shape === 'L') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
-                } else if (row.shape === 'U') {
+                } else if (row.shape === 'U' || row.shape === 'C') {
                     if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
                     else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
                     else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
@@ -1108,7 +1157,7 @@ if (window.WMS_INITIALIZED) {
         e.stopPropagation();
         
         const el = document.getElementById('map-' + type + '-' + id);
-        if(!el) return; 
+        if(!el || e.target.classList.contains('rotator-handle')) return; 
         
         draggingMapItem = { type: type, id: id };
         
@@ -1138,7 +1187,6 @@ if (window.WMS_INITIALIZED) {
         if(el) { el.style.left = x + 'px'; el.style.top = y + 'px'; }
     }
 
-    // CORRECCIÓN FINAL DRAG & DROP AÉREO: Posicionamiento 100% libre sin Clamper matemático
     function onMapDrop(e) {
         document.removeEventListener('mousemove', onMapDrag);
         document.removeEventListener('mouseup', onMapDrop);
@@ -1152,7 +1200,6 @@ if (window.WMS_INITIALIZED) {
         let x = (e.clientX - canvasRect.left) - dragOffsetX;
         let y = (e.clientY - canvasRect.top) - dragOffsetY;
 
-        // Se guarda el offset puro sin restricciones de borde.
         let xM = parseFloat((x / scale).toFixed(2));
         let yM = parseFloat((y / scale).toFixed(2));
 
