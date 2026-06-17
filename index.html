@@ -155,8 +155,12 @@
             </div>
         </div>
         <div class="editor-sidebar">
-            <h4 style="font-size: 0.85rem; color: var(--muted); text-transform: uppercase; margin-bottom: 25px; letter-spacing: 0.5px;">Ajustes Visuales</h4>
-            <div class="field"><label>Ancho Visual (Solo Filas)</label><input id="pWidth" type="number" step="0.01"></div>
+            <h4 style="font-size: 0.85rem; color: var(--muted); text-transform: uppercase; margin-bottom: 25px; letter-spacing: 0.5px;">Dimensiones del SKU y Ajustes</h4>
+            <div class="field"><label>Ancho (M)</label><input id="pWidth" type="number" step="0.01"></div>
+            <div class="form-row">
+                <div class="field"><label>Alto (M)</label><input id="pHeight" type="number" step="0.01" placeholder="Ej: 0.4"></div>
+                <div class="field"><label>Fondo (M)</label><input id="pDepth" type="number" step="0.01" placeholder="Ej: 0.3"></div>
+            </div>
             <div class="field"><label>Color Distintivo</label><input id="pColor" type="color" value="#c8a84b"></div>
             <div class="field" style="margin-top: 35px;">
                 <label>Foto de Referencia</label>
@@ -199,11 +203,11 @@
 </div>
 
 <div id="rackModal" class="modal" style="z-index: 10500;">
-    <div class="modal-content" style="max-width:550px; height: 90vh;">
+    <div class="modal-content" style="max-width:600px; height: 90vh;">
       <div class="modal-header"><h2>Configurar Rack (Estructura)</h2><button class="close-btn" onclick="closeModals()">✖</button></div>
       <div class="modal-body" style="overflow-y: auto;">
           <input type="hidden" id="rkId">
-          <p style="font-size:0.75rem; color:var(--muted); margin-bottom:20px;">Un Rack se divide en Columnas, y cada Columna en Niveles independientes.</p>
+          <p style="font-size:0.75rem; color:var(--muted); margin-bottom:20px;">Cada Columna y Nivel representa una ubicación física independiente y puede tener sus propias dimensiones.</p>
           <div class="field"><label>Nombre del Rack</label><input id="rkName" type="text" placeholder="Ej: Rack 01"></div>
           <div class="form-row">
               <div class="field"><label>Ancho Visual 2D (M)</label><input id="rkWidth" type="number" step="0.1" value="2"></div>
