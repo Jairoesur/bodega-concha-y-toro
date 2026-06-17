@@ -19,6 +19,7 @@ if (window.WMS_INITIALIZED) {
     const auth = firebase.auth();
 
     let ROWS = [];
+    let RACKS = []; // NUEVA ESTRUCTURA GLOBAL PARALELA
     let PRODUCTS = [];
     let HISTORY_LOG = []; 
     let ACTIVE_ORDER = [];
@@ -43,7 +44,7 @@ if (window.WMS_INITIALIZED) {
         else if (e.clientY < edge) window.scrollBy(0, -speed);
     });
 
-    // NUEVO: Motor de Tooltip Global en JS (Evita cortes y soluciona el escudo invisible)
+    // MOTOR TOOLTIP INTELIGENTE GLOBAL
     let globalTooltip = document.getElementById('global-tooltip');
     if(!globalTooltip) {
         globalTooltip = document.createElement('div');
@@ -110,30 +111,36 @@ if (window.WMS_INITIALIZED) {
 
                 let rawRows = [];
                 if (Array.isArray(data.rows)) rawRows = data.rows;
-                else if (data.rows && typeof data.rows === 'object') rawRows = Object.keys(data.rows).map(function(k) { return data.rows[k]; });
-                ROWS = rawRows.filter(function(r) { return r !== null && r !== undefined; });
+                else if (data.rows && typeof data.rows === 'object') rawRows = Object.keys(data.rows).map(k => data.rows[k]);
+                ROWS = rawRows.filter(r => r !== null && r !== undefined);
                 if (ROWS.length === 0) ROWS = [{id:'R1', name:'Fila A', sizeM:15}];
+
+                // CARGA RACKS
+                let rawRacks = [];
+                if (Array.isArray(data.racks)) rawRacks = data.racks;
+                else if (data.racks && typeof data.racks === 'object') rawRacks = Object.keys(data.racks).map(k => data.racks[k]);
+                RACKS = rawRacks.filter(r => r !== null && r !== undefined);
 
                 let rawProducts = [];
                 if (Array.isArray(data.products)) rawProducts = data.products;
-                else if (data.products && typeof data.products === 'object') rawProducts = Object.keys(data.products).map(function(k) { return data.products[k]; });
-                PRODUCTS = rawProducts.filter(function(p) { return p !== null && p !== undefined; });
+                else if (data.products && typeof data.products === 'object') rawProducts = Object.keys(data.products).map(k => data.products[k]);
+                PRODUCTS = rawProducts.filter(p => p !== null && p !== undefined);
 
                 if (data.history && typeof data.history === 'object') { 
-                    HISTORY_LOG = Object.keys(data.history).map(function(k) { return data.history[k]; }).sort(function(a,b) { return new Date(b.dateRaw) - new Date(a.dateRaw); }); 
+                    HISTORY_LOG = Object.keys(data.history).map(k => data.history[k]).sort((a,b) => new Date(b.dateRaw) - new Date(a.dateRaw)); 
                 } else { HISTORY_LOG = []; }
 
                 let rawWH = [];
                 if (Array.isArray(data.warehouses)) rawWH = data.warehouses;
-                else if (data.warehouses && typeof data.warehouses === 'object') rawWH = Object.keys(data.warehouses).map(function(k) { return data.warehouses[k]; });
-                WAREHOUSES = rawWH.filter(function(w) { return w !== null && w !== undefined; });
+                else if (data.warehouses && typeof data.warehouses === 'object') rawWH = Object.keys(data.warehouses).map(k => data.warehouses[k]);
+                WAREHOUSES = rawWH.filter(w => w !== null && w !== undefined);
                 if (WAREHOUSES.length === 0) WAREHOUSES = [{id: 'WH1', name: 'Bodega Principal', widthM: 30, lengthM: 20, scale: 25}];
                 if (!activeWarehouseId) activeWarehouseId = WAREHOUSES[0].id;
 
                 let rawZones = [];
                 if (Array.isArray(data.zones)) rawZones = data.zones;
-                else if (data.zones && typeof data.zones === 'object') rawZones = Object.keys(data.zones).map(function(k) { return data.zones[k]; });
-                ZONES = rawZones.filter(function(z) { return z !== null && z !== undefined; });
+                else if (data.zones && typeof data.zones === 'object') rawZones = Object.keys(data.zones).map(k => data.zones[k]);
+                ZONES = rawZones.filter(z => z !== null && z !== undefined);
 
                 render();
                 if(currentViewMode === 'map') renderMap();
@@ -147,12 +154,19 @@ if (window.WMS_INITIALIZED) {
     function sync() {
         if(auth.currentUser) {
             db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
+            db.ref('bodega/racks').set(JSON.parse(JSON.stringify(RACKS))); // SYNC RACKS
             db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
             db.ref('bodega/warehouses').set(JSON.parse(JSON.stringify(WAREHOUSES)));
             db.ref('bodega/zones').set(JSON.parse(JSON.stringify(ZONES)));
         }
         render();
         if(currentViewMode === 'map') renderMap();
+        
+        // Auto-refresh Rack Front Modal si está abierto
+        const rackModal = document.getElementById('rackFrontModal');
+        if(rackModal.classList.contains('open') && window.currentInspectRackId) {
+            renderRackFront(window.currentInspectRackId, document.getElementById('rackFrontBody'));
+        }
     }
 
     function logMovement(sku, name, changeQty, reason) {
@@ -164,18 +178,128 @@ if (window.WMS_INITIALIZED) {
         db.ref('bodega/history').push({ date: dateStr, dateRaw: dateRaw, sku: sku, name: name, change: changeTxt, reason: reason, user: user });
     }
 
+    function generateProductHTML(p, totalSize, idx, safeName, scale = null, isRack = false) {
+        const isInActiveOrder = ACTIVE_ORDER.some(item => item.sku && p.sku && item.sku.toLowerCase() === p.sku.toLowerCase() && !item.completed);
+        const pEl = document.createElement('div');
+        pEl.className = 'product' + (isRack ? ' rack-product' : '') + (scale ? ' map-mini-product' : '');
+        if(currentH === p.sku) pEl.classList.add('is-highlighted');
+        if(isInActiveOrder) pEl.classList.add('is-ordered');
+        pEl.id = 'p-' + p.sku;
+        pEl.draggable = true;
+        
+        if (!isRack) {
+            if (scale) pEl.style.width = ((p.widthM || 0) * scale) + 'px';
+            else pEl.style.width = (p.widthM / totalSize * 100) + '%';
+        }
+        
+        pEl.style.background = p.color || '#c8a84b';
+        if(!scale && !isRack) {
+            pEl.style.background = (p.color || '#c8a84b') + '25';
+            pEl.style.borderTop = '6px solid ' + (p.color || '#c8a84b');
+        }
+
+        let tooltipText = 'SKU: ' + (p.sku || 'N/A') + '\nProducto: ' + (p.name || 'N/A') + '\nStock Físico: ' + (p.current || 0) + ' (Mín: ' + (p.min || 0) + ' / Máx: ' + (p.max || 0) + ')';
+        if (p.hasPO) tooltipText += '\n📦 Prov. Reservado: ' + (p.reservedStock || 0);
+        if (p.masterQty || p.innerQty) tooltipText += '\nEmpaque: Master: ' + (p.masterQty || 0) + ' u. | Interior: ' + (p.innerQty || 0) + ' u.';
+        if (p.supplier) tooltipText += '\nProveedor: ' + p.supplier + ' (Demora: ' + (p.leadTime || 0) + ' días)';
+        if (isInActiveOrder) tooltipText += '\n\n📦 REQUERIDO EN PEDIDO (Luz Azul)';
+
+        pEl.setAttribute('data-tooltip', tooltipText);
+        
+        pEl.ondragstart = function(e) {
+            globalTooltip.classList.remove('show');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData("text/plain", p.sku); 
+            e.dataTransfer.setData("sku", p.sku);
+            
+            const ghost = document.createElement('div');
+            ghost.style.width = '60px'; ghost.style.height = '85px'; ghost.style.background = pEl.style.background;
+            ghost.style.borderTop = pEl.style.borderTop; ghost.style.border = '1px solid rgba(255,255,255,0.2)';
+            ghost.style.borderRadius = '4px'; ghost.style.display = 'flex'; ghost.style.flexDirection = 'column';
+            ghost.style.alignItems = 'center'; ghost.style.justifyContent = 'center'; ghost.style.position = 'absolute';
+            ghost.style.top = '-1000px'; ghost.style.zIndex = '100003'; ghost.innerHTML = pEl.innerHTML;
+            document.body.appendChild(ghost); e.dataTransfer.setDragImage(ghost, 30, 42); setTimeout(() => document.body.removeChild(ghost), 0);
+        };
+        
+        pEl.onclick = function() { openProductModal(p.sku); };
+        
+        let dotColor = 'var(--ok)';
+        if(p.current < p.min) dotColor = 'var(--danger)';
+        else if (p.current <= p.min * 1.2) dotColor = 'var(--warn)';
+        else if (p.max > 0 && p.current > p.max) dotColor = 'var(--over)';
+        
+        const posLabel = isRack ? (index => { return p.sku.substring(0,3); })(idx) : safeName.split(' ').pop() + (idx + 1);
+        pEl.innerHTML = '<div class="product-pos">' + posLabel + '</div><span class="stock-dot" style="background:' + dotColor + '"></span>';
+        
+        return pEl;
+    }
+
+    // NUEVA FUNCIÓN: Construcción visual de un Rack
+    function renderRackFront(rackId, wrapperElement) {
+        wrapperElement.innerHTML = '';
+        const rack = RACKS.find(r => r.id === rackId);
+        if(!rack) return;
+
+        const colsHTML = document.createElement('div');
+        colsHTML.className = 'rack-cols-wrap';
+        
+        rack.cols.forEach((col, c) => {
+            const colWrap = document.createElement('div');
+            colWrap.className = 'rack-col-ui';
+            
+            for(let l=0; l<col.levels; l++) {
+                const levelId = `RK-${rack.id}-C${c}-L${l}`;
+                const levelEl = document.createElement('div');
+                levelEl.className = 'rack-level-ui';
+                levelEl.id = levelId;
+                
+                levelEl.setAttribute('data-rack-id', rack.id);
+                levelEl.addEventListener('dragover', e => e.preventDefault());
+                levelEl.addEventListener('drop', drop);
+
+                const lbl = document.createElement('div');
+                lbl.className = 'rack-level-name';
+                lbl.innerText = `C${c+1}-N${l+1} (${col.cap})`;
+                levelEl.appendChild(lbl);
+
+                const levelProds = PRODUCTS.filter(p => p.rowId === levelId);
+                if(levelProds.length >= col.cap) levelEl.classList.add('is-full');
+
+                levelProds.forEach((p, idx) => {
+                    if(p.current < p.min && document.getElementById('alertBar').style.display === 'none') {
+                        document.getElementById('alertBar').style.display = 'flex';
+                        document.getElementById('alertText').innerText = 'Stock crítico detectado.';
+                    }
+                    const pEl = generateProductHTML(p, 0, idx, '', null, true);
+                    levelEl.appendChild(pEl);
+                });
+                colWrap.appendChild(levelEl);
+            }
+            
+            const header = document.createElement('div');
+            header.className = 'rack-col-header';
+            header.innerText = `Columna ${c+1}`;
+            colWrap.appendChild(header);
+            
+            colsHTML.appendChild(colWrap);
+        });
+        wrapperElement.appendChild(colsHTML);
+    }
+
     function render() {
         const wrap = document.getElementById('whWrap');
         if(!wrap) return;
         wrap.innerHTML = '';
-        let alerts = [];
+        
+        document.getElementById('alertBar').style.display = 'none'; // reset
 
         const dot = document.getElementById('orderDotStatus');
         if(dot) dot.style.background = ACTIVE_ORDER.length > 0 ? 'var(--order-blue)' : 'grey';
 
+        // 1. RENDER FILAS CLÁSICAS
         ROWS.forEach(function(row, idx) {
-            const rowProds = PRODUCTS.filter(function(p) { return p && p.rowId === row.id; });
-            const used = rowProds.reduce(function(s, p) { return s + (p.widthM || 0); }, 0);
+            const rowProds = PRODUCTS.filter(p => p && p.rowId === row.id);
+            const used = rowProds.reduce((s, p) => s + (p.widthM || 0), 0);
             
             let totalSize = row.sizeM || 15;
             if(row.shape === 'L') totalSize = ((row.cap1 || 5) + (row.cap2 || 10)) * 0.6;
@@ -186,134 +310,124 @@ if (window.WMS_INITIALIZED) {
 
             const container = document.createElement('div');
             container.className = 'row-container';
-            // CORRECCIÓN Z-INDEX: Elimina el solapamiento invisible que bloqueaba los clics
-            container.style.zIndex = 5000 - idx; 
+            container.style.zIndex = 4000 - idx; // Asegura que quede debajo del #topbar
             
             container.setAttribute('data-row-id', row.id);
-            container.addEventListener('dragover', function(ev) { ev.preventDefault(); });
+            container.addEventListener('dragover', ev => ev.preventDefault());
             container.addEventListener('drop', drop);
             
-            let headerHTML = '<div class="row-header"><div class="row-info"><b>' + safeName + '</b> <span>' + used.toFixed(2) + 'm / ' + totalSize.toFixed(1) + 'm (' + perc + '%)</span></div>';
-            headerHTML += '<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRowModal(\'' + row.id + '\')">⚙️ Editar</button></div>';
-            headerHTML += '<div class="row-scroll-wrapper"><div class="wh-row" id="' + row.id + '"></div></div>';
+            let headerHTML = `<div class="row-header"><div class="row-info"><b>${safeName}</b> <span>${used.toFixed(2)}m / ${totalSize.toFixed(1)}m (${perc}%)</span></div>`;
+            headerHTML += `<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRowModal('${row.id}')">⚙️ Editar</button></div>`;
+            headerHTML += `<div class="row-scroll-wrapper"><div class="wh-row" id="${row.id}"></div></div>`;
             
             container.innerHTML = headerHTML;
             const rowEl = container.querySelector('.wh-row');
             
             rowProds.forEach(function(p, index) {
-                if(p.current < p.min) alerts.push(p.name);
-                const posLabel = safeName.split(' ').pop() + (index + 1);
-                
-                const isInActiveOrder = ACTIVE_ORDER.some(function(item) { 
-                    return item.sku && p.sku && item.sku.toLowerCase() === p.sku.toLowerCase() && !item.completed; 
-                });
-
-                const pEl = document.createElement('div');
-                let classes = 'product';
-                if(currentH === p.sku) classes += ' is-highlighted';
-                if(isInActiveOrder) classes += ' is-ordered';
-                pEl.className = classes;
-                pEl.id = 'p-' + p.sku;
-                pEl.draggable = true;
-                pEl.style.width = (p.widthM / totalSize * 100) + '%';
-                pEl.style.background = (p.color || '#c8a84b') + '25';
-                pEl.style.borderTop = '6px solid ' + (p.color || '#c8a84b');
-                
-                let tooltipText = 'SKU: ' + (p.sku || 'N/A') + '\nProducto: ' + (p.name || 'N/A') + '\nStock Físico: ' + (p.current || 0) + ' (Mín: ' + (p.min || 0) + ' / Máx: ' + (p.max || 0) + ')';
-                if (p.hasPO) tooltipText += '\n📦 Prov. Reservado: ' + (p.reservedStock || 0);
-                if (p.masterQty || p.innerQty) tooltipText += '\nEmpaque: Master: ' + (p.masterQty || 0) + ' u. | Interior: ' + (p.innerQty || 0) + ' u.';
-                if (p.supplier) tooltipText += '\nProveedor: ' + p.supplier + ' (Demora: ' + (p.leadTime || 0) + ' días)';
-                if (isInActiveOrder) tooltipText += '\n\n📦 REQUERIDO EN PEDIDO (Luz Azul)';
-
-                pEl.setAttribute('data-tooltip', tooltipText);
-                
-                pEl.ondragstart = function(e) {
-                    globalTooltip.classList.remove('show');
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData("text/plain", p.sku); 
-                    e.dataTransfer.setData("sku", p.sku);
-                    
-                    const ghost = document.createElement('div');
-                    ghost.style.width = '60px'; ghost.style.height = '85px'; ghost.style.background = pEl.style.background;
-                    ghost.style.borderTop = pEl.style.borderTop; ghost.style.border = '1px solid rgba(255,255,255,0.2)';
-                    ghost.style.borderRadius = '4px'; ghost.style.display = 'flex'; ghost.style.flexDirection = 'column';
-                    ghost.style.alignItems = 'center'; ghost.style.justifyContent = 'center'; ghost.style.position = 'absolute';
-                    ghost.style.top = '-1000px'; ghost.style.zIndex = '10000'; ghost.innerHTML = pEl.innerHTML;
-                    document.body.appendChild(ghost); e.dataTransfer.setDragImage(ghost, 30, 42); setTimeout(function(){ document.body.removeChild(ghost); }, 0);
-                };
-                
-                pEl.onclick = function() { openProductModal(p.sku); };
-                
-                let dotColor = 'var(--ok)';
-                if(p.current < p.min) dotColor = 'var(--danger)';
-                else if (p.current <= p.min * 1.2) dotColor = 'var(--warn)';
-                else if (p.max > 0 && p.current > p.max) dotColor = 'var(--over)';
-                
-                pEl.innerHTML = '<div class="product-pos">' + posLabel + '</div><span class="stock-dot" style="background:' + dotColor + '"></span>';
+                const pEl = generateProductHTML(p, totalSize, index, safeName, null, false);
                 rowEl.appendChild(pEl);
             });
             wrap.appendChild(container);
         });
 
-        const ab = document.getElementById('alertBar');
-        if(alerts.length > 0) { 
-            if(ab) ab.style.display = 'flex'; 
-            const txt = document.getElementById('alertText');
-            if(txt) txt.innerText = 'Stock crítico detectado en ' + alerts.length + ' producto(s).'; 
-        } else { 
-            if(ab) ab.style.display = 'none'; 
-        }
+        // 2. RENDER RACKS NUEVOS EN VISTA CLÁSICA
+        RACKS.forEach(function(rack, idx) {
+            const container = document.createElement('div');
+            container.className = 'row-container rack-container';
+            container.style.zIndex = 3000 - idx;
+            
+            let headerHTML = `<div class="row-header"><div class="row-info"><b style="color:var(--order-blue)">RACK: ${rack.name}</b> <span>${rack.cols.length} Columnas</span></div>`;
+            headerHTML += `<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRackModal('${rack.id}')">⚙️ Editar Rack</button></div>`;
+            
+            container.innerHTML = headerHTML;
+            renderRackFront(rack.id, container); // Inyecta las columnas dinámicamente
+            wrap.appendChild(container);
+        });
     }
 
-    // CORRECCIÓN EXACTA DRAG Y DROP CLÁSICO (Recupera movimiento entre filas distintas sin escudos)
+    // CORRECCIÓN EXACTA DRAG Y DROP: Funciona para Filas y para Niveles de Rack
     function drop(e) {
         e.preventDefault();
         const sku = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("sku"); 
         if (!sku) return;
         
-        let targetRowId = e.currentTarget.getAttribute('data-row-id') || e.currentTarget.id;
-        if (!targetRowId && e.target.closest('.row-container')) {
-            targetRowId = e.target.closest('.row-container').getAttribute('data-row-id');
+        let targetRowId = null;
+        let isRack = false;
+        
+        let targetRackLvl = e.currentTarget.closest('.rack-level-ui') || e.target.closest('.rack-level-ui');
+        if (targetRackLvl) {
+            targetRowId = targetRackLvl.id;
+            isRack = true;
+        } else {
+            targetRowId = e.currentTarget.getAttribute('data-row-id') || e.currentTarget.id;
+            if (!targetRowId && e.target.closest('.row-container')) {
+                targetRowId = e.target.closest('.row-container').getAttribute('data-row-id');
+            }
         }
+
         if(!targetRowId) return;
 
-        const p = PRODUCTS.find(function(x) { return x.sku === sku; }); 
+        const p = PRODUCTS.find(x => x.sku === sku); 
         if (!p) return;
 
-        const rowProds = PRODUCTS.filter(function(x) { return x.rowId === targetRowId && x.sku !== sku; });
-        const used = rowProds.reduce(function(s, x) { return s + (x.widthM || 0); }, 0); 
-        
-        const targetRow = ROWS.find(function(r) { return r.id === targetRowId; });
-        if(!targetRow) return;
+        const rowProds = PRODUCTS.filter(x => x.rowId === targetRowId && x.sku !== sku);
 
-        let totalSize = targetRow.sizeM || 15;
-        if(targetRow.shape === 'L') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10)) * 0.6;
-        if(targetRow.shape === 'U' || targetRow.shape === 'C') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
+        if (isRack) {
+            // LÓGICA DE CAPACIDAD DE RACK
+            const parts = targetRowId.split('-'); // RK - ID - C# - L#
+            const rack = RACKS.find(r => r.id === parts[1]);
+            if(!rack) return;
+            
+            const colCap = rack.cols[parseInt(parts[2].substring(1))].cap;
+            if (rowProds.length >= colCap) return alert("Ubicación llena en este nivel del rack.");
+            
+            let insertIdx = rowProds.length;
+            const children = Array.from(targetRackLvl.children).filter(c => c.id !== 'p-' + p.sku && c.classList.contains('product'));
+            children.forEach(function(child, idx) { 
+                const rect = child.getBoundingClientRect(); 
+                if (e.clientX < (rect.left + rect.width / 2) && insertIdx === rowProds.length) insertIdx = idx; 
+            });
+            
+            rowProds.splice(insertIdx, 0, p); 
+            const previousRowId = p.rowId;
+            p.rowId = targetRowId;
+            
+            PRODUCTS = PRODUCTS.filter(x => x.rowId !== targetRowId && x.sku !== p.sku).concat(rowProds); 
+            sync();
+            if(previousRowId !== targetRowId) logMovement(p.sku, p.name, 0, "Movido a " + rack.name);
+            else logMovement(p.sku, p.name, 0, "Reorganizado en " + rack.name);
 
-        if (used + p.widthM > totalSize + 0.1) return alert("Sin espacio visual configurado para esta fila.");
-        
-        const rowEl = document.getElementById(targetRowId); 
-        if(!rowEl) return;
-
-        const children = Array.from(rowEl.children).filter(c => c.id !== 'p-' + p.sku);
-        let insertIdx = children.length;
-        children.forEach(function(child, idx) { 
-            const rect = child.getBoundingClientRect(); 
-            if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx; 
-        });
-        
-        rowProds.splice(insertIdx, 0, p); 
-        
-        const previousRowId = p.rowId;
-        p.rowId = targetRowId;
-        
-        PRODUCTS = PRODUCTS.filter(function(x) { return x.rowId !== targetRowId && x.sku !== p.sku; }).concat(rowProds); 
-        sync();
-        
-        if(previousRowId !== targetRowId) {
-            logMovement(p.sku, p.name, 0, "Movido a fila " + (targetRow.name || 'N/A'));
         } else {
-            logMovement(p.sku, p.name, 0, "Reorganización en fila " + (targetRow.name || 'N/A'));
+            // LÓGICA DE CAPACIDAD DE FILAS
+            const used = rowProds.reduce((s, x) => s + (x.widthM || 0), 0); 
+            const targetRow = ROWS.find(r => r.id === targetRowId);
+            if(!targetRow) return;
+
+            let totalSize = targetRow.sizeM || 15;
+            if(targetRow.shape === 'L') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10)) * 0.6;
+            if(targetRow.shape === 'U' || targetRow.shape === 'C') totalSize = ((targetRow.cap1 || 5) + (targetRow.cap2 || 10) + (targetRow.cap3 || 5)) * 0.6;
+
+            if (used + p.widthM > totalSize + 0.1) return alert("Sin espacio visual configurado para esta fila.");
+            
+            const rowEl = document.getElementById(targetRowId); 
+            if(!rowEl) return;
+
+            const children = Array.from(rowEl.children).filter(c => c.id !== 'p-' + p.sku);
+            let insertIdx = children.length;
+            children.forEach(function(child, idx) { 
+                const rect = child.getBoundingClientRect(); 
+                if (e.clientX < (rect.left + rect.width / 2) && insertIdx === children.length) insertIdx = idx; 
+            });
+            
+            rowProds.splice(insertIdx, 0, p); 
+            const previousRowId = p.rowId;
+            p.rowId = targetRowId;
+            
+            PRODUCTS = PRODUCTS.filter(x => x.rowId !== targetRowId && x.sku !== p.sku).concat(rowProds); 
+            sync();
+            
+            if(previousRowId !== targetRowId) logMovement(p.sku, p.name, 0, "Movido a fila " + (targetRow.name || 'N/A'));
+            else logMovement(p.sku, p.name, 0, "Reorganización en fila " + (targetRow.name || 'N/A'));
         }
     }
 
@@ -342,13 +456,22 @@ if (window.WMS_INITIALIZED) {
 
     function openProductModal(sku) {
         const sel = document.getElementById('pRowSelect'); 
-        let options = '';
-        ROWS.forEach(function(r) { options += '<option value="' + r.id + '">' + (r.name||'Sin Nombre') + '</option>'; });
+        let options = '<optgroup label="Filas">';
+        ROWS.forEach(r => options += `<option value="${r.id}">${r.name || 'Sin Nombre'}</option>`);
+        options += '</optgroup><optgroup label="Ubicaciones de Racks">';
+        RACKS.forEach(rack => {
+           rack.cols.forEach((col, c) => {
+              for(let l=0; l<col.levels; l++) {
+                 options += `<option value="RK-${rack.id}-C${c}-L${l}">${rack.name} - C${c+1}-N${l+1}</option>`;
+              }
+           });
+        });
+        options += '</optgroup>';
         sel.innerHTML = options;
         tempImg = null;
         
         if(sku && typeof sku === 'string') {
-            const p = PRODUCTS.find(function(x) { return x.sku === sku; }); 
+            const p = PRODUCTS.find(x => x.sku === sku); 
             if(!p) return;
             document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
             document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
@@ -399,7 +522,7 @@ if (window.WMS_INITIALIZED) {
             poDate: document.getElementById('pPoDate').value, poArrival: document.getElementById('pPoArrival').value, photo: tempImg || null
         };
 
-        const idx = PRODUCTS.findIndex(function(p) { return p.sku === sku; });
+        const idx = PRODUCTS.findIndex(p => p.sku === sku);
         let stockDiff = 0;
         let isEdit = false;
 
@@ -448,10 +571,25 @@ if (window.WMS_INITIALIZED) {
 
     function filterDB(q) {
         const b = document.getElementById('dbTableBody'); let html = '';
-        PRODUCTS.filter(function(p) { return (p.sku && String(p.sku).toLowerCase().includes(String(q).toLowerCase())) || (p.name && String(p.name).toLowerCase().includes(String(q).toLowerCase())); }).forEach(function(p) {
-            const row = ROWS.find(function(r) { return r.id === p.rowId; }); 
-            const pIdx = PRODUCTS.filter(function(x) { return x.rowId === p.rowId; }).findIndex(function(x) { return x.sku === p.sku; }) + 1;
-            const pos = row ? (row.name || 'Fila').split(' ').pop() + pIdx : 'S/N';
+        PRODUCTS.filter(p => (p.sku && String(p.sku).toLowerCase().includes(String(q).toLowerCase())) || (p.name && String(p.name).toLowerCase().includes(String(q).toLowerCase()))).forEach(function(p) {
+            
+            let pos = 'S/N';
+            if (p.rowId) {
+                 if (p.rowId.startsWith('RK-')) {
+                     const parts = p.rowId.split('-'); // RK - ID - C# - L#
+                     const r = RACKS.find(x => x.id === parts[1]);
+                     if(r) {
+                         const c = parseInt(parts[2].replace('C','')) + 1;
+                         const l = parseInt(parts[3].replace('L','')) + 1;
+                         pos = `${r.name} (C${c}-N${l})`;
+                     }
+                 } else {
+                     const row = ROWS.find(r => r.id === p.rowId);
+                     const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
+                     pos = row ? `${row.name} (Pos. ${pIdx})` : 'S/N';
+                 }
+            }
+            
             const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
             
             let rowStyle = ''; let statusLabel = '';
@@ -460,7 +598,7 @@ if (window.WMS_INITIALIZED) {
             else if (p.max > 0 && p.current > p.max) { rowStyle = 'background: rgba(139, 92, 246, 0.05); border-left: 4px solid var(--over);'; statusLabel = '<span class="status-badge" style="background:rgba(139,92,246,0.15); color:var(--over);">Sobre Stock</span>'; }
             else { rowStyle = 'border-left: 4px solid transparent;'; statusLabel = '<span class="status-badge" style="background:rgba(16,185,129,0.1); color:var(--ok);">Saludable</span>'; }
 
-            html += '<tr style="' + rowStyle + '"><td><b style="color:var(--accent)">' + pos + '</b></td><td><span style="font-family:\'DM Mono\', monospace; color:var(--muted);">' + (p.sku||'') + '</span></td><td style="font-weight:500;">' + (p.name||'') + '</td><td style="text-align:center;"><input type="number" value="' + displayStock + '" oninput="DB_CHANGES[\'' + p.sku + '\'] = parseInt(this.value) || 0" style="margin:0; font-weight:bold;"></td><td>' + (p.min||0) + '</td><td>' + (p.max || 0) + '</td><td>' + statusLabel + '</td><td><button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem;" onclick="openProductModal(\'' + p.sku + '\')">Editar</button></td></tr>';
+            html += `<tr style="${rowStyle}"><td><b style="color:var(--accent)">${pos}</b></td><td><span style="font-family:'DM Mono', monospace; color:var(--muted);">${p.sku||''}</span></td><td style="font-weight:500;">${p.name||''}</td><td style="text-align:center;"><input type="number" value="${displayStock}" oninput="DB_CHANGES['${p.sku}'] = parseInt(this.value) || 0" style="margin:0; font-weight:bold;"></td><td>${p.min||0}</td><td>${p.max || 0}</td><td>${statusLabel}</td><td><button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem;" onclick="openProductModal('${p.sku}')">Editar</button></td></tr>`;
         });
         b.innerHTML = html;
     }
@@ -470,7 +608,7 @@ if (window.WMS_INITIALIZED) {
     function applyDBChanges() {
         let pendingLogs = [];
         Object.keys(DB_CHANGES).forEach(function(sku) { 
-            const pIdx = PRODUCTS.findIndex(function(x) { return x.sku === sku; }); 
+            const pIdx = PRODUCTS.findIndex(x => x.sku === sku); 
             if(pIdx >= 0) {
                 const newStock = parseInt(DB_CHANGES[sku]) || 0;
                 if (PRODUCTS[pIdx].current !== newStock) {
@@ -480,7 +618,7 @@ if (window.WMS_INITIALIZED) {
             } 
         });
         sync(); 
-        pendingLogs.forEach(function(log) { logMovement(log.sku, log.name, log.change, log.reason); });
+        pendingLogs.forEach(log => logMovement(log.sku, log.name, log.change, log.reason));
         closeModals();
     }
 
@@ -491,7 +629,7 @@ if (window.WMS_INITIALIZED) {
             HISTORY_LOG.forEach(function(log) {
                 const isPos = String(log.change).startsWith('+');
                 const color = isPos ? 'var(--ok)' : 'var(--danger)';
-                html += '<tr><td style="color:var(--muted); font-size:0.8rem;">' + log.date + '</td><td><span style="font-family:\'DM Mono\', monospace; color:var(--accent);">' + (log.sku||'') + '</span></td><td style="font-weight:500;">' + (log.name||'') + '</td><td><b style="color:' + color + '; font-size:1.1rem;">' + log.change + '</b></td><td style="font-size:0.8rem; color:var(--muted);">' + (log.user||'') + '</td><td style="color:var(--text);"><i>' + (log.reason||'') + '</i></td></tr>';
+                html += `<tr><td style="color:var(--muted); font-size:0.8rem;">${log.date}</td><td><span style="font-family:'DM Mono', monospace; color:var(--accent);">${log.sku||''}</span></td><td style="font-weight:500;">${log.name||''}</td><td><b style="color:${color}; font-size:1.1rem;">${log.change}</b></td><td style="font-size:0.8rem; color:var(--muted);">${log.user||''}</td><td style="color:var(--text);"><i>${log.reason||''}</i></td></tr>`;
             });
         }
         b.innerHTML = html;
@@ -519,7 +657,7 @@ if (window.WMS_INITIALIZED) {
                 const name = cols[1] ? String(cols[1]).trim() : "Vino Importado";
                 const qtyStr = cols[2] ? String(cols[2]).trim() : ''; const qty = qtyStr ? parseInt(qtyStr) : 0;
                 
-                const pIdx = PRODUCTS.findIndex(function(p) { return p.sku && String(p.sku).toLowerCase() === sku.toLowerCase(); });
+                const pIdx = PRODUCTS.findIndex(p => p.sku && String(p.sku).toLowerCase() === sku.toLowerCase());
                 
                 if (pIdx >= 0) {
                     if (!isNaN(qty) && qtyStr !== "" && PRODUCTS[pIdx].current !== qty) { 
@@ -530,8 +668,9 @@ if (window.WMS_INITIALIZED) {
                     if (cols[1] && String(cols[1]).trim() !== '') PRODUCTS[pIdx].name = String(cols[1]).trim();
                     if (cols[3] && String(cols[3]).trim() !== '') {
                         const rowSearch = String(cols[3]).trim().toLowerCase();
-                        const matchedRow = ROWS.find(function(r) { return r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch); });
-                        if (matchedRow) PRODUCTS[pIdx].rowId = matchedRow.id;
+                        // Search in ROWS
+                        let matched = ROWS.find(r => r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch));
+                        if (matched) PRODUCTS[pIdx].rowId = matched.id;
                     }
                     if (cols[4] && String(cols[4]).trim() !== '') PRODUCTS[pIdx].masterQty = parseInt(cols[4]) || 0;
                     if (cols[5] && String(cols[5]).trim() !== '') PRODUCTS[pIdx].innerQty = parseInt(cols[5]) || 0;
@@ -543,8 +682,8 @@ if (window.WMS_INITIALIZED) {
                     let targetRowId = ROWS.length > 0 ? ROWS[0].id : ''; 
                     if (cols[3] && String(cols[3]).trim() !== '') {
                         const rowSearch = String(cols[3]).trim().toLowerCase();
-                        const matchedRow = ROWS.find(function(r) { return r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch); });
-                        if (matchedRow) targetRowId = matchedRow.id;
+                        let matched = ROWS.find(r => r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch));
+                        if (matched) targetRowId = matched.id;
                     }
                     const newProd = { 
                         sku: sku, name: name, widthM: 0.56, color: "#c8a84b", rowId: targetRowId, current: isNaN(qty) ? 0 : qty, 
@@ -564,10 +703,7 @@ if (window.WMS_INITIALIZED) {
         alert("Proceso finalizado.\nActualizados: " + updatedCount + "\nCreados: " + createdCount); 
         
         sync(); 
-        pendingLogs.forEach(function(log) {
-            logMovement(log.sku, log.name, log.change, log.reason);
-        });
-        
+        pendingLogs.forEach(log => logMovement(log.sku, log.name, log.change, log.reason));
         filterDB('');
     }
 
@@ -611,24 +747,34 @@ if (window.WMS_INITIALIZED) {
     function renderOrderPrepTable() {
         const tbody = document.getElementById('orderTableBody'); let html = '';
         ACTIVE_ORDER.forEach(function(item, index) {
-            const p = PRODUCTS.find(function(x) { return x.sku && x.sku.toLowerCase() === item.sku.toLowerCase(); });
+            const p = PRODUCTS.find(x => x.sku && x.sku.toLowerCase() === item.sku.toLowerCase());
             let locationLabel = "<span style='color:var(--danger); font-weight:600;'>⚠️ No está en racks</span>";
             if (p) {
-                const row = ROWS.find(function(r) { return r.id === p.rowId; });
-                const pIdx = PRODUCTS.filter(function(x) { return x.rowId === p.rowId; }).findIndex(function(x) { return x.sku === p.sku; }) + 1;
-                locationLabel = row ? '<b style="color:var(--accent)">' + (row.name || 'Fila') + ' (Pos. ' + pIdx + ')</b>' : 'S/N';
+                if (p.rowId && p.rowId.startsWith('RK-')) {
+                     const parts = p.rowId.split('-');
+                     const r = RACKS.find(x => x.id === parts[1]);
+                     if(r) {
+                         const c = parseInt(parts[2].replace('C','')) + 1;
+                         const l = parseInt(parts[3].replace('L','')) + 1;
+                         locationLabel = `<b style="color:var(--order-blue)">${r.name} (C${c}-N${l})</b>`;
+                     }
+                 } else {
+                     const row = ROWS.find(r => r.id === p.rowId);
+                     const pIdx = PRODUCTS.filter(x => x.rowId === p.rowId).findIndex(x => x.sku === p.sku) + 1;
+                     locationLabel = row ? `<b style="color:var(--accent)">${row.name} (Pos. ${pIdx})</b>` : 'S/N';
+                 }
             }
             const rowStyle = item.completed ? 'opacity: 0.35; background: rgba(0,0,0,0.4);' : '';
             const textStyle = item.completed ? 'text-decoration: line-through;' : '';
             
-            html += '<tr style="' + rowStyle + '">' +
-                '<td style="text-align:center;"><input type="checkbox" ' + (item.completed ? 'checked' : '') + ' onchange="toggleOrderItem(' + index + ')"></td>' +
-                '<td style="' + textStyle + '">' + locationLabel + '</td>' +
-                '<td style="' + textStyle + '"><span style="font-family:\'DM Mono\', monospace; color:var(--muted);">' + item.sku + '</span></td>' +
-                '<td style="' + textStyle + ' font-weight:500;">' + (p ? p.name : item.name) + '</td>' +
-                '<td style="' + textStyle + ' text-align:center;"><b style="font-size:1.1rem; color:var(--accent);">' + item.requested + '</b></td>' +
-                '<td style="text-align:center;"><input type="number" value="' + item.picked + '" style="width:90px; text-align:center; background:var(--bg); border:1px solid var(--border); color:#fff; padding:6px; border-radius:4px; margin:0;" oninput="updateOrderPickedQty(' + index + ', this.value)" ' + (item.completed ? 'disabled' : '') + '></td>' +
-            '</tr>';
+            html += `<tr style="${rowStyle}">` +
+                `<td style="text-align:center;"><input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleOrderItem(${index})"></td>` +
+                `<td style="${textStyle}">${locationLabel}</td>` +
+                `<td style="${textStyle}"><span style="font-family:'DM Mono', monospace; color:var(--muted);">${item.sku}</span></td>` +
+                `<td style="${textStyle} font-weight:500;">${p ? p.name : item.name}</td>` +
+                `<td style="${textStyle} text-align:center;"><b style="font-size:1.1rem; color:var(--accent);">${item.requested}</b></td>` +
+                `<td style="text-align:center;"><input type="number" value="${item.picked}" style="width:90px; text-align:center; background:var(--bg); border:1px solid var(--border); color:#fff; padding:6px; border-radius:4px; margin:0;" oninput="updateOrderPickedQty(${index}, this.value)" ${item.completed ? 'disabled' : ''}></td>` +
+            `</tr>`;
         });
         tbody.innerHTML = html;
     }
@@ -647,7 +793,7 @@ if (window.WMS_INITIALIZED) {
         let countDespachados = 0;
         let pendingLogs = [];
         ACTIVE_ORDER.forEach(function(item) {
-            const pIdx = PRODUCTS.findIndex(function(x) { return x.sku && x.sku.toLowerCase() === item.sku.toLowerCase(); });
+            const pIdx = PRODUCTS.findIndex(x => x.sku && x.sku.toLowerCase() === item.sku.toLowerCase());
             if (pIdx >= 0) {
                 const oldStock = PRODUCTS[pIdx].current;
                 PRODUCTS[pIdx].current -= item.picked;
@@ -662,7 +808,7 @@ if (window.WMS_INITIALIZED) {
         alert("¡Inventario Descontado! Se actualizó el stock de " + countDespachados + " productos.");
         ACTIVE_ORDER = []; 
         sync(); 
-        pendingLogs.forEach(function(log) { logMovement(log.sku, log.name, log.change, log.reason); });
+        pendingLogs.forEach(log => logMovement(log.sku, log.name, log.change, log.reason));
         closeModals();
     }
 
@@ -671,17 +817,18 @@ if (window.WMS_INITIALIZED) {
             const sku = document.getElementById('pSku').value; 
             const name = document.getElementById('pName').value;
             const current = document.getElementById('pCurrent').value;
-            PRODUCTS = PRODUCTS.filter(function(p) { return p.sku !== sku; }); 
+            PRODUCTS = PRODUCTS.filter(p => p.sku !== sku); 
             sync(); 
             logMovement(sku, name, -current, "Eliminado del Sistema"); 
             closeProductModalOnly(); 
         } 
     }
 
+    // MODAL Y GESTIÓN DE FILAS ORIGINALES
     function openRowModal(id) { 
         let r = {id:'', name:'', sizeM:15, shape:'straight'};
         if (id && typeof id === 'string' && id.trim() !== '') {
-            const found = ROWS.find(function(x) { return x.id === id; });
+            const found = ROWS.find(x => x.id === id);
             if (found) r = found;
         }
         document.getElementById('rId').value = r.id; 
@@ -707,7 +854,7 @@ if (window.WMS_INITIALIZED) {
             depthM: parseFloat(document.getElementById('rDepth').value) || 1.2
         }; 
         
-        const idx = ROWS.findIndex(function(x) { return x.id === data.id; });
+        const idx = ROWS.findIndex(x => x.id === data.id);
         if(idx >= 0) {
             data.whId = ROWS[idx].whId; data.x = ROWS[idx].x; data.y = ROWS[idx].y; data.rotation = ROWS[idx].rotation;
             data.cap1 = ROWS[idx].cap1; data.cap2 = ROWS[idx].cap2; data.cap3 = ROWS[idx].cap3;
@@ -718,9 +865,91 @@ if (window.WMS_INITIALIZED) {
         sync(); closeModals(); 
     }
 
-    function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(function(p) { return p.rowId === id; })) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(function(r) { return r.id !== id; }); sync(); closeModals(); } }
+    function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
+    
+    // NUEVO MODAL Y GESTIÓN DE RACKS
+    function openRackModal(id) {
+        let r = {id:'', name:'', widthM: 2, depthM: 1, cols: [{levels:3, cap:10}] };
+        if (id && typeof id === 'string') {
+            const found = RACKS.find(x => x.id === id);
+            if (found) r = found;
+        }
+        document.getElementById('rkId').value = r.id;
+        document.getElementById('rkName').value = r.name || '';
+        document.getElementById('rkWidth').value = r.widthM || 2;
+        document.getElementById('rkDepth').value = r.depthM || 1;
+        document.getElementById('rkColCount').value = r.cols.length;
+        
+        window.tempRackCols = JSON.parse(JSON.stringify(r.cols));
+        renderRackColConfig();
+        
+        document.getElementById('btnDelRack').style.display = id ? 'block' : 'none';
+        document.getElementById('rackModal').classList.add('open');
+    }
+
+    function renderRackColConfig() {
+        const count = parseInt(document.getElementById('rkColCount').value) || 1;
+        let html = '';
+        for(let i=0; i<count; i++) {
+            const col = window.tempRackCols[i] || {levels: 3, cap: 10};
+            html += `<div class="panel-box" style="padding:10px; margin-bottom:10px;">
+                <h4 style="margin-bottom:10px; font-size:0.8rem; color:var(--order-blue);">Columna ${i+1}</h4>
+                <div class="form-row">
+                    <div class="field small"><label>Niveles (Pisos)</label><input type="number" id="rkLvl_${i}" value="${col.levels}"></div>
+                    <div class="field small"><label>Capacidad x Nivel (Cajas)</label><input type="number" id="rkCap_${i}" value="${col.cap}"></div>
+                </div>
+            </div>`;
+        }
+        document.getElementById('rkColsConfig').innerHTML = html;
+    }
+
+    function saveRack() {
+        const id = document.getElementById('rkId').value || 'RK'+Date.now();
+        const count = parseInt(document.getElementById('rkColCount').value) || 1;
+        let cols = [];
+        for(let i=0; i<count; i++) {
+            cols.push({
+                levels: parseInt(document.getElementById('rkLvl_'+i).value) || 3,
+                cap: parseInt(document.getElementById('rkCap_'+i).value) || 10
+            });
+        }
+        
+        const data = {
+            id: id,
+            name: document.getElementById('rkName').value || 'Nuevo Rack',
+            widthM: parseFloat(document.getElementById('rkWidth').value) || 2,
+            depthM: parseFloat(document.getElementById('rkDepth').value) || 1,
+            cols: cols
+        };
+        
+        const idx = RACKS.findIndex(x => x.id === id);
+        if (idx >= 0) {
+            data.whId = RACKS[idx].whId; data.x = RACKS[idx].x; data.y = RACKS[idx].y; data.rotation = RACKS[idx].rotation;
+            RACKS[idx] = data;
+        } else {
+            RACKS.push(data);
+        }
+        sync(); closeModals();
+    }
+    
+    function deleteRack() {
+        const id = document.getElementById('rkId').value;
+        if(PRODUCTS.some(p => p.rowId && p.rowId.startsWith('RK-' + id + '-'))) return alert("Rack con productos. Mueve los productos antes de eliminar.");
+        if(confirm("¿Eliminar rack completamente?")) { RACKS = RACKS.filter(r => r.id !== id); sync(); closeModals(); }
+    }
+
+    // Modal de Inspección Aérea
+    function openRackFrontModal(id) {
+        window.currentInspectRackId = id;
+        const rack = RACKS.find(r => r.id === id);
+        if(!rack) return;
+        document.getElementById('rackFrontTitle').innerText = 'Inspección: ' + rack.name;
+        renderRackFront(id, document.getElementById('rackFrontBody'));
+        document.getElementById('rackFrontModal').classList.add('open');
+    }
+
     function processImage(input) { if (input.files && input.files[0]) { const reader = new FileReader(); reader.onload = function(e) { const img = new Image(); img.onload = function() { const canvas = document.createElement('canvas'); const scale = 300 / img.width; canvas.width = 300; canvas.height = img.height * scale; canvas.getContext('2d').drawImage(img, 0,0,300, canvas.height); tempImg = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('pImgPreview').innerHTML = '<img src="' + tempImg + '" style="max-height:160px; border-radius:4px;">'; }; img.src = e.target.result; }; reader.readAsDataURL(input.files[0]); } }
-    function closeModals() { document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); }); }
+    function closeModals() { window.currentInspectRackId = null; document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
     function closeProductModalOnly() { document.getElementById('productModal').classList.remove('open'); }
 
     /* ─── ROBOT DE CORREOS AUTOMÁTICOS ─── */
@@ -739,19 +968,18 @@ if (window.WMS_INITIALIZED) {
             if (ultimoEnvio !== hoyStr) {
                 localStorage.setItem('ultimoReporteStock', hoyStr); 
                 
-                const criticos = PRODUCTS.filter(function(p) { return p && p.current < p.min; });
+                const criticos = PRODUCTS.filter(p => p && p.current < p.min);
                 if (criticos.length === 0) return; 
 
                 let filas = "";
                 criticos.forEach(function(p) { 
-                    filas += '<tr><td style="padding:14px; border-bottom:1px solid #38352f; color:#d4af37; font-weight:bold;">' + (p.sku||'') + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#f0ede6;">' + (p.name||'') + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#ef4444; text-align:center; font-weight:bold;">' + (p.current||0) + '</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#a39c93; text-align:center;">' + (p.min||0) + '</td></tr>'; 
+                    filas += `<tr><td style="padding:14px; border-bottom:1px solid #38352f; color:#d4af37; font-weight:bold;">${p.sku||''}</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#f0ede6;">${p.name||''}</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#ef4444; text-align:center; font-weight:bold;">${p.current||0}</td><td style="padding:14px; border-bottom:1px solid #38352f; color:#a39c93; text-align:center;">${p.min||0}</td></tr>`; 
                 });
-                const htmlContent = '<div style="background:#0d0c0b; color:#f0ede6; font-family:sans-serif; padding:45px; max-width:650px; margin:auto; border:1px solid #38352f; border-radius:16px;"><h2 style="color:#d4af37; border-bottom:1px solid #38352f; padding-bottom:15px; text-transform:uppercase; letter-spacing:1px; margin-top:0;">Alerta de Reposición — Concha y Toro</h2><p style="color:#a39c93; font-size:15px;">Reporte automático diario de productos bajo el stock mínimo:</p><table style="width:100%; border-collapse:collapse; margin-top:25px;"><thead><tr style="background:#1a1916; color:#a39c93; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;"><th style="padding:14px; text-align:left; border-bottom:2px solid #38352f;">SKU</th><th style="padding:14px; text-align:left; border-bottom:2px solid #38352f;">Producto</th><th style="padding:14px; text-align:center; border-bottom:2px solid #38352f;">Stock</th><th style="padding:14px; text-align:center; border-bottom:2px solid #38352f;">Mín.</th></tr></thead><tbody style="font-size:14px;">' + filas + '</tbody></table></div>';
+                const htmlContent = `<div style="background:#0d0c0b; color:#f0ede6; font-family:sans-serif; padding:45px; max-width:650px; margin:auto; border:1px solid #38352f; border-radius:16px;"><h2 style="color:#d4af37; border-bottom:1px solid #38352f; padding-bottom:15px; text-transform:uppercase; letter-spacing:1px; margin-top:0;">Alerta de Reposición — Concha y Toro</h2><p style="color:#a39c93; font-size:15px;">Reporte automático diario de productos bajo el stock mínimo:</p><table style="width:100%; border-collapse:collapse; margin-top:25px;"><thead><tr style="background:#1a1916; color:#a39c93; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;"><th style="padding:14px; text-align:left; border-bottom:2px solid #38352f;">SKU</th><th style="padding:14px; text-align:left; border-bottom:2px solid #38352f;">Producto</th><th style="padding:14px; text-align:center; border-bottom:2px solid #38352f;">Stock</th><th style="padding:14px; text-align:center; border-bottom:2px solid #38352f;">Mín.</th></tr></thead><tbody style="font-size:14px;">${filas}</tbody></table></div>`;
                 
                 if(typeof emailjs !== 'undefined') {
-                    CORREOS_DESTINATARIOS.forEach(function(correo) { 
-                        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: htmlContent, to_email: correo })
-                        .catch(function(err) { console.error("Error al enviar a " + correo + ":", err); }); 
+                    CORREOS_DESTINATARIOS.forEach(correo => { 
+                        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { tablaHTML: htmlContent, to_email: correo }).catch(err => console.error(err)); 
                     });
                 }
             }
@@ -779,42 +1007,53 @@ if (window.WMS_INITIALIZED) {
         let buttonsHtml = '';
 
         if (type === 'row') {
-            const row = ROWS.find(function(r) { return r.id === id; });
+            const row = ROWS.find(r => r.id === id);
             if(!row) return;
             const shape = row.shape || 'straight';
             let c1 = row.cap1 || 5, c2 = row.cap2 || 10, c3 = row.cap3 || 5;
             let d = row.depthM || 1.2;
             
-            html += '<div class="field small"><label>Nombre Fila</label><input type="text" id="ctxRowName" value="' + (row.name||'') + '"></div>';
-            html += '<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="' + (row.rotation||0) + '"></div>';
-            html += '<div class="field small"><label>Alto / Profundidad Visual (M)</label><input type="number" step="0.1" id="ctxDepth" value="' + d + '"></div>';
+            html += `<div class="field small"><label>Nombre Fila</label><input type="text" id="ctxRowName" value="${row.name||''}"></div>`;
+            html += `<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="${row.rotation||0}"></div>`;
+            html += `<div class="field small"><label>Alto / Profundidad Visual (M)</label><input type="number" step="0.1" id="ctxDepth" value="${d}"></div>`;
             
             if (shape === 'L') {
-                html += '<div class="field small"><label>Cajas Vertical (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
-                html += '<div class="field small"><label>Cajas Horizontal (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
+                html += `<div class="field small"><label>Cajas Vertical (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="${c1}"></div>`;
+                html += `<div class="field small"><label>Cajas Horizontal (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="${c2}"></div>`;
             } else if (shape === 'U' || shape === 'C') {
-                html += '<div class="field small"><label>Cajas Izquierda (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="' + c1 + '"></div>';
-                html += '<div class="field small"><label>Cajas Central (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="' + c2 + '"></div>';
-                html += '<div class="field small"><label>Cajas Derecha (Capacidad)</label><input type="number" step="1" id="ctxCap3" value="' + c3 + '"></div>';
+                html += `<div class="field small"><label>Cajas Izquierda (Capacidad)</label><input type="number" step="1" id="ctxCap1" value="${c1}"></div>`;
+                html += `<div class="field small"><label>Cajas Central (Capacidad)</label><input type="number" step="1" id="ctxCap2" value="${c2}"></div>`;
+                html += `<div class="field small"><label>Cajas Derecha (Capacidad)</label><input type="number" step="1" id="ctxCap3" value="${c3}"></div>`;
             } else {
                 let size = row.sizeM || 15;
-                html += '<div class="field small"><label>Largo Visual (M)</label><input type="number" step="0.5" id="ctxSize" value="' + size + '"></div>';
+                html += `<div class="field small"><label>Largo Visual (M)</label><input type="number" step="0.5" id="ctxSize" value="${size}"></div>`;
             }
             
-            buttonsHtml = '<button class="btn btn-secondary" style="flex:1; padding:8px; font-size:0.75rem;" onclick="unassignMapItem()">📥 Bandeja</button><button class="btn btn-primary" style="flex:2; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Guardar Fila</button>';
+            buttonsHtml = `<button class="btn btn-secondary" style="flex:1; padding:8px; font-size:0.75rem;" onclick="unassignMapItem()">📥 Bandeja</button><button class="btn btn-primary" style="flex:2; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Guardar Fila</button>`;
             
+        } else if (type === 'rack') {
+            const rk = RACKS.find(x => x.id === id);
+            if(!rk) return;
+            html += `<div class="field small"><label>Nombre Rack</label><input type="text" id="ctxRowName" value="${rk.name||''}"></div>`;
+            html += `<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="${rk.rotation||0}"></div>`;
+            html += `<div class="field small"><label>Ancho 2D (M)</label><input type="number" step="0.1" id="ctxSize" value="${rk.widthM||2}"></div>`;
+            html += `<div class="field small"><label>Profundidad 2D (M)</label><input type="number" step="0.1" id="ctxDepth" value="${rk.depthM||1}"></div>`;
+            
+            buttonsHtml = `<button class="btn btn-secondary" style="flex:1; padding:8px; font-size:0.75rem;" onclick="unassignMapItem()">📥 Bandeja</button><button class="btn btn-primary" style="flex:1; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Guardar Rack</button><button class="btn btn-secondary" style="width:100%; border-color:var(--order-blue); color:var(--order-blue); padding:8px; font-size:0.75rem; font-weight:bold;" onclick="openRackFrontModal('${rk.id}')">🔍 Inspeccionar Niveles</button>`;
+
         } else if (type === 'zone') {
-            const z = ZONES.find(function(x) { return x.id === id; });
+            const z = ZONES.find(x => x.id === id);
             if(!z) return;
-            html += '<div class="field small"><label>Nombre Pasillo</label><input type="text" id="ctxZoneName" value="' + (z.name||'') + '"></div>';
-            html += '<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="' + (z.rotation||0) + '"></div>';
-            html += '<div class="field small"><label>Ancho (M)</label><input type="number" step="0.5" id="ctxZoneW" value="' + (z.widthM||2) + '"></div>';
-            html += '<div class="field small"><label>Largo (M)</label><input type="number" step="0.5" id="ctxZoneL" value="' + (z.lengthM||10) + '"></div>';
+            html += `<div class="field small"><label>Nombre Pasillo</label><input type="text" id="ctxZoneName" value="${z.name||''}"></div>`;
+            html += `<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="${z.rotation||0}"></div>`;
+            html += `<div class="field small"><label>Ancho (M)</label><input type="number" step="0.5" id="ctxZoneW" value="${z.widthM||2}"></div>`;
+            html += `<div class="field small"><label>Largo (M)</label><input type="number" step="0.5" id="ctxZoneL" value="${z.lengthM||10}"></div>`;
             
-            buttonsHtml = '<button class="btn btn-danger" style="flex:1; padding:8px; font-size:0.75rem;" onclick="deleteMapItem()">🗑️ Eliminar Pasillo</button><button class="btn btn-primary" style="flex:2; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Guardar Pasillo</button>';
+            buttonsHtml = `<button class="btn btn-danger" style="flex:1; padding:8px; font-size:0.75rem;" onclick="deleteMapItem()">🗑️ Eliminar</button><button class="btn btn-primary" style="flex:2; padding:8px; font-size:0.75rem;" onclick="saveMapItem()">💾 Guardar Pasillo</button>`;
         }
         
         inputsWrap.innerHTML = html;
+        actionBtnWrap.style.flexWrap = 'wrap';
         actionBtnWrap.innerHTML = buttonsHtml;
         panel.style.display = 'block';
     }
@@ -825,7 +1064,7 @@ if (window.WMS_INITIALIZED) {
         const id = selectedMapItem.id;
         
         if(t === 'row') {
-            const row = ROWS.find(function(r) { return r.id === id; });
+            const row = ROWS.find(r => r.id === id);
             if(!row) return;
             row.name = document.getElementById('ctxRowName').value;
             row.rotation = parseFloat(document.getElementById('ctxRot').value) || 0;
@@ -841,8 +1080,15 @@ if (window.WMS_INITIALIZED) {
             } else {
                 row.sizeM = parseFloat(document.getElementById('ctxSize').value) || 15;
             }
+        } else if (t === 'rack') {
+            const rk = RACKS.find(r => r.id === id);
+            if(!rk) return;
+            rk.name = document.getElementById('ctxRowName').value;
+            rk.rotation = parseFloat(document.getElementById('ctxRot').value) || 0;
+            rk.depthM = parseFloat(document.getElementById('ctxDepth').value) || 1;
+            rk.widthM = parseFloat(document.getElementById('ctxSize').value) || 2;
         } else {
-            const z = ZONES.find(function(x) { return x.id === id; });
+            const z = ZONES.find(x => x.id === id);
             if(!z) return;
             z.name = document.getElementById('ctxZoneName').value;
             z.rotation = parseFloat(document.getElementById('ctxRot').value) || 0;
@@ -852,7 +1098,7 @@ if (window.WMS_INITIALIZED) {
         
         const fbk = document.getElementById('mapSaveFeedback');
         fbk.style.display = 'block';
-        setTimeout(function() { fbk.style.display = 'none'; }, 2000);
+        setTimeout(() => fbk.style.display = 'none', 2000);
         sync();
     }
 
@@ -862,43 +1108,37 @@ if (window.WMS_INITIALIZED) {
         const id = selectedMapItem.id;
         
         if(t === 'row') {
-            if(PRODUCTS.some(function(p) { return p && p.rowId === id; })) {
-                alert("No puedes eliminar esta fila. Saca primero los productos."); return;
-            }
-            if(confirm("¿Eliminar fila completamente del sistema?")) { ROWS = ROWS.filter(function(r) { return r.id !== id; }); clearMapSelection(); sync(); }
+            if(PRODUCTS.some(p => p && p.rowId === id)) return alert("Saca primero los productos.");
+            if(confirm("¿Eliminar fila completamente?")) { ROWS = ROWS.filter(r => r.id !== id); clearMapSelection(); sync(); }
+        } else if (t === 'rack') {
+            if(PRODUCTS.some(p => p.rowId && p.rowId.startsWith('RK-' + id + '-'))) return alert("Rack con productos. Mueve los productos antes.");
+            if(confirm("¿Eliminar rack completamente?")) { RACKS = RACKS.filter(r => r.id !== id); clearMapSelection(); sync(); }
         } else {
-            if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(function(z) { return z.id !== id; }); clearMapSelection(); sync(); }
+            if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); clearMapSelection(); sync(); }
         }
     }
 
     function unassignMapItem() {
         if(!selectedMapItem) return;
         if(selectedMapItem.type === 'row') {
-            const row = ROWS.find(function(r) { return r.id === selectedMapItem.id; });
+            const row = ROWS.find(r => r.id === selectedMapItem.id);
             if(row) { row.whId = ""; row.x = 0; row.y = 0; row.rotation = 0; sync(); clearMapSelection(); }
+        } else if (selectedMapItem.type === 'rack') {
+            const rk = RACKS.find(r => r.id === selectedMapItem.id);
+            if(rk) { rk.whId = ""; rk.x = 0; rk.y = 0; rk.rotation = 0; sync(); clearMapSelection(); }
         } else { alert("Los pasillos no se pueden desasignar."); }
     }
 
     function resetAllRowsToTray() {
         if(!activeWarehouseId) return;
-        if(!confirm("¿Seguro que deseas devolver TODAS las filas de este plano a la bandeja de 'Por Asignar'? No perderás los productos.")) return;
+        if(!confirm("¿Seguro que deseas devolver TODAS las estructuras de este plano a la bandeja de 'Por Asignar'? No perderás los productos.")) return;
 
         let recovered = 0;
-        ROWS.forEach(function(r) {
-            if(r.whId === activeWarehouseId) {
-                r.whId = ""; 
-                r.x = 0; 
-                r.y = 0; 
-                r.rotation = 0; 
-                recovered++;
-            }
-        });
-        if(recovered > 0) { 
-            sync(); 
-            alert("Se devolvieron " + recovered + " filas a la bandeja."); 
-        } else { 
-            alert("No hay filas en el plano para mover."); 
-        }
+        ROWS.forEach(r => { if(r.whId === activeWarehouseId) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; recovered++; } });
+        RACKS.forEach(r => { if(r.whId === activeWarehouseId) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; recovered++; } });
+        
+        if(recovered > 0) { sync(); alert(`Se devolvieron ${recovered} estructuras a la bandeja.`); } 
+        else { alert("No hay estructuras en el plano para mover."); }
     }
 
     function toggleLayoutMode() {
@@ -937,10 +1177,10 @@ if (window.WMS_INITIALIZED) {
         
         const sel = document.getElementById('mapBodegaSelect');
         let selHtml = '';
-        WAREHOUSES.forEach(function(w) { selHtml += '<option value="' + w.id + '" ' + (w.id === activeWarehouseId ? 'selected' : '') + '>' + w.name + '</option>'; });
+        WAREHOUSES.forEach(w => selHtml += `<option value="${w.id}" ${w.id === activeWarehouseId ? 'selected' : ''}>${w.name}</option>`);
         if(sel) sel.innerHTML = selHtml;
 
-        const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; }) || WAREHOUSES[0];
+        const activeWH = WAREHOUSES.find(w => w.id === activeWarehouseId) || WAREHOUSES[0];
         if (!activeWH) return;
 
         const scale = activeWH.scale || 25;
@@ -951,8 +1191,8 @@ if (window.WMS_INITIALIZED) {
         canvas.style.height = (activeWH.lengthM * scale) + 'px';
         canvas.innerHTML = '<div id="mapRotTooltip" class="rotation-tooltip"></div>'; 
 
-        const whZones = ZONES.filter(function(z) { return z.whId === activeWH.id; });
-        whZones.forEach(function(zone) {
+        const whZones = ZONES.filter(z => z.whId === activeWH.id);
+        whZones.forEach(zone => {
             const zEl = document.createElement('div');
             zEl.className = 'map-entity-zone';
             if(selectedMapItem && selectedMapItem.id === zone.id) zEl.className += ' is-selected';
@@ -962,136 +1202,149 @@ if (window.WMS_INITIALIZED) {
             zEl.style.height = (zone.lengthM * scale) + 'px';
             zEl.style.left = (zone.x * scale) + 'px';
             zEl.style.top = (zone.y * scale) + 'px';
-            zEl.style.transform = 'rotate(' + (zone.rotation || 0) + 'deg)';
-            zEl.innerHTML = '<span>' + (zone.name||'') + '</span>';
+            zEl.style.transform = `rotate(${zone.rotation || 0}deg)`;
+            zEl.innerHTML = `<span>${zone.name||''}</span>`;
             
             const rotHandle = document.createElement('div');
             rotHandle.className = 'rotator-handle';
             rotHandle.innerHTML = '<div class="rotator-line"></div>';
-            rotHandle.onmousedown = function(e) { initRotate(e, 'zone', zone.id); };
+            rotHandle.onmousedown = e => initRotate(e, 'zone', zone.id);
             zEl.appendChild(rotHandle);
 
-            zEl.onmousedown = function(e) { selectMapItem('zone', zone.id); initMapDrag(e, 'zone', zone.id); };
+            zEl.onmousedown = e => { selectMapItem('zone', zone.id); initMapDrag(e, 'zone', zone.id); };
             canvas.appendChild(zEl);
         });
 
         const assignedRows = [];
         const unassignedRows = [];
-        ROWS.forEach(function(r) { if (r.whId === activeWH.id) assignedRows.push(r); else if (!r.whId) unassignedRows.push(r); });
+        ROWS.forEach(r => { if (r.whId === activeWH.id) assignedRows.push(r); else if (!r.whId) unassignedRows.push(r); });
+        RACKS.forEach(r => { if (r.whId === activeWH.id) assignedRows.push(Object.assign({isRack: true}, r)); else if (!r.whId) unassignedRows.push(Object.assign({isRack: true}, r)); });
 
-        assignedRows.forEach(function(row) {
-            const rEl = document.createElement('div');
-            let shapeClass = '';
-            if(row.shape === 'L') shapeClass = ' shape-L';
-            else if(row.shape === 'U' || row.shape === 'C') shapeClass = ' shape-U';
-            
-            rEl.className = 'map-entity-row' + shapeClass;
-            if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
-            rEl.id = 'map-row-' + row.id;
-            
-            const depthM = row.depthM || 1.2;
-            const dPx = depthM * scale;
-            
-            let totalW = row.sizeM || 15;
-            let totalH = dPx;
-            
-            const boxVisualW = 0.6; 
-            let cap1 = row.cap1 || 5; let cap2 = row.cap2 || 10; let cap3 = row.cap3 || 5;
+        assignedRows.forEach(row => {
+            if (row.isRack) {
+                // RENDERIZAR RACK EN 2D
+                const rEl = document.createElement('div');
+                rEl.className = 'map-entity-rack';
+                if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
+                rEl.id = 'map-rack-' + row.id;
+                
+                rEl.style.width = (row.widthM * scale) + 'px';
+                rEl.style.height = (row.depthM * scale) + 'px';
+                rEl.style.left = ((row.x||0) * scale) + 'px';
+                rEl.style.top = ((row.y||0) * scale) + 'px';
+                rEl.style.transform = `rotate(${row.rotation || 0}deg)`;
+                
+                const rotHandle = document.createElement('div');
+                rotHandle.className = 'rotator-handle';
+                rotHandle.innerHTML = '<div class="rotator-line"></div>';
+                rotHandle.onmousedown = e => initRotate(e, 'rack', row.id);
+                rEl.appendChild(rotHandle);
 
-            let seg1El = null, seg2El = null, seg3El = null;
+                const lbl = document.createElement('div');
+                lbl.className = 'map-entity-row-label rack-label';
+                lbl.innerHTML = '🖐️ [RACK] ' + (row.name || 'Sin Nombre');
+                lbl.onmousedown = e => { selectMapItem('rack', row.id); initMapDrag(e, 'rack', row.id); };
+                rEl.appendChild(lbl);
+                
+                rEl.ondblclick = e => { e.stopPropagation(); openRackFrontModal(row.id); };
+                canvas.appendChild(rEl);
 
-            if(row.shape === 'L') {
-                const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW;
-                totalW = (s2 + depthM) * scale; totalH = (s1 + depthM) * scale;
-                rEl.style.flexDirection = 'column';
-                
-                seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
-                seg1El.style.width = dPx + 'px'; seg1El.style.height = (s1 * scale) + 'px';
-                seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
-                seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
-                seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
-                rEl.appendChild(seg1El); rEl.appendChild(seg2El);
-            } else if (row.shape === 'U' || row.shape === 'C') {
-                const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
-                totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
-                
-                seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
-                seg1El.style.width = dPx + 'px'; seg1El.style.height = (s1 * scale) + 'px';
-                seg1El.style.position = 'absolute'; seg1El.style.bottom = '0'; seg1El.style.left = '0';
-                
-                seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
-                seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
-                seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
-                
-                seg3El = document.createElement('div'); seg3El.className = 'map-segment map-segment-v';
-                seg3El.style.width = dPx + 'px'; seg3El.style.height = (s3 * scale) + 'px';
-                seg3El.style.position = 'absolute'; seg3El.style.bottom = '0'; seg3El.style.right = '0';
-                
-                rEl.appendChild(seg1El); rEl.appendChild(seg2El); rEl.appendChild(seg3El);
             } else {
-                totalW = totalW * scale;
-            }
-
-            rEl.style.width = totalW + 'px'; rEl.style.height = totalH + 'px';
-            rEl.style.left = ((row.x||0) * scale) + 'px'; rEl.style.top = ((row.y||0) * scale) + 'px';
-            rEl.style.transform = 'rotate(' + (row.rotation || 0) + 'deg)';
-
-            const lbl = document.createElement('div');
-            lbl.className = 'map-entity-row-label';
-            lbl.innerHTML = '🖐️ ' + (row.name || 'Fila');
-            lbl.onmousedown = function(e) { selectMapItem('row', row.id); initMapDrag(e, 'row', row.id); };
-            rEl.appendChild(lbl);
-
-            const rowProds = PRODUCTS.filter(function(p) { return p && p.rowId === row.id; });
-            let pCount = 0;
-
-            rowProds.forEach(function(p) {
-                pCount++;
-                const pWidthPx = (p.widthM || 0) * scale;
-                const pEl = document.createElement('div');
+                // RENDERIZAR FILA NORMAL EN 2D
+                const rEl = document.createElement('div');
+                let shapeClass = '';
+                if(row.shape === 'L') shapeClass = ' shape-L';
+                else if(row.shape === 'U' || row.shape === 'C') shapeClass = ' shape-U';
                 
-                const isInActiveOrder = ACTIVE_ORDER.some(function(item) { 
-                    return item.sku && p.sku && item.sku.toLowerCase() === p.sku.toLowerCase() && !item.completed; 
-                });
+                rEl.className = 'map-entity-row' + shapeClass;
+                if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
+                rEl.id = 'map-row-' + row.id;
                 
-                pEl.className = 'map-mini-product';
-                if (isInActiveOrder) pEl.className += ' is-ordered';
-                pEl.style.background = p.color || '#c8a84b';
-                
-                let targetSeg = rEl; 
-                if (row.shape === 'L') {
-                    if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
-                    else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
+                const depthM = row.depthM || 1.2;
+                const dPx = depthM * scale;
+                let totalW = row.sizeM || 15;
+                let totalH = dPx;
+                const boxVisualW = 0.6; 
+                let cap1 = row.cap1 || 5, cap2 = row.cap2 || 10, cap3 = row.cap3 || 5;
+
+                let seg1El = null, seg2El = null, seg3El = null;
+
+                if(row.shape === 'L') {
+                    const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW;
+                    totalW = (s2 + depthM) * scale; totalH = (s1 + depthM) * scale;
+                    rEl.style.flexDirection = 'column';
+                    
+                    seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
+                    seg1El.style.width = dPx + 'px'; seg1El.style.height = (s1 * scale) + 'px';
+                    seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
+                    seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
+                    seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
+                    rEl.appendChild(seg1El); rEl.appendChild(seg2El);
                 } else if (row.shape === 'U' || row.shape === 'C') {
-                    if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
-                    else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
-                    else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
+                    const s1 = cap1 * boxVisualW; const s2 = cap2 * boxVisualW; const s3 = cap3 * boxVisualW;
+                    totalW = (s2 + (depthM*2)) * scale; totalH = (Math.max(s1, s3) + depthM) * scale;
+                    
+                    seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
+                    seg1El.style.width = dPx + 'px'; seg1El.style.height = (s1 * scale) + 'px';
+                    seg1El.style.position = 'absolute'; seg1El.style.bottom = '0'; seg1El.style.left = '0';
+                    
+                    seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
+                    seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
+                    seg2El.style.position = 'absolute'; seg2El.style.bottom = '0'; seg2El.style.left = dPx + 'px';
+                    
+                    seg3El = document.createElement('div'); seg3El.className = 'map-segment map-segment-v';
+                    seg3El.style.width = dPx + 'px'; seg3El.style.height = (s3 * scale) + 'px';
+                    seg3El.style.position = 'absolute'; seg3El.style.bottom = '0'; seg3El.style.right = '0';
+                    
+                    rEl.appendChild(seg1El); rEl.appendChild(seg2El); rEl.appendChild(seg3El);
                 } else {
-                    pEl.style.width = pWidthPx + 'px'; pEl.style.height = '100%';
+                    totalW = totalW * scale;
                 }
 
-                if (currentH === p.sku) { pEl.style.boxShadow = '0 0 0 2px var(--bg), 0 0 10px var(--accent)'; pEl.style.zIndex = 10; }
+                rEl.style.width = totalW + 'px'; rEl.style.height = totalH + 'px';
+                rEl.style.left = ((row.x||0) * scale) + 'px'; rEl.style.top = ((row.y||0) * scale) + 'px';
+                rEl.style.transform = `rotate(${row.rotation || 0}deg)`;
 
-                let tooltipText = 'SKU: ' + (p.sku||'') + '\nProducto: ' + (p.name||'') + '\nStock Físico: ' + (p.current||0);
-                if (isInActiveOrder) tooltipText += '\n\n📦 REQUERIDO EN PEDIDO';
-                pEl.setAttribute('data-tooltip', tooltipText);
-                
-                pEl.onmousedown = function(e) { e.stopPropagation(); }; 
-                pEl.onclick = function(e) { e.stopPropagation(); openProductModal(p.sku); };
-                
-                targetSeg.appendChild(pEl);
-            });
+                const lbl = document.createElement('div');
+                lbl.className = 'map-entity-row-label';
+                lbl.innerHTML = '🖐️ ' + (row.name || 'Fila');
+                lbl.onmousedown = e => { selectMapItem('row', row.id); initMapDrag(e, 'row', row.id); };
+                rEl.appendChild(lbl);
 
-            canvas.appendChild(rEl);
+                const rowProds = PRODUCTS.filter(p => p && p.rowId === row.id);
+                let pCount = 0;
+
+                rowProds.forEach(p => {
+                    pCount++;
+                    const pEl = generateProductHTML(p, 0, pCount, '', scale, false);
+                    let targetSeg = rEl; 
+                    if (row.shape === 'L') {
+                        if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
+                        else { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
+                    } else if (row.shape === 'U' || row.shape === 'C') {
+                        if (pCount <= cap1) { targetSeg = seg1El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
+                        else if (pCount <= cap1 + cap2) { targetSeg = seg2El; pEl.style.width = 'auto'; pEl.style.flex = '1'; pEl.style.height = '100%'; }
+                        else { targetSeg = seg3El; pEl.style.height = 'auto'; pEl.style.flex = '1'; pEl.style.width = '100%'; }
+                    } else {
+                        pEl.style.height = '100%';
+                    }
+                    pEl.onmousedown = e => e.stopPropagation(); 
+                    targetSeg.appendChild(pEl);
+                });
+
+                canvas.appendChild(rEl);
+            }
         });
 
         const unassignWrap = document.getElementById('mapUnassignedRows');
         let uHtml = '';
         if (unassignedRows.length === 0) {
-            uHtml = '<p style="color:var(--ok); font-size:0.8rem; text-align:center;">Todas las filas están ubicadas.</p>';
+            uHtml = '<p style="color:var(--ok); font-size:0.8rem; text-align:center;">Todas las estructuras están ubicadas.</p>';
         } else {
-            unassignedRows.forEach(function(ur) {
-                uHtml += '<div class="unassigned-row-card"><b>' + (ur.name||'') + '</b><button class="btn btn-secondary" style="padding:4px 8px; font-size:0.7rem;" onclick="assignRowToMap(\'' + ur.id + '\')">Al Plano ➡️</button></div>';
+            unassignedRows.forEach(ur => {
+                const prefix = ur.isRack ? '<b style="color:var(--order-blue)">[RACK] ' : '<b>';
+                const idType = ur.isRack ? `rack','${ur.id}` : `row','${ur.id}`;
+                uHtml += `<div class="unassigned-row-card">${prefix}${ur.name||''}</b><button class="btn btn-secondary" style="padding:4px 8px; font-size:0.7rem;" onclick="assignRowToMap('${ur.isRack ? 'rack' : 'row'}', '${ur.id}')">Al Plano ➡️</button></div>`;
             });
         }
         if(unassignWrap) unassignWrap.innerHTML = uHtml;
@@ -1119,7 +1372,7 @@ if (window.WMS_INITIALIZED) {
             angle = Math.round(angle);
             if (angle < 0) angle += 360;
 
-            el.style.transform = 'rotate(' + angle + 'deg)';
+            el.style.transform = `rotate(${angle}deg)`;
             
             const canvasRect = document.getElementById('mapCanvas').getBoundingClientRect();
             tooltip.style.left = (ev.clientX - canvasRect.left) + 'px';
@@ -1129,8 +1382,9 @@ if (window.WMS_INITIALIZED) {
             const ctxRot = document.getElementById('ctxRot');
             if(ctxRot) ctxRot.value = angle;
 
-            if(type === 'row') { const r = ROWS.find(function(x) { return x.id === id; }); if(r) r.rotation = angle; } 
-            else { const z = ZONES.find(function(x) { return x.id === id; }); if(z) z.rotation = angle; }
+            if(type === 'row') { const r = ROWS.find(x => x.id === id); if(r) r.rotation = angle; } 
+            else if(type === 'rack') { const r = RACKS.find(x => x.id === id); if(r) r.rotation = angle; } 
+            else { const z = ZONES.find(x => x.id === id); if(z) z.rotation = angle; }
         }
 
         function onRotateDrop() {
@@ -1144,11 +1398,14 @@ if (window.WMS_INITIALIZED) {
         document.addEventListener('mouseup', onRotateDrop);
     }
 
-    function assignRowToMap(rowId) {
-        const row = ROWS.find(function(r) { return r.id === rowId; });
-        if(row && activeWarehouseId) {
-            row.whId = activeWarehouseId; row.x = 0; row.y = 0; row.rotation = 0;
-            sync();
+    function assignRowToMap(type, id) {
+        if(!activeWarehouseId) return;
+        if (type === 'row') {
+            const row = ROWS.find(r => r.id === id);
+            if(row) { row.whId = activeWarehouseId; row.x = 0; row.y = 0; row.rotation = 0; sync(); }
+        } else if (type === 'rack') {
+            const rack = RACKS.find(r => r.id === id);
+            if(rack) { rack.whId = activeWarehouseId; rack.x = 0; rack.y = 0; rack.rotation = 0; sync(); }
         }
     }
 
@@ -1157,7 +1414,7 @@ if (window.WMS_INITIALIZED) {
         e.stopPropagation();
         
         const el = document.getElementById('map-' + type + '-' + id);
-        if(!el || e.target.classList.contains('rotator-handle')) return; 
+        if(!el) return; 
         
         draggingMapItem = { type: type, id: id };
         
@@ -1193,7 +1450,7 @@ if (window.WMS_INITIALIZED) {
         if(!draggingMapItem) return;
 
         const canvas = document.getElementById('mapCanvas');
-        const activeWH = WAREHOUSES.find(function(w) { return w.id === activeWarehouseId; });
+        const activeWH = WAREHOUSES.find(w => w.id === activeWarehouseId);
         const scale = activeWH ? (activeWH.scale || 25) : 25;
 
         const canvasRect = canvas.getBoundingClientRect();
@@ -1204,10 +1461,13 @@ if (window.WMS_INITIALIZED) {
         let yM = parseFloat((y / scale).toFixed(2));
 
         if(draggingMapItem.type === 'row') {
-            const row = ROWS.find(function(r) { return r.id === draggingMapItem.id; });
+            const row = ROWS.find(r => r.id === draggingMapItem.id);
             if(row) { row.x = xM; row.y = yM; }
+        } else if (draggingMapItem.type === 'rack') {
+            const rack = RACKS.find(r => r.id === draggingMapItem.id);
+            if(rack) { rack.x = xM; rack.y = yM; }
         } else if (draggingMapItem.type === 'zone') {
-            const zone = ZONES.find(function(z) { return z.id === draggingMapItem.id; });
+            const zone = ZONES.find(z => z.id === draggingMapItem.id);
             if(zone) { zone.x = xM; zone.y = yM; }
         }
 
@@ -1216,7 +1476,7 @@ if (window.WMS_INITIALIZED) {
     }
 
     function openWarehouseModal(id) {
-        const wh = (id && typeof id === 'string') ? WAREHOUSES.find(function(x) { return x.id === id; }) : null;
+        const wh = (id && typeof id === 'string') ? WAREHOUSES.find(x => x.id === id) : null;
         if(wh) {
             document.getElementById('whId').value = wh.id; document.getElementById('whName').value = wh.name;
             document.getElementById('whWidth').value = wh.widthM; document.getElementById('whLength').value = wh.lengthM;
@@ -1240,7 +1500,7 @@ if (window.WMS_INITIALIZED) {
         const lengthM = parseFloat(document.getElementById('whLength').value) || 20;
 
         const data = { id: id, name: name, widthM: widthM, lengthM: lengthM, scale: parseFloat(document.getElementById('whScale').value) || 25 };
-        const idx = WAREHOUSES.findIndex(function(x) { return x.id === id; });
+        const idx = WAREHOUSES.findIndex(x => x.id === id);
         if(idx >= 0) WAREHOUSES[idx] = data; else WAREHOUSES.push(data);
 
         activeWarehouseId = id; sync(); closeModals();
@@ -1249,11 +1509,10 @@ if (window.WMS_INITIALIZED) {
     function deleteWarehouse() {
         const id = document.getElementById('whId').value;
         if(confirm("¿Eliminar Bodega? Se perderán los pasillos trazados. Sus filas volverán a 'Por Asignar' intactas.")) {
-            ROWS.forEach(function(r) { 
-                if(r.whId === id) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; } 
-            });
-            WAREHOUSES = WAREHOUSES.filter(function(w) { return w.id !== id; });
-            ZONES = ZONES.filter(function(z) { return z.whId !== id; });
+            ROWS.forEach(r => { if(r.whId === id) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; } });
+            RACKS.forEach(r => { if(r.whId === id) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; } });
+            WAREHOUSES = WAREHOUSES.filter(w => w.id !== id);
+            ZONES = ZONES.filter(z => z.whId !== id);
             activeWarehouseId = WAREHOUSES.length ? WAREHOUSES[0].id : null;
             clearMapSelection();
             sync(); 
@@ -1263,7 +1522,7 @@ if (window.WMS_INITIALIZED) {
 
     function openZoneModal(id) {
         if(!activeWarehouseId) return alert("Selecciona o crea una bodega primero.");
-        const z = (id && typeof id === 'string') ? ZONES.find(function(x) { return x.id === id; }) : null;
+        const z = (id && typeof id === 'string') ? ZONES.find(x => x.id === id) : null;
         if(z) {
             document.getElementById('zId').value = z.id; document.getElementById('zName').value = z.name;
             document.getElementById('zWidth').value = z.widthM; document.getElementById('zLength').value = z.lengthM;
@@ -1279,16 +1538,16 @@ if (window.WMS_INITIALIZED) {
     function saveZone() {
         const id = document.getElementById('zId').value || 'Z' + Date.now();
         const data = { id: id, whId: activeWarehouseId, name: document.getElementById('zName').value || 'Pasillo', widthM: parseFloat(document.getElementById('zWidth').value) || 2, lengthM: parseFloat(document.getElementById('zLength').value) || 10, x: 0, y: 0, rotation: 0 };
-        const exist = ZONES.find(function(x) { return x.id === id; });
+        const exist = ZONES.find(x => x.id === id);
         if(exist) { data.x = exist.x; data.y = exist.y; data.rotation = exist.rotation; }
-        const idx = ZONES.findIndex(function(x) { return x.id === id; });
+        const idx = ZONES.findIndex(x => x.id === id);
         if(idx >= 0) ZONES[idx] = data; else ZONES.push(data);
         sync(); closeModals();
     }
 
     function deleteZone() {
         const id = document.getElementById('zId').value;
-        if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(function(z) { return z.id !== id; }); sync(); closeModals(); }
+        if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
     // EXPOSICIÓN GLOBAL
@@ -1314,6 +1573,11 @@ if (window.WMS_INITIALIZED) {
     window.openRowModal = openRowModal;
     window.saveRow = saveRow;
     window.deleteRow = deleteRow;
+    window.openRackModal = openRackModal;
+    window.renderRackColConfig = renderRackColConfig;
+    window.saveRack = saveRack;
+    window.deleteRack = deleteRack;
+    window.openRackFrontModal = openRackFrontModal;
     window.processImage = processImage;
     window.closeModals = closeModals;
     window.closeProductModalOnly = closeProductModalOnly;
@@ -1325,7 +1589,6 @@ if (window.WMS_INITIALIZED) {
     window.toggleViewMode = toggleViewMode;
     window.changeActiveWarehouse = changeActiveWarehouse;
     window.resetAllRowsToTray = resetAllRowsToTray;
-    window.recoverLostRows = recoverLostRows;
     window.openWarehouseModal = openWarehouseModal;
     window.saveWarehouse = saveWarehouse;
     window.deleteWarehouse = deleteWarehouse;
