@@ -12,7 +12,7 @@
 </head>
 <body>
 
-<div id="loginScreen" style="position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center;">
+<div id="loginScreen" style="position:fixed; inset:0; z-index:999999; display:flex; align-items:center; justify-content:center;">
     <div class="login-box">
         <div style="display:flex; justify-content:center; margin-bottom: 20px;">
             <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -63,6 +63,7 @@
     <button class="btn btn-secondary" onclick="openInventoryDB()">📊 DB / SAP</button>
     <span style="color:var(--border); margin: 0 5px;">|</span>
     <button class="btn btn-secondary" onclick="openRowModal()">+ Fila</button>
+    <button class="btn btn-secondary" style="border-color: var(--order-blue); color: var(--order-blue);" onclick="openRackModal()">+ Rack</button>
     <button class="btn btn-primary" onclick="openProductModal()">+ Producto</button>
     <button class="btn btn-danger" onclick="firebase.auth().signOut()">Salir</button>
   </div>
@@ -75,7 +76,7 @@
         
         <div class="field small" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; display: flex; align-items: center; border: 1px solid var(--order-blue);">
             <input type="checkbox" id="modeMoveRows" onchange="toggleLayoutMode()">
-            <label style="margin:0 0 0 10px; cursor: pointer; color: var(--text);" for="modeMoveRows">Modo Layout (Bloquear productos para mover filas)</label>
+            <label style="margin:0 0 0 10px; cursor: pointer; color: var(--text);" for="modeMoveRows">Modo Layout (Bloquear productos para mover filas/racks)</label>
         </div>
 
         <div id="mapContextPanel" style="display:none;">
@@ -92,7 +93,7 @@
             <button class="btn btn-secondary" style="flex:1; font-size:0.7rem; padding: 6px;" onclick="openWarehouseModal(document.getElementById('mapBodegaSelect').value)">⚙️ Editar</button>
         </div>
 
-        <h3 style="color:var(--warn); font-size:1rem; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:8px;">Filas Por Asignar</h3>
+        <h3 style="color:var(--warn); font-size:1rem; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:8px;">Estructuras Por Asignar</h3>
         <div id="mapUnassignedRows" style="margin-bottom: 10px; flex:1; overflow-y:auto; padding-right:5px;"></div>
         
         <button class="btn btn-secondary" style="width:100%; margin-bottom: 20px; font-size:0.75rem;" onclick="resetAllRowsToTray()">🔄 Enviar plano actual a 'Por Asignar'</button>
@@ -119,7 +120,7 @@
                 <div class="field"><label>SKU / Código</label><input id="pSku" type="text" placeholder="Ej: VIN-001"></div>
                 <div class="field"><label>Nombre del Vino</label><input id="pName" type="text" placeholder="Nombre descriptivo"></div>
             </div>
-            <div class="field"><label>Fila / Ubicación Física en Bodega</label><select id="pRowSelect"></select></div>
+            <div class="field"><label>Ubicación Física en Bodega</label><select id="pRowSelect"></select></div>
             <div class="panel-box form-row" style="background: rgba(200, 168, 75, 0.05); border-color: rgba(200, 168, 75, 0.2);">
                 <div class="field" style="margin:0;"><label style="color:var(--accent)">Stock Físico Real</label><input id="pCurrent" type="number" style="font-weight:bold; color:var(--accent); font-size:1.2rem;"></div>
                 <div class="field" style="margin:0;"><label>Mínimo (Alerta)</label><input id="pMin" type="number"></div>
@@ -155,7 +156,7 @@
         </div>
         <div class="editor-sidebar">
             <h4 style="font-size: 0.85rem; color: var(--muted); text-transform: uppercase; margin-bottom: 25px; letter-spacing: 0.5px;">Ajustes Visuales</h4>
-            <div class="field"><label>Ancho en Rack (Metros)</label><input id="pWidth" type="number" step="0.01"></div>
+            <div class="field"><label>Ancho Visual (Solo Filas)</label><input id="pWidth" type="number" step="0.01"></div>
             <div class="field"><label>Color Distintivo</label><input id="pColor" type="color" value="#c8a84b"></div>
             <div class="field" style="margin-top: 35px;">
                 <label>Foto de Referencia</label>
@@ -194,6 +195,45 @@
             </div>
           </div>
       </div>
+    </div>
+</div>
+
+<div id="rackModal" class="modal" style="z-index: 10500;">
+    <div class="modal-content" style="max-width:550px; height: 90vh;">
+      <div class="modal-header"><h2>Configurar Rack (Estructura)</h2><button class="close-btn" onclick="closeModals()">✖</button></div>
+      <div class="modal-body" style="overflow-y: auto;">
+          <input type="hidden" id="rkId">
+          <p style="font-size:0.75rem; color:var(--muted); margin-bottom:20px;">Un Rack se divide en Columnas, y cada Columna en Niveles independientes.</p>
+          <div class="field"><label>Nombre del Rack</label><input id="rkName" type="text" placeholder="Ej: Rack 01"></div>
+          <div class="form-row">
+              <div class="field"><label>Ancho Visual 2D (M)</label><input id="rkWidth" type="number" step="0.1" value="2"></div>
+              <div class="field"><label>Fondo Visual 2D (M)</label><input id="rkDepth" type="number" step="0.1" value="1"></div>
+          </div>
+          <div class="field" style="border-top: 1px solid var(--border); padding-top: 20px;">
+              <label style="color:var(--order-blue);">Cantidad de Columnas</label>
+              <input id="rkColCount" type="number" step="1" value="1" min="1" max="20" onchange="renderRackColConfig()">
+          </div>
+          <div id="rkColsConfig" style="display:flex; flex-direction:column; gap:10px;">
+              </div>
+          <div style="display:flex; justify-content:space-between; margin-top:35px; border-top: 1px solid var(--border); padding-top: 20px;">
+            <button id="btnDelRack" class="btn btn-danger" style="display:none" onclick="deleteRack()">Eliminar</button>
+            <div style="display:flex; gap:10px; margin-left:auto;">
+                <button class="btn btn-secondary" onclick="closeModals()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveRack()">Guardar Rack</button>
+            </div>
+          </div>
+      </div>
+    </div>
+</div>
+
+<div id="rackFrontModal" class="modal" style="z-index: 10600;">
+    <div class="modal-content" style="max-width:900px; height: auto;">
+        <div class="modal-header">
+            <h2 id="rackFrontTitle" style="color:var(--order-blue)">Inspección de Rack</h2>
+            <button class="close-btn" onclick="closeModals()">✖</button>
+        </div>
+        <div class="modal-body" id="rackFrontBody" style="background:var(--surface-hover); min-height: 300px;">
+            </div>
     </div>
 </div>
 
