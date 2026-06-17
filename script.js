@@ -19,7 +19,7 @@ if (window.WMS_INITIALIZED) {
     const auth = firebase.auth();
 
     let ROWS = [];
-    let RACKS = []; // NUEVA ESTRUCTURA GLOBAL PARALELA
+    let RACKS = []; 
     let PRODUCTS = [];
     let HISTORY_LOG = []; 
     let ACTIVE_ORDER = [];
@@ -115,7 +115,6 @@ if (window.WMS_INITIALIZED) {
                 ROWS = rawRows.filter(r => r !== null && r !== undefined);
                 if (ROWS.length === 0) ROWS = [{id:'R1', name:'Fila A', sizeM:15}];
 
-                // CARGA RACKS
                 let rawRacks = [];
                 if (Array.isArray(data.racks)) rawRacks = data.racks;
                 else if (data.racks && typeof data.racks === 'object') rawRacks = Object.keys(data.racks).map(k => data.racks[k]);
@@ -154,7 +153,7 @@ if (window.WMS_INITIALIZED) {
     function sync() {
         if(auth.currentUser) {
             db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
-            db.ref('bodega/racks').set(JSON.parse(JSON.stringify(RACKS))); // SYNC RACKS
+            db.ref('bodega/racks').set(JSON.parse(JSON.stringify(RACKS))); 
             db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
             db.ref('bodega/warehouses').set(JSON.parse(JSON.stringify(WAREHOUSES)));
             db.ref('bodega/zones').set(JSON.parse(JSON.stringify(ZONES)));
@@ -162,9 +161,8 @@ if (window.WMS_INITIALIZED) {
         render();
         if(currentViewMode === 'map') renderMap();
         
-        // Auto-refresh Rack Front Modal si está abierto
         const rackModal = document.getElementById('rackFrontModal');
-        if(rackModal.classList.contains('open') && window.currentInspectRackId) {
+        if(rackModal && rackModal.classList.contains('open') && window.currentInspectRackId) {
             renderRackFront(window.currentInspectRackId, document.getElementById('rackFrontBody'));
         }
     }
@@ -199,6 +197,7 @@ if (window.WMS_INITIALIZED) {
         }
 
         let tooltipText = 'SKU: ' + (p.sku || 'N/A') + '\nProducto: ' + (p.name || 'N/A') + '\nStock Físico: ' + (p.current || 0) + ' (Mín: ' + (p.min || 0) + ' / Máx: ' + (p.max || 0) + ')';
+        if (p.widthM || p.heightM || p.depthM) tooltipText += `\nDimensiones SKU: ${p.widthM||0}x${p.heightM||0}x${p.depthM||0} m`;
         if (p.hasPO) tooltipText += '\n📦 Prov. Reservado: ' + (p.reservedStock || 0);
         if (p.masterQty || p.innerQty) tooltipText += '\nEmpaque: Master: ' + (p.masterQty || 0) + ' u. | Interior: ' + (p.innerQty || 0) + ' u.';
         if (p.supplier) tooltipText += '\nProveedor: ' + p.supplier + ' (Demora: ' + (p.leadTime || 0) + ' días)';
@@ -228,13 +227,12 @@ if (window.WMS_INITIALIZED) {
         else if (p.current <= p.min * 1.2) dotColor = 'var(--warn)';
         else if (p.max > 0 && p.current > p.max) dotColor = 'var(--over)';
         
-        const posLabel = isRack ? (index => { return p.sku.substring(0,3); })(idx) : safeName.split(' ').pop() + (idx + 1);
+        const posLabel = isRack ? (idx => p.sku.substring(0,3))(idx) : safeName.split(' ').pop() + (idx + 1);
         pEl.innerHTML = '<div class="product-pos">' + posLabel + '</div><span class="stock-dot" style="background:' + dotColor + '"></span>';
         
         return pEl;
     }
 
-    // NUEVA FUNCIÓN: Construcción visual de un Rack
     function renderRackFront(rackId, wrapperElement) {
         wrapperElement.innerHTML = '';
         const rack = RACKS.find(r => r.id === rackId);
@@ -247,7 +245,7 @@ if (window.WMS_INITIALIZED) {
             const colWrap = document.createElement('div');
             colWrap.className = 'rack-col-ui';
             
-            for(let l=0; l<col.levels; l++) {
+            col.levels.forEach((lvl, l) => {
                 const levelId = `RK-${rack.id}-C${c}-L${l}`;
                 const levelEl = document.createElement('div');
                 levelEl.className = 'rack-level-ui';
@@ -259,11 +257,11 @@ if (window.WMS_INITIALIZED) {
 
                 const lbl = document.createElement('div');
                 lbl.className = 'rack-level-name';
-                lbl.innerText = `C${c+1}-N${l+1} (${col.cap})`;
+                lbl.innerText = `C${c+1}-N${l+1} (${lvl.w}x${lvl.h}m) [Cap: ${lvl.cap}]`;
                 levelEl.appendChild(lbl);
 
                 const levelProds = PRODUCTS.filter(p => p.rowId === levelId);
-                if(levelProds.length >= col.cap) levelEl.classList.add('is-full');
+                if(levelProds.length >= lvl.cap) levelEl.classList.add('is-full');
 
                 levelProds.forEach((p, idx) => {
                     if(p.current < p.min && document.getElementById('alertBar').style.display === 'none') {
@@ -274,7 +272,7 @@ if (window.WMS_INITIALIZED) {
                     levelEl.appendChild(pEl);
                 });
                 colWrap.appendChild(levelEl);
-            }
+            });
             
             const header = document.createElement('div');
             header.className = 'rack-col-header';
@@ -291,12 +289,11 @@ if (window.WMS_INITIALIZED) {
         if(!wrap) return;
         wrap.innerHTML = '';
         
-        document.getElementById('alertBar').style.display = 'none'; // reset
+        document.getElementById('alertBar').style.display = 'none';
 
         const dot = document.getElementById('orderDotStatus');
         if(dot) dot.style.background = ACTIVE_ORDER.length > 0 ? 'var(--order-blue)' : 'grey';
 
-        // 1. RENDER FILAS CLÁSICAS
         ROWS.forEach(function(row, idx) {
             const rowProds = PRODUCTS.filter(p => p && p.rowId === row.id);
             const used = rowProds.reduce((s, p) => s + (p.widthM || 0), 0);
@@ -310,7 +307,7 @@ if (window.WMS_INITIALIZED) {
 
             const container = document.createElement('div');
             container.className = 'row-container';
-            container.style.zIndex = 4000 - idx; // Asegura que quede debajo del #topbar
+            container.style.zIndex = 4000 - idx;
             
             container.setAttribute('data-row-id', row.id);
             container.addEventListener('dragover', ev => ev.preventDefault());
@@ -330,7 +327,6 @@ if (window.WMS_INITIALIZED) {
             wrap.appendChild(container);
         });
 
-        // 2. RENDER RACKS NUEVOS EN VISTA CLÁSICA
         RACKS.forEach(function(rack, idx) {
             const container = document.createElement('div');
             container.className = 'row-container rack-container';
@@ -340,12 +336,11 @@ if (window.WMS_INITIALIZED) {
             headerHTML += `<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRackModal('${rack.id}')">⚙️ Editar Rack</button></div>`;
             
             container.innerHTML = headerHTML;
-            renderRackFront(rack.id, container); // Inyecta las columnas dinámicamente
+            renderRackFront(rack.id, container);
             wrap.appendChild(container);
         });
     }
 
-    // CORRECCIÓN EXACTA DRAG Y DROP: Funciona para Filas y para Niveles de Rack
     function drop(e) {
         e.preventDefault();
         const sku = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("sku"); 
@@ -373,12 +368,14 @@ if (window.WMS_INITIALIZED) {
         const rowProds = PRODUCTS.filter(x => x.rowId === targetRowId && x.sku !== sku);
 
         if (isRack) {
-            // LÓGICA DE CAPACIDAD DE RACK
-            const parts = targetRowId.split('-'); // RK - ID - C# - L#
+            const parts = targetRowId.split('-'); 
             const rack = RACKS.find(r => r.id === parts[1]);
             if(!rack) return;
             
-            const colCap = rack.cols[parseInt(parts[2].substring(1))].cap;
+            const colIdx = parseInt(parts[2].substring(1));
+            const lvlIdx = parseInt(parts[3].substring(1));
+            const colCap = rack.cols[colIdx].levels[lvlIdx].cap;
+            
             if (rowProds.length >= colCap) return alert("Ubicación llena en este nivel del rack.");
             
             let insertIdx = rowProds.length;
@@ -398,7 +395,6 @@ if (window.WMS_INITIALIZED) {
             else logMovement(p.sku, p.name, 0, "Reorganizado en " + rack.name);
 
         } else {
-            // LÓGICA DE CAPACIDAD DE FILAS
             const used = rowProds.reduce((s, x) => s + (x.widthM || 0), 0); 
             const targetRow = ROWS.find(r => r.id === targetRowId);
             if(!targetRow) return;
@@ -461,9 +457,9 @@ if (window.WMS_INITIALIZED) {
         options += '</optgroup><optgroup label="Ubicaciones de Racks">';
         RACKS.forEach(rack => {
            rack.cols.forEach((col, c) => {
-              for(let l=0; l<col.levels; l++) {
+              col.levels.forEach((lvl, l) => {
                  options += `<option value="RK-${rack.id}-C${c}-L${l}">${rack.name} - C${c+1}-N${l+1}</option>`;
-              }
+              });
            });
         });
         options += '</optgroup>';
@@ -475,6 +471,8 @@ if (window.WMS_INITIALIZED) {
             if(!p) return;
             document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
             document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
+            document.getElementById('pHeight').value = p.heightM !== undefined ? p.heightM : '';
+            document.getElementById('pDepth').value = p.depthM !== undefined ? p.depthM : '';
             document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
             document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
             document.getElementById('pMax').value = p.max || 0; document.getElementById('pMasterQty').value = p.masterQty !== undefined ? p.masterQty : '';
@@ -488,7 +486,8 @@ if (window.WMS_INITIALIZED) {
             document.getElementById('btnDelProd').style.display = 'block';
         } else {
             document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false; document.getElementById('pName').value = ''; 
-            document.getElementById('pWidth').value = '0.56'; document.getElementById('pCurrent').value = '0'; document.getElementById('pMin').value = '0'; document.getElementById('pMax').value = '0';
+            document.getElementById('pWidth').value = '0.56'; document.getElementById('pHeight').value = ''; document.getElementById('pDepth').value = '';
+            document.getElementById('pCurrent').value = '0'; document.getElementById('pMin').value = '0'; document.getElementById('pMax').value = '0';
             document.getElementById('pMasterQty').value = ''; document.getElementById('pInnerQty').value = ''; document.getElementById('pSupplier').value = '';
             document.getElementById('pLeadTime').value = ''; document.getElementById('pHasPO').checked = false; document.getElementById('pReservedStock').value = '0';
             document.getElementById('pPoDate').value = ''; document.getElementById('pPoArrival').value = '';
@@ -513,7 +512,10 @@ if (window.WMS_INITIALIZED) {
         const newStock = parseInt(document.getElementById('pCurrent').value) || 0;
         
         const data = {
-            sku: sku, name: name, widthM: parseFloat(document.getElementById('pWidth').value) || 0.56,
+            sku: sku, name: name, 
+            widthM: parseFloat(document.getElementById('pWidth').value) || 0.56,
+            heightM: parseFloat(document.getElementById('pHeight').value) || 0,
+            depthM: parseFloat(document.getElementById('pDepth').value) || 0,
             color: document.getElementById('pColor').value || "#c8a84b", rowId: selectedRowId,
             current: newStock, min: parseInt(document.getElementById('pMin').value) || 0, max: parseInt(document.getElementById('pMax').value) || 0,
             masterQty: parseInt(document.getElementById('pMasterQty').value) || 0, innerQty: parseInt(document.getElementById('pInnerQty').value) || 0,
@@ -576,7 +578,7 @@ if (window.WMS_INITIALIZED) {
             let pos = 'S/N';
             if (p.rowId) {
                  if (p.rowId.startsWith('RK-')) {
-                     const parts = p.rowId.split('-'); // RK - ID - C# - L#
+                     const parts = p.rowId.split('-');
                      const r = RACKS.find(x => x.id === parts[1]);
                      if(r) {
                          const c = parseInt(parts[2].replace('C','')) + 1;
@@ -668,7 +670,6 @@ if (window.WMS_INITIALIZED) {
                     if (cols[1] && String(cols[1]).trim() !== '') PRODUCTS[pIdx].name = String(cols[1]).trim();
                     if (cols[3] && String(cols[3]).trim() !== '') {
                         const rowSearch = String(cols[3]).trim().toLowerCase();
-                        // Search in ROWS
                         let matched = ROWS.find(r => r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch));
                         if (matched) PRODUCTS[pIdx].rowId = matched.id;
                     }
@@ -686,7 +687,7 @@ if (window.WMS_INITIALIZED) {
                         if (matched) targetRowId = matched.id;
                     }
                     const newProd = { 
-                        sku: sku, name: name, widthM: 0.56, color: "#c8a84b", rowId: targetRowId, current: isNaN(qty) ? 0 : qty, 
+                        sku: sku, name: name, widthM: 0.56, heightM: 0, depthM: 0, color: "#c8a84b", rowId: targetRowId, current: isNaN(qty) ? 0 : qty, 
                         masterQty: parseInt(cols[4]) || 0, innerQty: parseInt(cols[5]) || 0, 
                         min: parseInt(cols[6]) || 0, max: parseInt(cols[7]) || 0, 
                         supplier: cols[8] ? String(cols[8]).trim() : "", leadTime: parseInt(cols[9]) || 0,
@@ -824,7 +825,6 @@ if (window.WMS_INITIALIZED) {
         } 
     }
 
-    // MODAL Y GESTIÓN DE FILAS ORIGINALES
     function openRowModal(id) { 
         let r = {id:'', name:'', sizeM:15, shape:'straight'};
         if (id && typeof id === 'string' && id.trim() !== '') {
@@ -867,20 +867,32 @@ if (window.WMS_INITIALIZED) {
 
     function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
     
-    // NUEVO MODAL Y GESTIÓN DE RACKS
+    // FUNCIONES ADMINISTRATIVAS DE RACKS
     function openRackModal(id) {
-        let r = {id:'', name:'', widthM: 2, depthM: 1, cols: [{levels:3, cap:10}] };
+        let r = {id:'', name:'', widthM: 2, depthM: 1, cols: [] };
         if (id && typeof id === 'string') {
             const found = RACKS.find(x => x.id === id);
-            if (found) r = found;
+            if (found) r = JSON.parse(JSON.stringify(found));
         }
+        
+        // Convertir formato antiguo (int levels) a nuevo formato de Array detallado
+        r.cols = r.cols.map(col => {
+            if (typeof col.levels === 'number') {
+                let newLevels = [];
+                for(let i=0; i<col.levels; i++) newLevels.push({cap: col.cap||10, w: 1.2, h: 1.0});
+                return { levels: newLevels };
+            }
+            return col;
+        });
+        if(r.cols.length === 0) r.cols.push({levels: [{cap:10, w:1.2, h:1.0}]});
+
         document.getElementById('rkId').value = r.id;
         document.getElementById('rkName').value = r.name || '';
         document.getElementById('rkWidth').value = r.widthM || 2;
         document.getElementById('rkDepth').value = r.depthM || 1;
         document.getElementById('rkColCount').value = r.cols.length;
         
-        window.tempRackCols = JSON.parse(JSON.stringify(r.cols));
+        window.tempRackCols = r.cols;
         renderRackColConfig();
         
         document.getElementById('btnDelRack').style.display = id ? 'block' : 'none';
@@ -889,37 +901,71 @@ if (window.WMS_INITIALIZED) {
 
     function renderRackColConfig() {
         const count = parseInt(document.getElementById('rkColCount').value) || 1;
+        
+        while(window.tempRackCols.length < count) window.tempRackCols.push({levels: [{cap:10, w:1.2, h:1.0}]});
+        while(window.tempRackCols.length > count) window.tempRackCols.pop();
+
         let html = '';
-        for(let i=0; i<count; i++) {
-            const col = window.tempRackCols[i] || {levels: 3, cap: 10};
-            html += `<div class="panel-box" style="padding:10px; margin-bottom:10px;">
-                <h4 style="margin-bottom:10px; font-size:0.8rem; color:var(--order-blue);">Columna ${i+1}</h4>
-                <div class="form-row">
-                    <div class="field small"><label>Niveles (Pisos)</label><input type="number" id="rkLvl_${i}" value="${col.levels}"></div>
-                    <div class="field small"><label>Capacidad x Nivel (Cajas)</label><input type="number" id="rkCap_${i}" value="${col.cap}"></div>
+        window.tempRackCols.forEach((col, cIdx) => {
+            html += `<div class="panel-box" style="padding:15px; margin-bottom:15px; background:rgba(0,0,0,0.4);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h4 style="font-size:0.9rem; color:var(--order-blue);">Columna ${cIdx+1}</h4>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-size:0.75rem; color:var(--muted);">Niveles:</label>
+                        <input type="number" min="1" max="20" style="width:70px; padding:4px;" value="${col.levels.length}" onchange="updateRackLvlCount(${cIdx}, this.value)">
+                    </div>
                 </div>
-            </div>`;
-        }
+                <div style="display:grid; gap:10px;">`;
+            
+            col.levels.forEach((lvl, lIdx) => {
+                html += `<div style="display:flex; gap:10px; background:rgba(255,255,255,0.02); padding:10px; border-radius:4px; align-items:center; flex-wrap:wrap;">
+                    <span style="color:var(--muted); font-size:0.75rem; font-weight:bold; width:40px;">N${lIdx+1}</span>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Cap. Cajas</label><input type="number" value="${lvl.cap}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].cap=parseInt(this.value)||0"></div>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Ancho (M)</label><input type="number" step="0.1" value="${lvl.w}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].w=parseFloat(this.value)||0"></div>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Alto (M)</label><input type="number" step="0.1" value="${lvl.h}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].h=parseFloat(this.value)||0"></div>
+                </div>`;
+            });
+            html += `</div></div>`;
+        });
         document.getElementById('rkColsConfig').innerHTML = html;
     }
 
+    function updateRackLvlCount(cIdx, val) {
+        const count = parseInt(val) || 1;
+        const col = window.tempRackCols[cIdx];
+        while(col.levels.length < count) col.levels.push({cap:10, w:1.2, h:1.0});
+        while(col.levels.length > count) col.levels.pop();
+        renderRackColConfig();
+    }
+
     function saveRack() {
-        const id = document.getElementById('rkId').value || 'RK'+Date.now();
-        const count = parseInt(document.getElementById('rkColCount').value) || 1;
-        let cols = [];
-        for(let i=0; i<count; i++) {
-            cols.push({
-                levels: parseInt(document.getElementById('rkLvl_'+i).value) || 3,
-                cap: parseInt(document.getElementById('rkCap_'+i).value) || 10
-            });
-        }
+        const id = document.getElementById('rkId').value || 'RK' + Date.now();
+        const oldRack = RACKS.find(r => r.id === id);
         
+        // Bloqueo de seguridad si eliminan ubicaciones con productos vivos
+        if (oldRack) {
+            let orphaned = false;
+            PRODUCTS.forEach(p => {
+                if (p.rowId && p.rowId.startsWith(`RK-${id}-`)) {
+                    const parts = p.rowId.split('-'); // RK-ID-C#-L#
+                    const c = parseInt(parts[2].substring(1));
+                    const l = parseInt(parts[3].substring(1));
+                    if (!window.tempRackCols[c] || !window.tempRackCols[c].levels[l]) {
+                        orphaned = true;
+                    }
+                }
+            });
+            if (orphaned) {
+                return alert("OPERACIÓN DENEGADA: Estás reduciendo la cantidad de columnas o niveles y hay productos en ubicaciones que desaparecerían. Mueve los productos a otro rack antes de achicar este.");
+            }
+        }
+
         const data = {
             id: id,
             name: document.getElementById('rkName').value || 'Nuevo Rack',
             widthM: parseFloat(document.getElementById('rkWidth').value) || 2,
             depthM: parseFloat(document.getElementById('rkDepth').value) || 1,
-            cols: cols
+            cols: JSON.parse(JSON.stringify(window.tempRackCols))
         };
         
         const idx = RACKS.findIndex(x => x.id === id);
@@ -934,16 +980,15 @@ if (window.WMS_INITIALIZED) {
     
     function deleteRack() {
         const id = document.getElementById('rkId').value;
-        if(PRODUCTS.some(p => p.rowId && p.rowId.startsWith('RK-' + id + '-'))) return alert("Rack con productos. Mueve los productos antes de eliminar.");
-        if(confirm("¿Eliminar rack completamente?")) { RACKS = RACKS.filter(r => r.id !== id); sync(); closeModals(); }
+        if(PRODUCTS.some(p => p.rowId && p.rowId.startsWith('RK-' + id + '-'))) return alert("Rack con productos vivos. Mueve los productos a otro rack o fila antes de eliminar.");
+        if(confirm("¿Seguro que deseas eliminar este rack completamente del sistema?")) { RACKS = RACKS.filter(r => r.id !== id); sync(); closeModals(); }
     }
 
-    // Modal de Inspección Aérea
     function openRackFrontModal(id) {
         window.currentInspectRackId = id;
         const rack = RACKS.find(r => r.id === id);
         if(!rack) return;
-        document.getElementById('rackFrontTitle').innerText = 'Inspección: ' + rack.name;
+        document.getElementById('rackFrontTitle').innerText = 'Inspección: RACK ' + rack.name;
         renderRackFront(id, document.getElementById('rackFrontBody'));
         document.getElementById('rackFrontModal').classList.add('open');
     }
@@ -1222,7 +1267,6 @@ if (window.WMS_INITIALIZED) {
 
         assignedRows.forEach(row => {
             if (row.isRack) {
-                // RENDERIZAR RACK EN 2D
                 const rEl = document.createElement('div');
                 rEl.className = 'map-entity-rack';
                 if(selectedMapItem && selectedMapItem.id === row.id) rEl.className += ' is-selected';
@@ -1250,7 +1294,6 @@ if (window.WMS_INITIALIZED) {
                 canvas.appendChild(rEl);
 
             } else {
-                // RENDERIZAR FILA NORMAL EN 2D
                 const rEl = document.createElement('div');
                 let shapeClass = '';
                 if(row.shape === 'L') shapeClass = ' shape-L';
@@ -1502,6 +1545,10 @@ if (window.WMS_INITIALIZED) {
         const data = { id: id, name: name, widthM: widthM, lengthM: lengthM, scale: parseFloat(document.getElementById('whScale').value) || 25 };
         const idx = WAREHOUSES.findIndex(x => x.id === id);
         if(idx >= 0) WAREHOUSES[idx] = data; else WAREHOUSES.push(data);
+        
+        ROWS.forEach(function(r) {
+            if (r.whId === id) { if (r.x > widthM || r.y > lengthM) { r.x = 0; r.y = 0; } }
+        });
 
         activeWarehouseId = id; sync(); closeModals();
     }
@@ -1550,7 +1597,6 @@ if (window.WMS_INITIALIZED) {
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
-    // EXPOSICIÓN GLOBAL
     window.handleLogin = handleLogin;
     window.drop = drop;
     window.handleSearch = handleSearch;
@@ -1575,6 +1621,7 @@ if (window.WMS_INITIALIZED) {
     window.deleteRow = deleteRow;
     window.openRackModal = openRackModal;
     window.renderRackColConfig = renderRackColConfig;
+    window.updateRackLvlCount = updateRackLvlCount;
     window.saveRack = saveRack;
     window.deleteRack = deleteRack;
     window.openRackFrontModal = openRackFrontModal;
