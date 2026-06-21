@@ -120,6 +120,24 @@ if (window.WMS_INITIALIZED) {
                 else if (data.racks && typeof data.racks === 'object') rawRacks = Object.keys(data.racks).map(k => data.racks[k]);
                 RACKS = rawRacks.filter(r => r !== null && r !== undefined);
 
+                // SANITIZACIÓN GLOBAL INICIAL (Previene fallos silenciosos por formatos legados de Firebase)
+                RACKS.forEach(rack => {
+                    if (!rack.cols) rack.cols = [];
+                    if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
+                    rack.cols.forEach(col => {
+                        if (!col) return;
+                        if (!col.levels) {
+                            col.levels = [];
+                        } else if (typeof col.levels === 'number') {
+                            const count = col.levels;
+                            col.levels = [];
+                            for(let i=0; i<count; i++) col.levels.push({cap: col.cap||10, w: 1.2, h: 1.0});
+                        } else if (!Array.isArray(col.levels)) {
+                            col.levels = Object.values(col.levels);
+                        }
+                    });
+                });
+
                 let rawProducts = [];
                 if (Array.isArray(data.products)) rawProducts = data.products;
                 else if (data.products && typeof data.products === 'object') rawProducts = Object.keys(data.products).map(k => data.products[k]);
@@ -158,13 +176,11 @@ if (window.WMS_INITIALIZED) {
                 db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
                 db.ref('bodega/warehouses').set(JSON.parse(JSON.stringify(WAREHOUSES)));
                 db.ref('bodega/zones').set(JSON.parse(JSON.stringify(ZONES)));
-                console.log("[DEBUG] 6. Firebase actualizado correctamente.");
             } catch (e) {
                 console.error("Error al sincronizar con Firebase:", e);
             }
         }
         render();
-        console.log("[DEBUG] 7. Render ejecutado");
         if(currentViewMode === 'map') renderMap();
         
         const rackModal = document.getElementById('rackFrontModal');
@@ -247,9 +263,24 @@ if (window.WMS_INITIALIZED) {
         const colsHTML = document.createElement('div');
         colsHTML.className = 'rack-cols-wrap';
         
+        // VALIDACIÓN OBLIGATORIA DE ESTRUCTURA
+        if (!rack.cols) rack.cols = [];
+        if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
+
         rack.cols.forEach((col, c) => {
             const colWrap = document.createElement('div');
             colWrap.className = 'rack-col-ui';
+            
+            // VALIDACIÓN OBLIGATORIA DEL ARRAY LEVELS
+            if (!col.levels) {
+                col.levels = [];
+            } else if (typeof col.levels === 'number') {
+                const count = col.levels;
+                col.levels = [];
+                for(let i=0; i<count; i++) col.levels.push({cap: col.cap||10, w: 1.2, h: 1.0});
+            } else if (!Array.isArray(col.levels)) {
+                col.levels = Object.values(col.levels);
+            }
             
             col.levels.forEach((lvl, l) => {
                 const levelId = `RK-${rack.id}-C${c}-L${l}`;
@@ -338,6 +369,10 @@ if (window.WMS_INITIALIZED) {
             container.className = 'row-container rack-container';
             container.style.zIndex = 3000 - idx;
             
+            // VALIDACIÓN OBLIGATORIA
+            if (!rack.cols) rack.cols = [];
+            if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
+            
             let headerHTML = `<div class="row-header"><div class="row-info"><b style="color:var(--order-blue)">RACK: ${rack.name}</b> <span>${rack.cols.length} Columnas</span></div>`;
             headerHTML += `<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRackModal('${rack.id}')">⚙️ Editar Rack</button></div>`;
             
@@ -380,6 +415,15 @@ if (window.WMS_INITIALIZED) {
             
             const colIdx = parseInt(parts[2].substring(1));
             const lvlIdx = parseInt(parts[3].substring(1));
+            
+            // VALIDACIÓN OBLIGATORIA ESTADO DEL ARRAY
+            if (!rack.cols || !Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols || {});
+            if (rack.cols[colIdx]) {
+                 if (!Array.isArray(rack.cols[colIdx].levels)) {
+                     rack.cols[colIdx].levels = Object.values(rack.cols[colIdx].levels || {});
+                 }
+            }
+            
             const colCap = rack.cols[colIdx].levels[lvlIdx].cap;
             
             if (rowProds.length >= colCap) return alert("Ubicación llena en este nivel del rack.");
@@ -461,8 +505,16 @@ if (window.WMS_INITIALIZED) {
         let options = '<optgroup label="Filas">';
         ROWS.forEach(r => options += `<option value="${r.id}">${r.name || 'Sin Nombre'}</option>`);
         options += '</optgroup><optgroup label="Ubicaciones de Racks">';
+        
         RACKS.forEach(rack => {
+           // VALIDACIÓN OBLIGATORIA
+           if (!rack.cols) rack.cols = [];
+           if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
+           
            rack.cols.forEach((col, c) => {
+              if (!col.levels) col.levels = [];
+              if (!Array.isArray(col.levels)) col.levels = Object.values(col.levels);
+               
               col.levels.forEach((lvl, l) => {
                  options += `<option value="RK-${rack.id}-C${c}-L${l}">${rack.name} - C${c+1}-N${l+1}</option>`;
               });
@@ -881,14 +933,23 @@ if (window.WMS_INITIALIZED) {
             if (found) r = JSON.parse(JSON.stringify(found));
         }
         
+        // VALIDACIÓN OBLIGATORIA
+        if (!r.cols) r.cols = [];
+        if (!Array.isArray(r.cols)) r.cols = Object.values(r.cols);
+
         r.cols = r.cols.map(col => {
-            if (typeof col.levels === 'number') {
+            if (!col.levels) {
+                col.levels = [];
+            } else if (typeof col.levels === 'number') {
                 let newLevels = [];
                 for(let i=0; i<col.levels; i++) newLevels.push({cap: col.cap||10, w: 1.2, h: 1.0});
                 return { levels: newLevels };
+            } else if (!Array.isArray(col.levels)) {
+                col.levels = Object.values(col.levels);
             }
             return col;
         });
+
         if(r.cols.length === 0) r.cols.push({levels: [{cap:10, w:1.2, h:1.0}]});
 
         document.getElementById('rkId').value = r.id;
@@ -925,9 +986,9 @@ if (window.WMS_INITIALIZED) {
             col.levels.forEach((lvl, lIdx) => {
                 html += `<div style="display:flex; gap:10px; background:rgba(255,255,255,0.02); padding:10px; border-radius:4px; align-items:center; flex-wrap:wrap;">
                     <span style="color:var(--muted); font-size:0.75rem; font-weight:bold; width:40px;">N${lIdx+1}</span>
-                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Cap. Cajas</label><input type="number" id="rkCap_${cIdx}_${lIdx}" value="${lvl.cap}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].cap=parseInt(this.value)||0"></div>
-                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Ancho (M)</label><input type="number" step="0.1" id="rkW_${cIdx}_${lIdx}" value="${lvl.w}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].w=parseFloat(this.value)||0"></div>
-                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Alto (M)</label><input type="number" step="0.1" id="rkH_${cIdx}_${lIdx}" value="${lvl.h}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].h=parseFloat(this.value)||0"></div>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Cap. Cajas</label><input type="number" id="rkCap_${cIdx}_${lIdx}" value="${lvl.cap}"></div>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Ancho (M)</label><input type="number" step="0.1" id="rkW_${cIdx}_${lIdx}" value="${lvl.w}"></div>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Alto (M)</label><input type="number" step="0.1" id="rkH_${cIdx}_${lIdx}" value="${lvl.h}"></div>
                 </div>`;
             });
             html += `</div></div>`;
@@ -943,36 +1004,18 @@ if (window.WMS_INITIALIZED) {
         renderRackColConfig();
     }
 
-    // CORRECCIÓN EXACTA: Flujo protegido y extracción del DOM de todos los atributos
+    // CORRECCIÓN EXACTA: Flujo protegido y extracción directa del DOM
     function saveRack() {
-        console.log("[DEBUG] 1. Botón 'Guardar Rack' presionado");
         try {
-            const idEl = document.getElementById('rkId');
-            const nameEl = document.getElementById('rkName');
-            const widthEl = document.getElementById('rkWidth');
-            const depthEl = document.getElementById('rkDepth');
-            const colCountEl = document.getElementById('rkColCount');
+            const id = document.getElementById('rkId').value || 'RK' + Date.now();
+            const name = document.getElementById('rkName').value.trim() || 'Nuevo Rack';
+            const widthM = parseFloat(document.getElementById('rkWidth').value) || 2;
+            const depthM = parseFloat(document.getElementById('rkDepth').value) || 1;
+            const colCount = parseInt(document.getElementById('rkColCount').value) || 1;
 
-            if (!idEl || !nameEl || !widthEl || !depthEl || !colCountEl) {
-                console.error("[DEBUG] Error: Elementos base del modal Rack no encontrados en el DOM.");
-                return;
-            }
+            if (!name) return alert("El nombre del rack es obligatorio.");
 
-            const id = idEl.value || 'RK' + Date.now();
-            const name = nameEl.value.trim();
-            const widthM = parseFloat(widthEl.value) || 2;
-            const depthM = parseFloat(depthEl.value) || 1;
-            const colCount = parseInt(colCountEl.value) || 1;
-
-            console.log("[DEBUG] 2. Datos base leídos correctamente", { id, name, widthM, depthM, colCount });
-
-            if (!name) {
-                alert("El nombre del rack es obligatorio.");
-                return;
-            }
-
-            console.log("[DEBUG] 3. Validaciones de nombre superadas");
-
+            // Reconstruir la estructura leyendo directamente los valores del DOM, ignorando variables intermedias
             let newCols = [];
             for (let c = 0; c < colCount; c++) {
                 const lvlInput = document.getElementById(`rkLvl_${c}`);
@@ -993,20 +1036,18 @@ if (window.WMS_INITIALIZED) {
                 newCols.push({ levels: levels });
             }
 
-            console.log("[DEBUG] 4. Estructura interna (columnas/niveles) extraída del DOM", newCols);
-
-            let oldRack = RACKS.find(r => r.id === id);
+            const oldRack = RACKS.find(r => r.id === id);
+            
+            // Bloqueo de seguridad anti-pérdida
             if (oldRack) {
-                console.log("[DEBUG] 5a. Rack encontrado en memoria (Edición)");
                 let orphaned = false;
                 PRODUCTS.forEach(p => {
                     if (p.rowId && p.rowId.startsWith(`RK-${id}-`)) {
                         const parts = p.rowId.split('-'); 
                         const c = parseInt(parts[2].substring(1));
                         const l = parseInt(parts[3].substring(1));
-                        if (!newCols[c] || !newCols[c].levels[l]) {
+                        if (!newCols[c] || !newCols[c].levels || !newCols[c].levels[l]) {
                             orphaned = true;
-                            console.warn(`[DEBUG] Conflicto detectado: Producto ${p.sku} quedaría huérfano en C${c}-L${l}`);
                         }
                     }
                 });
@@ -1015,8 +1056,6 @@ if (window.WMS_INITIALIZED) {
                     alert("OPERACIÓN DENEGADA: Estás reduciendo la cantidad de columnas o niveles y hay productos en ubicaciones que desaparecerían. Mueve los productos a otro rack antes de achicar este.");
                     return;
                 }
-            } else {
-                console.log("[DEBUG] 5b. Creando nuevo Rack en memoria");
             }
 
             const rackData = {
@@ -1034,16 +1073,12 @@ if (window.WMS_INITIALIZED) {
                 rackData.y = RACKS[idx].y; 
                 rackData.rotation = RACKS[idx].rotation;
                 RACKS[idx] = rackData;
-                console.log("[DEBUG] 6a. Objeto Rack actualizado en array", RACKS[idx]);
             } else {
                 RACKS.push(rackData);
-                console.log("[DEBUG] 6b. Objeto Rack insertado en array", rackData);
             }
 
-            console.log("[DEBUG] 7. Ejecutando persistencia y renderizado");
             sync();
             closeModals();
-            console.log("[DEBUG] 8. Flujo de guardado completado exitosamente");
             
         } catch (err) {
             console.error("[DEBUG] Error crítico no controlado en saveRack:", err);
@@ -1255,8 +1290,12 @@ if (window.WMS_INITIALIZED) {
         ROWS.forEach(r => { if(r.whId === activeWarehouseId) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; recovered++; } });
         RACKS.forEach(r => { if(r.whId === activeWarehouseId) { r.whId = ""; r.x = 0; r.y = 0; r.rotation = 0; recovered++; } });
         
-        if(recovered > 0) { sync(); alert(`Se devolvieron ${recovered} estructuras a la bandeja.`); } 
-        else { alert("No hay estructuras en el plano para mover."); }
+        if(recovered > 0) { 
+            sync(); 
+            alert(`Se devolvieron ${recovered} estructuras a la bandeja.`); 
+        } else { 
+            alert("No hay estructuras en el plano para mover."); 
+        }
     }
 
     function toggleLayoutMode() {
@@ -1670,6 +1709,7 @@ if (window.WMS_INITIALIZED) {
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
+    // EXPOSICIÓN GLOBAL
     window.handleLogin = handleLogin;
     window.drop = drop;
     window.handleSearch = handleSearch;
