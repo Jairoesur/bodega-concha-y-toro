@@ -102,6 +102,33 @@ if (window.WMS_INITIALIZED) {
         });
     }
 
+    // CORRECCIÓN EXACTA Y DEFINITIVA: Sanitización Global (Protege contra objetos corruptos de Firebase)
+    function sanitizeRackStructure(rack) {
+        if (!rack) return;
+        if (!rack.cols) rack.cols = [];
+        if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
+        
+        rack.cols.forEach((col, c) => {
+            if (!col) { rack.cols[c] = { levels: [] }; col = rack.cols[c]; }
+            if (!col.levels) col.levels = [];
+            else if (typeof col.levels === 'number') {
+                let count = col.levels;
+                col.levels = [];
+                for(let i=0; i<count; i++) col.levels.push({cap:10, w:1.2, h:1.0});
+            } 
+            else if (!Array.isArray(col.levels)) {
+                col.levels = Object.values(col.levels);
+            }
+            
+            // Garantizar que toda ubicación tenga medidas válidas
+            col.levels.forEach(lvl => {
+                if(lvl.w === undefined) lvl.w = 1.2;
+                if(lvl.h === undefined) lvl.h = 1.0;
+                if(lvl.cap === undefined) lvl.cap = 10;
+            });
+        });
+    }
+
     auth.onAuthStateChanged(function(user) {
         if(user) {
             document.getElementById('loginScreen').style.display = 'none';
@@ -119,24 +146,9 @@ if (window.WMS_INITIALIZED) {
                 if (Array.isArray(data.racks)) rawRacks = data.racks;
                 else if (data.racks && typeof data.racks === 'object') rawRacks = Object.keys(data.racks).map(k => data.racks[k]);
                 RACKS = rawRacks.filter(r => r !== null && r !== undefined);
-
-                // SANITIZACIÓN GLOBAL INICIAL (Previene fallos silenciosos por formatos legados de Firebase)
-                RACKS.forEach(rack => {
-                    if (!rack.cols) rack.cols = [];
-                    if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
-                    rack.cols.forEach(col => {
-                        if (!col) return;
-                        if (!col.levels) {
-                            col.levels = [];
-                        } else if (typeof col.levels === 'number') {
-                            const count = col.levels;
-                            col.levels = [];
-                            for(let i=0; i<count; i++) col.levels.push({cap: col.cap||10, w: 1.2, h: 1.0});
-                        } else if (!Array.isArray(col.levels)) {
-                            col.levels = Object.values(col.levels);
-                        }
-                    });
-                });
+                
+                // Sanitizar todos los racks apenas se leen de la base de datos
+                RACKS.forEach(sanitizeRackStructure);
 
                 let rawProducts = [];
                 if (Array.isArray(data.products)) rawProducts = data.products;
@@ -171,6 +183,9 @@ if (window.WMS_INITIALIZED) {
     function sync() {
         if(auth.currentUser) {
             try {
+                // Sanitización preventiva antes de enviar a Firebase
+                RACKS.forEach(sanitizeRackStructure);
+                
                 db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
                 db.ref('bodega/racks').set(JSON.parse(JSON.stringify(RACKS))); 
                 db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
@@ -259,28 +274,15 @@ if (window.WMS_INITIALIZED) {
         wrapperElement.innerHTML = '';
         const rack = RACKS.find(r => r.id === rackId);
         if(!rack) return;
+        
+        sanitizeRackStructure(rack);
 
         const colsHTML = document.createElement('div');
         colsHTML.className = 'rack-cols-wrap';
-        
-        // VALIDACIÓN OBLIGATORIA DE ESTRUCTURA
-        if (!rack.cols) rack.cols = [];
-        if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
 
         rack.cols.forEach((col, c) => {
             const colWrap = document.createElement('div');
             colWrap.className = 'rack-col-ui';
-            
-            // VALIDACIÓN OBLIGATORIA DEL ARRAY LEVELS
-            if (!col.levels) {
-                col.levels = [];
-            } else if (typeof col.levels === 'number') {
-                const count = col.levels;
-                col.levels = [];
-                for(let i=0; i<count; i++) col.levels.push({cap: col.cap||10, w: 1.2, h: 1.0});
-            } else if (!Array.isArray(col.levels)) {
-                col.levels = Object.values(col.levels);
-            }
             
             col.levels.forEach((lvl, l) => {
                 const levelId = `RK-${rack.id}-C${c}-L${l}`;
@@ -369,9 +371,7 @@ if (window.WMS_INITIALIZED) {
             container.className = 'row-container rack-container';
             container.style.zIndex = 3000 - idx;
             
-            // VALIDACIÓN OBLIGATORIA
-            if (!rack.cols) rack.cols = [];
-            if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
+            sanitizeRackStructure(rack);
             
             let headerHTML = `<div class="row-header"><div class="row-info"><b style="color:var(--order-blue)">RACK: ${rack.name}</b> <span>${rack.cols.length} Columnas</span></div>`;
             headerHTML += `<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRackModal('${rack.id}')">⚙️ Editar Rack</button></div>`;
@@ -413,17 +413,11 @@ if (window.WMS_INITIALIZED) {
             const rack = RACKS.find(r => r.id === parts[1]);
             if(!rack) return;
             
+            sanitizeRackStructure(rack);
             const colIdx = parseInt(parts[2].substring(1));
             const lvlIdx = parseInt(parts[3].substring(1));
             
-            // VALIDACIÓN OBLIGATORIA ESTADO DEL ARRAY
-            if (!rack.cols || !Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols || {});
-            if (rack.cols[colIdx]) {
-                 if (!Array.isArray(rack.cols[colIdx].levels)) {
-                     rack.cols[colIdx].levels = Object.values(rack.cols[colIdx].levels || {});
-                 }
-            }
-            
+            if(!rack.cols[colIdx] || !rack.cols[colIdx].levels[lvlIdx]) return;
             const colCap = rack.cols[colIdx].levels[lvlIdx].cap;
             
             if (rowProds.length >= colCap) return alert("Ubicación llena en este nivel del rack.");
@@ -507,14 +501,8 @@ if (window.WMS_INITIALIZED) {
         options += '</optgroup><optgroup label="Ubicaciones de Racks">';
         
         RACKS.forEach(rack => {
-           // VALIDACIÓN OBLIGATORIA
-           if (!rack.cols) rack.cols = [];
-           if (!Array.isArray(rack.cols)) rack.cols = Object.values(rack.cols);
-           
+           sanitizeRackStructure(rack);
            rack.cols.forEach((col, c) => {
-              if (!col.levels) col.levels = [];
-              if (!Array.isArray(col.levels)) col.levels = Object.values(col.levels);
-               
               col.levels.forEach((lvl, l) => {
                  options += `<option value="RK-${rack.id}-C${c}-L${l}">${rack.name} - C${c+1}-N${l+1}</option>`;
               });
@@ -933,23 +921,8 @@ if (window.WMS_INITIALIZED) {
             if (found) r = JSON.parse(JSON.stringify(found));
         }
         
-        // VALIDACIÓN OBLIGATORIA
-        if (!r.cols) r.cols = [];
-        if (!Array.isArray(r.cols)) r.cols = Object.values(r.cols);
-
-        r.cols = r.cols.map(col => {
-            if (!col.levels) {
-                col.levels = [];
-            } else if (typeof col.levels === 'number') {
-                let newLevels = [];
-                for(let i=0; i<col.levels; i++) newLevels.push({cap: col.cap||10, w: 1.2, h: 1.0});
-                return { levels: newLevels };
-            } else if (!Array.isArray(col.levels)) {
-                col.levels = Object.values(col.levels);
-            }
-            return col;
-        });
-
+        // Se aplica la función de sanitización global para evitar errores
+        sanitizeRackStructure(r);
         if(r.cols.length === 0) r.cols.push({levels: [{cap:10, w:1.2, h:1.0}]});
 
         document.getElementById('rkId').value = r.id;
@@ -1015,7 +988,6 @@ if (window.WMS_INITIALIZED) {
 
             if (!name) return alert("El nombre del rack es obligatorio.");
 
-            // Reconstruir la estructura leyendo directamente los valores del DOM, ignorando variables intermedias
             let newCols = [];
             for (let c = 0; c < colCount; c++) {
                 const lvlInput = document.getElementById(`rkLvl_${c}`);
