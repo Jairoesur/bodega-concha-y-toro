@@ -102,7 +102,6 @@ if (window.WMS_INITIALIZED) {
         });
     }
 
-    // CORRECCIÓN EXACTA Y DEFINITIVA: Sanitización Global (Protege contra objetos corruptos de Firebase)
     function sanitizeRackStructure(rack) {
         if (!rack) return;
         if (!rack.cols) rack.cols = [];
@@ -120,7 +119,6 @@ if (window.WMS_INITIALIZED) {
                 col.levels = Object.values(col.levels);
             }
             
-            // Garantizar que toda ubicación tenga medidas válidas
             col.levels.forEach(lvl => {
                 if(lvl.w === undefined) lvl.w = 1.2;
                 if(lvl.h === undefined) lvl.h = 1.0;
@@ -147,7 +145,6 @@ if (window.WMS_INITIALIZED) {
                 else if (data.racks && typeof data.racks === 'object') rawRacks = Object.keys(data.racks).map(k => data.racks[k]);
                 RACKS = rawRacks.filter(r => r !== null && r !== undefined);
                 
-                // Sanitizar todos los racks apenas se leen de la base de datos
                 RACKS.forEach(sanitizeRackStructure);
 
                 let rawProducts = [];
@@ -183,7 +180,6 @@ if (window.WMS_INITIALIZED) {
     function sync() {
         if(auth.currentUser) {
             try {
-                // Sanitización preventiva antes de enviar a Firebase
                 RACKS.forEach(sanitizeRackStructure);
                 
                 db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
@@ -373,11 +369,30 @@ if (window.WMS_INITIALIZED) {
             
             sanitizeRackStructure(rack);
             
-            let headerHTML = `<div class="row-header"><div class="row-info"><b style="color:var(--order-blue)">RACK: ${rack.name}</b> <span>${rack.cols.length} Columnas</span></div>`;
-            headerHTML += `<button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRackModal('${rack.id}')">⚙️ Editar Rack</button></div>`;
+            // CORRECCIÓN EXACTA DE RENDERIZADO (Se asegura que el header coexista con el contenido y no sea sobreescrito)
+            let headerHTML = `<div class="row-header">
+                <div class="row-info">
+                    <b style="color:var(--order-blue)">RACK: ${rack.name}</b> 
+                    <span style="font-family:'DM Mono', monospace; background:rgba(59, 130, 246, 0.15); color:var(--order-blue); border-color:var(--order-blue); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 500;">ID: ${rack.identifier || rack.id}</span>
+                    <span style="margin-left: 10px;">${rack.cols.length} Columnas</span>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRackModal('${rack.id}')">⚙️ Editar Rack</button>
+                    <button class="btn btn-danger" style="padding:6px 12px; font-size:0.75rem" onclick="deleteRack('${rack.id}')">🗑️ Eliminar Rack</button>
+                </div>
+            </div>`;
             
             container.innerHTML = headerHTML;
-            renderRackFront(rack.id, container);
+
+            const bodyWrapper = document.createElement('div');
+            bodyWrapper.className = 'rack-scroll-wrapper';
+            bodyWrapper.style.width = '100%';
+            bodyWrapper.style.overflowX = 'auto';
+            bodyWrapper.style.paddingBottom = '15px';
+
+            renderRackFront(rack.id, bodyWrapper);
+            container.appendChild(bodyWrapper);
+            
             wrap.appendChild(container);
         });
     }
@@ -915,18 +930,18 @@ if (window.WMS_INITIALIZED) {
     
     // FUNCIONES ADMINISTRATIVAS DE RACKS
     function openRackModal(id) {
-        let r = {id:'', name:'', widthM: 2, depthM: 1, cols: [] };
+        let r = {id:'', identifier:'', name:'', widthM: 2, depthM: 1, cols: [] };
         if (id && typeof id === 'string') {
             const found = RACKS.find(x => x.id === id);
             if (found) r = JSON.parse(JSON.stringify(found));
         }
         
-        // Se aplica la función de sanitización global para evitar errores
         sanitizeRackStructure(r);
         if(r.cols.length === 0) r.cols.push({levels: [{cap:10, w:1.2, h:1.0}]});
 
         document.getElementById('rkId').value = r.id;
         document.getElementById('rkName').value = r.name || '';
+        document.getElementById('rkIdentifier').value = r.identifier || '';
         document.getElementById('rkWidth').value = r.widthM || 2;
         document.getElementById('rkDepth').value = r.depthM || 1;
         document.getElementById('rkColCount').value = r.cols.length;
@@ -977,11 +992,11 @@ if (window.WMS_INITIALIZED) {
         renderRackColConfig();
     }
 
-    // CORRECCIÓN EXACTA: Flujo protegido y extracción directa del DOM
     function saveRack() {
         try {
             const id = document.getElementById('rkId').value || 'RK' + Date.now();
             const name = document.getElementById('rkName').value.trim() || 'Nuevo Rack';
+            const identifier = document.getElementById('rkIdentifier').value.trim() || '';
             const widthM = parseFloat(document.getElementById('rkWidth').value) || 2;
             const depthM = parseFloat(document.getElementById('rkDepth').value) || 1;
             const colCount = parseInt(document.getElementById('rkColCount').value) || 1;
@@ -1010,7 +1025,6 @@ if (window.WMS_INITIALIZED) {
 
             const oldRack = RACKS.find(r => r.id === id);
             
-            // Bloqueo de seguridad anti-pérdida
             if (oldRack) {
                 let orphaned = false;
                 PRODUCTS.forEach(p => {
@@ -1032,6 +1046,7 @@ if (window.WMS_INITIALIZED) {
 
             const rackData = {
                 id: id,
+                identifier: identifier,
                 name: name,
                 widthM: widthM,
                 depthM: depthM,
@@ -1058,10 +1073,16 @@ if (window.WMS_INITIALIZED) {
         }
     }
     
-    function deleteRack() {
-        const id = document.getElementById('rkId').value;
+    // CORRECCIÓN EXACTA Y SEGURA DEL BOTÓN ELIMINAR
+    function deleteRack(rackId) {
+        const id = (typeof rackId === 'string') ? rackId : document.getElementById('rkId').value;
+        if(!id) return;
         if(PRODUCTS.some(p => p.rowId && p.rowId.startsWith('RK-' + id + '-'))) return alert("Rack con productos vivos. Mueve los productos a otro rack o fila antes de eliminar.");
-        if(confirm("¿Seguro que deseas eliminar este rack completamente del sistema?")) { RACKS = RACKS.filter(r => r.id !== id); sync(); closeModals(); }
+        if(confirm("¿Seguro que deseas eliminar este rack completamente del sistema?\n\nEsta acción no eliminará los productos ni el historial de movimientos de la bodega.")) { 
+            RACKS = RACKS.filter(r => r.id !== id); 
+            sync(); 
+            closeModals(); 
+        }
     }
 
     function openRackFrontModal(id) {
@@ -1160,6 +1181,7 @@ if (window.WMS_INITIALIZED) {
             const rk = RACKS.find(x => x.id === id);
             if(!rk) return;
             html += `<div class="field small"><label>Nombre Rack</label><input type="text" id="ctxRowName" value="${rk.name||''}"></div>`;
+            html += `<div class="field small"><label>Identificador Interno</label><input type="text" id="ctxRowIden" value="${rk.identifier||''}"></div>`;
             html += `<div class="field small"><label>Ángulo Rotación (°)</label><input type="number" id="ctxRot" value="${rk.rotation||0}"></div>`;
             html += `<div class="field small"><label>Ancho 2D (M)</label><input type="number" step="0.1" id="ctxSize" value="${rk.widthM||2}"></div>`;
             html += `<div class="field small"><label>Profundidad 2D (M)</label><input type="number" step="0.1" id="ctxDepth" value="${rk.depthM||1}"></div>`;
@@ -1209,6 +1231,7 @@ if (window.WMS_INITIALIZED) {
             const rk = RACKS.find(r => r.id === id);
             if(!rk) return;
             rk.name = document.getElementById('ctxRowName').value;
+            rk.identifier = document.getElementById('ctxRowIden').value;
             rk.rotation = parseFloat(document.getElementById('ctxRot').value) || 0;
             rk.depthM = parseFloat(document.getElementById('ctxDepth').value) || 1;
             rk.widthM = parseFloat(document.getElementById('ctxSize').value) || 2;
@@ -1370,7 +1393,8 @@ if (window.WMS_INITIALIZED) {
 
                 const lbl = document.createElement('div');
                 lbl.className = 'map-entity-row-label rack-label';
-                lbl.innerHTML = '🖐️ [RACK] ' + (row.name || 'Sin Nombre');
+                // CORRECCIÓN VISTA AÉREA: Se muestra Nombre y el Identificador visual
+                lbl.innerHTML = '🖐️ [RACK] ' + (row.name || 'Sin Nombre') + (row.identifier ? ` (${row.identifier})` : '');
                 lbl.onmousedown = e => { selectMapItem('rack', row.id); initMapDrag(e, 'rack', row.id); };
                 rEl.appendChild(lbl);
                 
@@ -1681,7 +1705,7 @@ if (window.WMS_INITIALIZED) {
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
-    // EXPOSICIÓN GLOBAL
+    // EXPOSICIÓN GLOBAL DE FUNCIONES PRINCIPALES Y ADMINISTRATIVAS
     window.handleLogin = handleLogin;
     window.drop = drop;
     window.handleSearch = handleSearch;
