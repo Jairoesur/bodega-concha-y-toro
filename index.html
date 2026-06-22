@@ -208,7 +208,10 @@
       <div class="modal-body" style="overflow-y: auto;">
           <input type="hidden" id="rkId">
           <p style="font-size:0.75rem; color:var(--muted); margin-bottom:20px;">Cada Columna y Nivel representa una ubicación física independiente y puede tener sus propias dimensiones.</p>
-          <div class="field"><label>Nombre del Rack</label><input id="rkName" type="text" placeholder="Ej: Rack 01"></div>
+          <div class="form-row">
+              <div class="field"><label>Nombre del Rack</label><input id="rkName" type="text" placeholder="Ej: Rack 01"></div>
+              <div class="field"><label>Identificador Interno</label><input id="rkIdentifier" type="text" placeholder="Ej: RCK-A"></div>
+          </div>
           <div class="form-row">
               <div class="field"><label>Ancho Visual 2D (M)</label><input id="rkWidth" type="number" step="0.1" value="2"></div>
               <div class="field"><label>Fondo Visual 2D (M)</label><input id="rkDepth" type="number" step="0.1" value="1"></div>
@@ -218,7 +221,7 @@
               <input id="rkColCount" type="number" step="1" value="1" min="1" max="20" onchange="renderRackColConfig()">
           </div>
           <div id="rkColsConfig" style="display:flex; flex-direction:column; gap:10px;">
-              </div>
+          </div>
           <div style="display:flex; justify-content:space-between; margin-top:35px; border-top: 1px solid var(--border); padding-top: 20px;">
             <button id="btnDelRack" class="btn btn-danger" style="display:none" onclick="deleteRack()">Eliminar</button>
             <div style="display:flex; gap:10px; margin-left:auto;">
@@ -237,7 +240,7 @@
             <button class="close-btn" onclick="closeModals()">✖</button>
         </div>
         <div class="modal-body" id="rackFrontBody" style="background:var(--surface-hover); min-height: 300px;">
-            </div>
+        </div>
     </div>
 </div>
 
