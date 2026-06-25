@@ -35,6 +35,8 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
+    let gsheetsConfig = { sheetId: '', tabName: 'Productos', lastSync: '' };
+
     // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
         e.preventDefault(); 
@@ -168,6 +170,10 @@ if (window.WMS_INITIALIZED) {
                 else if (data.zones && typeof data.zones === 'object') rawZones = Object.keys(data.zones).map(k => data.zones[k]);
                 ZONES = rawZones.filter(z => z !== null && z !== undefined);
 
+                if (data.config && data.config.gsheets) {
+                    gsheetsConfig = data.config.gsheets;
+                }
+
                 render();
                 if(currentViewMode === 'map') renderMap();
                 verificarYEnviarReporteDiario();
@@ -187,6 +193,7 @@ if (window.WMS_INITIALIZED) {
                 db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
                 db.ref('bodega/warehouses').set(JSON.parse(JSON.stringify(WAREHOUSES)));
                 db.ref('bodega/zones').set(JSON.parse(JSON.stringify(ZONES)));
+                db.ref('bodega/config/gsheets').set(JSON.parse(JSON.stringify(gsheetsConfig)));
             } catch (e) {
                 console.error("Error al sincronizar con Firebase:", e);
             }
@@ -369,12 +376,11 @@ if (window.WMS_INITIALIZED) {
             
             sanitizeRackStructure(rack);
             
-            // CORRECCIÓN EXACTA DE RENDERIZADO (Se asegura que el header coexista con el contenido y no sea sobreescrito)
             let headerHTML = `<div class="row-header">
                 <div class="row-info">
                     <b style="color:var(--order-blue)">RACK: ${rack.name}</b> 
-                    <span style="font-family:'DM Mono', monospace; background:rgba(59, 130, 246, 0.15); color:var(--order-blue); border-color:var(--order-blue); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 500;">ID: ${rack.identifier || rack.id}</span>
-                    <span style="margin-left: 10px;">${rack.cols.length} Columnas</span>
+                    <span style="font-family:'DM Mono', monospace; background:rgba(59, 130, 246, 0.15); color:var(--order-blue); border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 500;">ID: ${rack.identifier || rack.id}</span>
+                    <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500; background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border);">${rack.cols.length} Columnas</span>
                 </div>
                 <div style="display:flex; gap:10px;">
                     <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRackModal('${rack.id}')">⚙️ Editar Rack</button>
@@ -1073,12 +1079,11 @@ if (window.WMS_INITIALIZED) {
         }
     }
     
-    // CORRECCIÓN EXACTA Y SEGURA DEL BOTÓN ELIMINAR
     function deleteRack(rackId) {
         const id = (typeof rackId === 'string') ? rackId : document.getElementById('rkId').value;
         if(!id) return;
         if(PRODUCTS.some(p => p.rowId && p.rowId.startsWith('RK-' + id + '-'))) return alert("Rack con productos vivos. Mueve los productos a otro rack o fila antes de eliminar.");
-        if(confirm("¿Seguro que deseas eliminar este rack completamente del sistema?\n\nEsta acción no eliminará los productos ni el historial de movimientos de la bodega.")) { 
+        if(confirm("¿Seguro que deseas eliminar este rack completamente del sistema?")) { 
             RACKS = RACKS.filter(r => r.id !== id); 
             sync(); 
             closeModals(); 
@@ -1393,7 +1398,6 @@ if (window.WMS_INITIALIZED) {
 
                 const lbl = document.createElement('div');
                 lbl.className = 'map-entity-row-label rack-label';
-                // CORRECCIÓN VISTA AÉREA: Se muestra Nombre y el Identificador visual
                 lbl.innerHTML = '🖐️ [RACK] ' + (row.name || 'Sin Nombre') + (row.identifier ? ` (${row.identifier})` : '');
                 lbl.onmousedown = e => { selectMapItem('rack', row.id); initMapDrag(e, 'rack', row.id); };
                 rEl.appendChild(lbl);
@@ -1705,7 +1709,233 @@ if (window.WMS_INITIALIZED) {
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
-    // EXPOSICIÓN GLOBAL DE FUNCIONES PRINCIPALES Y ADMINISTRATIVAS
+    // ─── NUEVO MÓDULO: GOOGLE SHEETS SYNC ───
+    function openIntegrationsModal() {
+        document.getElementById('gsheetIdInput').value = gsheetsConfig.sheetId || '';
+        document.getElementById('gsheetTabInput').value = gsheetsConfig.tabName || 'Productos';
+        document.getElementById('lastSyncLabel').innerText = gsheetsConfig.lastSync ? 'Última Sincronización: ' + gsheetsConfig.lastSync : 'Última Sincronización: Nunca';
+        document.getElementById('integrationsModal').classList.add('open');
+    }
+
+    function saveIntegrationsConfig() {
+        gsheetsConfig.sheetId = document.getElementById('gsheetIdInput').value.trim();
+        gsheetsConfig.tabName = document.getElementById('gsheetTabInput').value.trim() || 'Productos';
+        
+        if (!gsheetsConfig.sheetId) return alert("Debe ingresar un ID de hoja válido.");
+        
+        sync();
+        alert("Configuración de Google Sheets guardada en Firebase.");
+    }
+
+    function startGoogleSheetsSync() {
+        const sheetId = document.getElementById('gsheetIdInput').value.trim();
+        const tabName = document.getElementById('gsheetTabInput').value.trim() || 'Productos';
+        if (!sheetId) return alert("Ingrese el ID de la hoja de Google Sheets.");
+
+        const btn = document.getElementById('btnSyncGs');
+        btn.innerText = "⏳ Descargando y Analizando...";
+        btn.disabled = true;
+
+        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+
+        fetch(url)
+            .then(res => {
+                if(!res.ok) throw new Error("No se pudo acceder. Verifique que la hoja de Google Sheets tenga permisos de 'Cualquier persona con el enlace puede leer'.");
+                return res.text();
+            })
+            .then(csv => {
+                btn.innerText = "🔄 Sincronizar Ahora";
+                btn.disabled = false;
+                processGSheetsCSV(csv);
+            })
+            .catch(err => {
+                btn.innerText = "🔄 Sincronizar Ahora";
+                btn.disabled = false;
+                alert("Error de conexión: " + err.message);
+            });
+    }
+
+    function processGSheetsCSV(csvText) {
+        const rows = [];
+        let curRow = [];
+        let curCell = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < csvText.length; i++) {
+            let c = csvText[i];
+            if (inQuotes) {
+                if (c === '"') {
+                    if (i + 1 < csvText.length && csvText[i + 1] === '"') { curCell += '"'; i++; }
+                    else { inQuotes = false; }
+                } else { curCell += c; }
+            } else {
+                if (c === '"') { inQuotes = true; }
+                else if (c === ',' || c === ';') { curRow.push(curCell.trim()); curCell = ''; }
+                else if (c === '\n' || c === '\r') {
+                    curRow.push(curCell.trim()); 
+                    rows.push(curRow);
+                    curRow = []; curCell = '';
+                    if (c === '\r' && csvText[i + 1] === '\n') i++;
+                } else { curCell += c; }
+            }
+        }
+        if (curCell || curRow.length > 0) { curRow.push(curCell.trim()); rows.push(curRow); }
+
+        if (rows.length < 2) return alert("La hoja parece estar vacía o no tiene el formato correcto.");
+
+        // Detectar índices dinámicamente
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        const dataRows = rows.slice(1);
+
+        const idxSku = headers.findIndex(h => h === 'sku' || h === 'codigo');
+        const idxName = headers.findIndex(h => h === 'nombre' || h === 'descripcion');
+        const idxQty = headers.findIndex(h => h === 'cantidad' || h === 'stock' || h === 'fisico');
+        const idxLoc = headers.findIndex(h => h === 'ubicacion');
+        const idxMin = headers.findIndex(h => h === 'minimo' || h === 'min');
+        const idxMax = headers.findIndex(h => h === 'maximo' || h === 'max');
+        const idxProv = headers.findIndex(h => h === 'proveedor');
+        const idxLead = headers.findIndex(h => h === 'demora' || h === 'lead');
+        const idxW = headers.findIndex(h => h === 'ancho');
+        const idxH = headers.findIndex(h => h === 'alto');
+        const idxD = headers.findIndex(h => h === 'profundidad' || h === 'fondo');
+
+        if (idxSku === -1) return alert("No se encontró la columna obligatoria 'SKU' en la hoja.");
+
+        window.pendingSyncDiff = { new: [], modified: [] };
+
+        dataRows.forEach(cols => {
+            if (!cols[idxSku] || cols[idxSku] === "") return;
+            const sku = cols[idxSku];
+            const name = idxName !== -1 ? cols[idxName] : 'Producto Nuevo';
+            const qty = idxQty !== -1 ? (parseInt(cols[idxQty]) || 0) : 0;
+            const loc = idxLoc !== -1 ? cols[idxLoc] : '';
+            const min = idxMin !== -1 ? (parseInt(cols[idxMin]) || 0) : 0;
+            const max = idxMax !== -1 ? (parseInt(cols[idxMax]) || 0) : 0;
+            const prov = idxProv !== -1 ? cols[idxProv] : '';
+            const lead = idxLead !== -1 ? (parseInt(cols[idxLead]) || 0) : 0;
+            const w = idxW !== -1 ? (parseFloat(cols[idxW]) || 0.56) : 0.56;
+            const h = idxH !== -1 ? (parseFloat(cols[idxH]) || 0) : 0;
+            const d = idxD !== -1 ? (parseFloat(cols[idxD]) || 0) : 0;
+
+            const existingIdx = PRODUCTS.findIndex(p => p.sku === sku);
+            
+            // Lógica de Mapeo Inteligente de Ubicaciones (Busca Racks y Filas por ID o Nombre)
+            let mappedRowId = '';
+            if (loc) {
+                if (loc.startsWith('RK-')) {
+                    mappedRowId = loc;
+                } else {
+                    const matchedRow = ROWS.find(r => r && (r.name.toLowerCase() === loc.toLowerCase() || r.id.toLowerCase() === loc.toLowerCase()));
+                    if (matchedRow) mappedRowId = matchedRow.id;
+                }
+            }
+
+            if (existingIdx >= 0) {
+                const p = PRODUCTS[existingIdx];
+                let changed = false;
+                let changes = [];
+                
+                if (p.current !== qty) { changed = true; changes.push(`Stock: ${p.current} -> ${qty}`); }
+                if (p.name !== name) { changed = true; changes.push(`Nombre modificado`); }
+                if (p.min !== min) { changed = true; changes.push(`Mínimo: ${p.min} -> ${min}`); }
+                if (mappedRowId && p.rowId !== mappedRowId) { changed = true; changes.push(`Reubicado: ${mappedRowId}`); }
+
+                if (changed) {
+                    window.pendingSyncDiff.modified.push({
+                        sku, name, qty, min, max, prov, lead, w, h, d, loc: mappedRowId,
+                        oldQty: p.current, changes: changes.join(' | ')
+                    });
+                }
+            } else {
+                window.pendingSyncDiff.new.push({ sku, name, qty, min, max, prov, lead, w, h, d, loc: mappedRowId });
+            }
+        });
+
+        openSyncPreviewModal();
+    }
+
+    function openSyncPreviewModal() {
+        document.getElementById('integrationsModal').classList.remove('open');
+        document.getElementById('countSyncNew').innerText = window.pendingSyncDiff.new.length;
+        document.getElementById('countSyncMod').innerText = window.pendingSyncDiff.modified.length;
+
+        const tNew = document.getElementById('syncNewBody');
+        tNew.innerHTML = '';
+        if (window.pendingSyncDiff.new.length === 0) {
+            tNew.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--muted);">Sin nuevos productos.</td></tr>';
+        } else {
+            window.pendingSyncDiff.new.forEach(p => {
+                tNew.innerHTML += `<tr>
+                    <td><b style="color:var(--text);">${p.sku}</b></td>
+                    <td>${p.name}</td>
+                    <td style="color:var(--ok); font-weight:bold;">${p.qty}</td>
+                    <td style="font-family:'DM Mono';">${p.loc || 'Bandeja'}</td>
+                </tr>`;
+            });
+        }
+
+        const tMod = document.getElementById('syncModBody');
+        tMod.innerHTML = '';
+        if (window.pendingSyncDiff.modified.length === 0) {
+            tMod.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--muted);">Sin modificaciones detectadas.</td></tr>';
+        } else {
+            window.pendingSyncDiff.modified.forEach(p => {
+                tMod.innerHTML += `<tr>
+                    <td><b style="color:var(--warn);">${p.sku}</b></td>
+                    <td>${p.name}</td>
+                    <td style="font-size:0.8rem;">${p.changes}</td>
+                </tr>`;
+            });
+        }
+
+        document.getElementById('syncPreviewModal').classList.add('open');
+    }
+
+    function applyGoogleSheetsSync() {
+        if (!window.pendingSyncDiff) return;
+        
+        let pendingLogs = [];
+
+        window.pendingSyncDiff.new.forEach(item => {
+            PRODUCTS.push({
+                sku: item.sku, name: item.name, rowId: item.loc, current: item.qty,
+                min: item.min, max: item.max, supplier: item.prov, leadTime: item.lead,
+                widthM: item.w, heightM: item.h, depthM: item.d,
+                color: "#c8a84b", masterQty: 0, innerQty: 0, hasPO: false, reservedStock: 0, photo: null
+            });
+            pendingLogs.push({ sku: item.sku, name: item.name, change: item.qty, reason: "GSheets: Producto Creado" });
+        });
+
+        window.pendingSyncDiff.modified.forEach(item => {
+            const idx = PRODUCTS.findIndex(p => p.sku === item.sku);
+            if (idx >= 0) {
+                let diffQty = item.qty - PRODUCTS[idx].current;
+                PRODUCTS[idx].name = item.name;
+                PRODUCTS[idx].current = item.qty;
+                PRODUCTS[idx].min = item.min;
+                PRODUCTS[idx].max = item.max;
+                PRODUCTS[idx].supplier = item.prov;
+                PRODUCTS[idx].leadTime = item.lead;
+                PRODUCTS[idx].widthM = item.w;
+                PRODUCTS[idx].heightM = item.h;
+                PRODUCTS[idx].depthM = item.d;
+                if (item.loc) PRODUCTS[idx].rowId = item.loc;
+                
+                pendingLogs.push({ sku: item.sku, name: item.name, change: diffQty, reason: "GSheets: Actualización de Parámetros" });
+            }
+        });
+
+        const dateStr = new Date().toLocaleString('es-CL');
+        gsheetsConfig.lastSync = dateStr;
+
+        sync(); 
+        pendingLogs.forEach(log => logMovement(log.sku, log.name, log.change, log.reason));
+        
+        document.getElementById('syncPreviewModal').classList.remove('open');
+        alert("¡Sincronización aplicada exitosamente en el WMS y en Firebase!");
+    }
+
+    // EXPOSICIÓN GLOBAL
     window.handleLogin = handleLogin;
     window.drop = drop;
     window.handleSearch = handleSearch;
@@ -1751,4 +1981,10 @@ if (window.WMS_INITIALIZED) {
     window.openZoneModal = openZoneModal;
     window.saveZone = saveZone;
     window.deleteZone = deleteZone;
+    
+    // EXPOSICIÓN MÓDULO GOOGLE SHEETS
+    window.openIntegrationsModal = openIntegrationsModal;
+    window.saveIntegrationsConfig = saveIntegrationsConfig;
+    window.startGoogleSheetsSync = startGoogleSheetsSync;
+    window.applyGoogleSheetsSync = applyGoogleSheetsSync;
 }
