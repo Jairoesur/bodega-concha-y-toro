@@ -61,6 +61,7 @@
     </button>
     <button class="btn btn-secondary" onclick="openHistoryModal()">📜 Kardex</button>
     <button class="btn btn-secondary" onclick="openInventoryDB()">📊 DB / SAP</button>
+    <button class="btn btn-secondary" style="border-color: #10b981; color: #10b981;" onclick="openIntegrationsModal()">🔄 GSheets</button>
     <span style="color:var(--border); margin: 0 5px;">|</span>
     <button class="btn btn-secondary" onclick="openRowModal()">+ Fila</button>
     <button class="btn btn-secondary" style="border-color: var(--order-blue); color: var(--order-blue);" onclick="openRackModal()">+ Rack</button>
@@ -239,7 +240,7 @@
             <h2 id="rackFrontTitle" style="color:var(--order-blue)">Inspección de Rack</h2>
             <button class="close-btn" onclick="closeModals()">✖</button>
         </div>
-        <div class="modal-body" id="rackFrontBody" style="background:var(--surface-hover); min-height: 300px;">
+        <div class="modal-body" id="rackFrontBody" style="background:var(--surface-hover); min-height: 300px; padding: 20px;">
         </div>
     </div>
 </div>
@@ -408,6 +409,70 @@
             </div>
           </div>
       </div>
+    </div>
+</div>
+
+<div id="integrationsModal" class="modal" style="z-index: 10700;">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h2 style="color:#10b981;">Integración Google Sheets</h2>
+            <button class="close-btn" onclick="closeModals()">✖</button>
+        </div>
+        <div class="modal-body">
+            <div class="panel-box" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05);">
+                <p style="font-size:0.85rem; color:var(--text); margin-bottom:15px; line-height: 1.5;">
+                    Conecta el WMS con una hoja de Google Sheets pública. El sistema leerá la pestaña indicada y detectará <b>nuevos productos, cambios de stock y reubicaciones</b>.
+                </p>
+                <div class="field">
+                    <label>ID de la Hoja de Google Sheets</label>
+                    <input id="gsheetIdInput" type="text" placeholder="Ej: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms">
+                </div>
+                <div class="field">
+                    <label>Nombre de la Pestaña a Sincronizar</label>
+                    <input id="gsheetTabInput" type="text" value="Productos" placeholder="Ej: Productos">
+                </div>
+                
+                <div style="display:flex; justify-content:space-between; align-items: center; margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px;">
+                    <span style="font-size:0.75rem; color:var(--muted);" id="lastSyncLabel">Última Sincronización: Nunca</span>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-secondary" onclick="saveIntegrationsConfig()">Guardar Configuración</button>
+                        <button id="btnSyncGs" class="btn btn-primary" style="background: #10b981; color: #000;" onclick="startGoogleSheetsSync()">🔄 Sincronizar Ahora</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="syncPreviewModal" class="modal" style="z-index: 10800;">
+    <div class="modal-content" style="max-width: 900px; height: 90vh;">
+        <div class="modal-header">
+            <h2 style="color:#10b981;">Resumen de Sincronización</h2>
+            <button class="close-btn" onclick="document.getElementById('syncPreviewModal').classList.remove('open');">✖</button>
+        </div>
+        <div class="modal-body" style="padding-top: 15px; display: flex; flex-direction: column;">
+            <p style="font-size:0.85rem; color:var(--muted); margin-bottom:15px;">Revise los cambios detectados antes de aplicarlos definitivamente a la base de datos.</p>
+            
+            <h3 style="color:var(--ok); font-size:1rem; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:5px;">Nuevos Productos (<span id="countSyncNew">0</span>)</h3>
+            <div class="table-wrapper" style="max-height: 25vh; margin-bottom: 25px;">
+                <table class="db-table diff-table">
+                    <thead><tr><th>SKU</th><th>Nombre</th><th>Stock</th><th>Ubicación Detectada</th></tr></thead>
+                    <tbody id="syncNewBody"></tbody>
+                </table>
+            </div>
+
+            <h3 style="color:var(--warn); font-size:1rem; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:5px;">Productos Modificados (<span id="countSyncMod">0</span>)</h3>
+            <div class="table-wrapper" style="flex: 1; min-height: 25vh;">
+                <table class="db-table diff-table">
+                    <thead><tr><th>SKU</th><th>Nombre</th><th>Cambios Detectados</th></tr></thead>
+                    <tbody id="syncModBody"></tbody>
+                </table>
+            </div>
+            
+            <div style="display:flex; justify-content: flex-end; margin-top:25px; border-top: 1px solid var(--border); padding-top: 20px;">
+                <button class="btn btn-ok" style="padding: 12px 24px; font-size:1rem;" onclick="applyGoogleSheetsSync()">✅ Confirmar y Aplicar Cambios</button>
+            </div>
+        </div>
     </div>
 </div>
 
