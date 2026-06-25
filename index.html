@@ -412,6 +412,7 @@
     </div>
 </div>
 
+<!-- MÓDULO: INTEGRACIONES Y GOOGLE SHEETS -->
 <div id="integrationsModal" class="modal" style="z-index: 10700;">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
@@ -421,14 +422,17 @@
         <div class="modal-body">
             <div class="panel-box" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05);">
                 <p style="font-size:0.85rem; color:var(--text); margin-bottom:15px; line-height: 1.5;">
-                    Conecta el WMS con una hoja de Google Sheets pública. El sistema leerá la pestaña indicada y detectará <b>nuevos productos, cambios de stock y reubicaciones</b>.
+                    <b>⚠️ RECOMENDADO PARA EVITAR ERRORES (CORS):</b><br>
+                    1. En su Google Sheets vaya a <b>Archivo > Compartir > Publicar en la web</b>.<br>
+                    2. Elija la pestaña <b>Productos</b> y formato <b>Valores separados por comas (.csv)</b>.<br>
+                    3. Pegue el enlace generado directamente aquí abajo.
                 </p>
                 <div class="field">
-                    <label>ID de la Hoja de Google Sheets</label>
-                    <input id="gsheetIdInput" type="text" placeholder="Ej: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms">
+                    <label>URL de Publicación CSV o ID del Documento</label>
+                    <input id="gsheetIdInput" type="text" placeholder="Ej: https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
                 </div>
                 <div class="field">
-                    <label>Nombre de la Pestaña a Sincronizar</label>
+                    <label>Nombre de la Pestaña a Sincronizar (Si usó solo el ID)</label>
                     <input id="gsheetTabInput" type="text" value="Productos" placeholder="Ej: Productos">
                 </div>
                 
