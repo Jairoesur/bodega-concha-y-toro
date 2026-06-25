@@ -200,11 +200,6 @@ if (window.WMS_INITIALIZED) {
         }
         render();
         if(currentViewMode === 'map') renderMap();
-        
-        const rackModal = document.getElementById('rackFrontModal');
-        if(rackModal && rackModal.classList.contains('open') && window.currentInspectRackId) {
-            renderRackFront(window.currentInspectRackId, document.getElementById('rackFrontBody'));
-        }
     }
 
     function logMovement(sku, name, changeQty, reason) {
@@ -380,7 +375,7 @@ if (window.WMS_INITIALIZED) {
                 <div class="row-info">
                     <b style="color:var(--order-blue)">RACK: ${rack.name}</b> 
                     <span style="font-family:'DM Mono', monospace; background:rgba(59, 130, 246, 0.15); color:var(--order-blue); border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 500;">ID: ${rack.identifier || rack.id}</span>
-                    <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500; background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border);">${rack.cols.length} Columnas</span>
+                    <span style="font-size: 0.85rem; color: var(--muted); font-weight: 500; background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); margin-left:10px;">${rack.cols.length} Columnas</span>
                 </div>
                 <div style="display:flex; gap:10px;">
                     <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.75rem" onclick="openRackModal('${rack.id}')">⚙️ Editar Rack</button>
@@ -934,7 +929,6 @@ if (window.WMS_INITIALIZED) {
 
     function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
     
-    // FUNCIONES ADMINISTRATIVAS DE RACKS
     function openRackModal(id) {
         let r = {id:'', identifier:'', name:'', widthM: 2, depthM: 1, cols: [] };
         if (id && typeof id === 'string') {
@@ -1083,7 +1077,7 @@ if (window.WMS_INITIALIZED) {
         const id = (typeof rackId === 'string') ? rackId : document.getElementById('rkId').value;
         if(!id) return;
         if(PRODUCTS.some(p => p.rowId && p.rowId.startsWith('RK-' + id + '-'))) return alert("Rack con productos vivos. Mueve los productos a otro rack o fila antes de eliminar.");
-        if(confirm("¿Seguro que deseas eliminar este rack completamente del sistema?")) { 
+        if(confirm("¿Seguro que deseas eliminar este rack completamente del sistema?\n\nEsta acción eliminará el rack del plano, pero NO afectará el inventario ni el historial.")) { 
             RACKS = RACKS.filter(r => r.id !== id); 
             sync(); 
             closeModals(); 
@@ -1709,7 +1703,7 @@ if (window.WMS_INITIALIZED) {
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
-    // ─── NUEVO MÓDULO: GOOGLE SHEETS SYNC ───
+    // MÓDULO GOOGLE SHEETS SYNC
     function openIntegrationsModal() {
         document.getElementById('gsheetIdInput').value = gsheetsConfig.sheetId || '';
         document.getElementById('gsheetTabInput').value = gsheetsConfig.tabName || 'Productos';
@@ -1721,29 +1715,48 @@ if (window.WMS_INITIALIZED) {
         gsheetsConfig.sheetId = document.getElementById('gsheetIdInput').value.trim();
         gsheetsConfig.tabName = document.getElementById('gsheetTabInput').value.trim() || 'Productos';
         
-        if (!gsheetsConfig.sheetId) return alert("Debe ingresar un ID de hoja válido.");
+        if (!gsheetsConfig.sheetId) return alert("Debe ingresar un ID de hoja válido o una URL de Publicación.");
         
         sync();
         alert("Configuración de Google Sheets guardada en Firebase.");
     }
 
     function startGoogleSheetsSync() {
-        const sheetId = document.getElementById('gsheetIdInput').value.trim();
+        const inputVal = document.getElementById('gsheetIdInput').value.trim();
         const tabName = document.getElementById('gsheetTabInput').value.trim() || 'Productos';
-        if (!sheetId) return alert("Ingrese el ID de la hoja de Google Sheets.");
+        if (!inputVal) return alert("Ingrese la URL de publicación CSV o el ID de la hoja de Google Sheets.");
 
         const btn = document.getElementById('btnSyncGs');
         btn.innerText = "⏳ Descargando y Analizando...";
         btn.disabled = true;
 
-        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+        let url = '';
+        if (inputVal.startsWith('http') && inputVal.includes('pub')) {
+            url = inputVal;
+        } else if (inputVal.startsWith('http')) {
+            const match = inputVal.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            if (match && match[1]) {
+                url = `https://docs.google.com/spreadsheets/d/${match[1]}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+            } else {
+                url = inputVal;
+            }
+        } else {
+            url = `https://docs.google.com/spreadsheets/d/${inputVal}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+        }
+
+        console.log("=== INICIANDO SINCRONIZACIÓN ===");
+        console.log("URL de origen:", url);
 
         fetch(url)
             .then(res => {
-                if(!res.ok) throw new Error("No se pudo acceder. Verifique que la hoja de Google Sheets tenga permisos de 'Cualquier persona con el enlace puede leer'.");
+                if(!res.ok) throw new Error(`Error HTTP ${res.status}: ${res.statusText}`);
                 return res.text();
             })
             .then(csv => {
+                if (csv.trim().startsWith("<!DOCTYPE") || csv.trim().toLowerCase().startsWith("<html")) {
+                    console.error("Respuesta HTML detectada (Bloqueo de Google):", csv.substring(0, 200));
+                    throw new Error("Google bloqueó la solicitud o pidió inicio de sesión. SOLUCIÓN: En Google Sheets, vaya a 'Archivo > Compartir > Publicar en la web', seleccione formato 'CSV' y pegue esa URL.");
+                }
                 btn.innerText = "🔄 Sincronizar Ahora";
                 btn.disabled = false;
                 processGSheetsCSV(csv);
@@ -1751,7 +1764,13 @@ if (window.WMS_INITIALIZED) {
             .catch(err => {
                 btn.innerText = "🔄 Sincronizar Ahora";
                 btn.disabled = false;
-                alert("Error de conexión: " + err.message);
+                console.error("=== ERROR DE CONEXIÓN ===", err);
+                
+                let errMsg = err.message;
+                if (errMsg === 'Failed to fetch') {
+                    errMsg = "El navegador bloqueó la conexión (Error de CORS). Esto sucede con cuentas de empresa.\n\nSOLUCIÓN DEFINITIVA:\nEn Google Sheets vaya a 'Archivo' > 'Compartir' > 'Publicar en la web' > Formato 'CSV' y pegue ese enlace directo en la configuración.";
+                }
+                alert(`Fallo en Sincronización:\n\n${errMsg}`);
             });
     }
 
@@ -1783,7 +1802,6 @@ if (window.WMS_INITIALIZED) {
 
         if (rows.length < 2) return alert("La hoja parece estar vacía o no tiene el formato correcto.");
 
-        // Detectar índices dinámicamente
         const headers = rows[0].map(h => h.trim().toLowerCase());
         const dataRows = rows.slice(1);
 
@@ -1819,7 +1837,6 @@ if (window.WMS_INITIALIZED) {
 
             const existingIdx = PRODUCTS.findIndex(p => p.sku === sku);
             
-            // Lógica de Mapeo Inteligente de Ubicaciones (Busca Racks y Filas por ID o Nombre)
             let mappedRowId = '';
             if (loc) {
                 if (loc.startsWith('RK-')) {
