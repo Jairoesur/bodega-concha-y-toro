@@ -929,6 +929,7 @@ if (window.WMS_INITIALIZED) {
 
     function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
     
+    // FUNCIONES ADMINISTRATIVAS DE RACKS
     function openRackModal(id) {
         let r = {id:'', identifier:'', name:'', widthM: 2, depthM: 1, cols: [] };
         if (id && typeof id === 'string') {
@@ -1721,10 +1722,30 @@ if (window.WMS_INITIALIZED) {
         alert("Configuración de Google Sheets guardada en Firebase.");
     }
 
+    // NORMALIZADOR COMPLETO DE ENCABEZADOS (Unicode NFD - Evita fallos por acentos/tildes en Sheets)
+    function normalizeHeader(str) {
+        if (!str) return '';
+        return str.toString()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "") // Remueve acentos, tildes y diacríticos
+            .replace(/[^a-z0-9]/g, "") // Conserva únicamente letras y números (elimina espacios y guiones)
+            .trim();
+    }
+
+    // MOTOR DE DEPURACIÓN EN 8 PASOS (Auditoría profunda en Consola)
     function startGoogleSheetsSync() {
         const inputVal = document.getElementById('gsheetIdInput').value.trim();
         const tabName = document.getElementById('gsheetTabInput').value.trim() || 'Productos';
-        if (!inputVal) return alert("Ingrese la URL de publicación CSV o el ID de la hoja de Google Sheets.");
+        
+        console.clear();
+        console.log("=== [DEPURACIÓN GS] PASO 1: Captura de Entrada ===");
+        console.log("Entrada del Operador:", inputVal);
+
+        if (!inputVal) {
+            console.error("[DEPURACIÓN GS] ERROR: URL o ID vacío.");
+            return alert("Ingrese la URL de publicación CSV o el ID de la hoja de Google Sheets.");
+        }
 
         const btn = document.getElementById('btnSyncGs');
         btn.innerText = "⏳ Descargando y Analizando...";
@@ -1736,27 +1757,36 @@ if (window.WMS_INITIALIZED) {
         } else if (inputVal.startsWith('http')) {
             const match = inputVal.match(/\/d\/([a-zA-Z0-9-_]+)/);
             if (match && match[1]) {
-                url = `https://docs.google.com/spreadsheets/d/${match[1]}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+                url = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&sheet=${encodeURIComponent(tabName)}`;
             } else {
                 url = inputVal;
             }
         } else {
-            url = `https://docs.google.com/spreadsheets/d/${inputVal}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+            url = `https://docs.google.com/spreadsheets/d/${inputVal}/export?format=csv&sheet=${encodeURIComponent(tabName)}`;
         }
 
-        console.log("=== INICIANDO SINCRONIZACIÓN ===");
-        console.log("URL de origen:", url);
+        console.log("=== [DEPURACIÓN GS] PASO 2: URL de Conexión Generada ===");
+        console.log("Target API URL:", url);
 
+        console.log("=== [DEPURACIÓN GS] PASO 3: Ejecutando fetch()...");
         fetch(url)
             .then(res => {
-                if(!res.ok) throw new Error(`Error HTTP ${res.status}: ${res.statusText}`);
+                console.log("=== [DEPURACIÓN GS] PASO 4: Respuesta HTTP Recibida ===");
+                console.log("Código HTTP:", res.status, res.statusText);
+                console.log("Headers (Content-Type):", res.headers.get('content-type'));
+                
+                if(!res.ok) throw new Error(`HTTP_STATUS_${res.status}: ${res.statusText}`);
                 return res.text();
             })
             .then(csv => {
+                console.log("=== [DEPURACIÓN GS] PASO 5: Contenido Crudo Recibido ===");
+                console.log("Muestra (Primeros 300 caracteres):\n", csv.substring(0, 300));
+
                 if (csv.trim().startsWith("<!DOCTYPE") || csv.trim().toLowerCase().startsWith("<html")) {
-                    console.error("Respuesta HTML detectada (Bloqueo de Google):", csv.substring(0, 200));
-                    throw new Error("Google bloqueó la solicitud o pidió inicio de sesión. SOLUCIÓN: En Google Sheets, vaya a 'Archivo > Compartir > Publicar en la web', seleccione formato 'CSV' y pegue esa URL.");
+                    console.error("[DEPURACIÓN GS] ERROR: Respuesta devuelta es HTML (Google pide autenticación).");
+                    throw new Error("Google bloqueó la solicitud o solicitó inicio de sesión por redirección web. Asegúrese de usar 'Publicar en la web' > Formato 'CSV'!");
                 }
+                
                 btn.innerText = "🔄 Sincronizar Ahora";
                 btn.disabled = false;
                 processGSheetsCSV(csv);
@@ -1764,17 +1794,18 @@ if (window.WMS_INITIALIZED) {
             .catch(err => {
                 btn.innerText = "🔄 Sincronizar Ahora";
                 btn.disabled = false;
-                console.error("=== ERROR DE CONEXIÓN ===", err);
+                console.error("=== [DEPURACIÓN GS] FALLA CRÍTICA DE CONEXIÓN ===", err);
                 
                 let errMsg = err.message;
                 if (errMsg === 'Failed to fetch') {
-                    errMsg = "El navegador bloqueó la conexión (Error de CORS). Esto sucede con cuentas de empresa.\n\nSOLUCIÓN DEFINITIVA:\nEn Google Sheets vaya a 'Archivo' > 'Compartir' > 'Publicar en la web' > Formato 'CSV' y pegue ese enlace directo en la configuración.";
+                    errMsg = "El navegador bloqueó la solicitud (Bloqueo de CORS).\n\nCausa real: Su cuenta Google Workspace tiene restricciones que impiden descargar la hoja mediante fetch.\n\nSOLUCIÓN:\nEn su Sheets vaya a 'Archivo' > 'Compartir' > 'Publicar en la web' > Elija pestaña 'Productos' > Formato 'CSV' y pegue ese enlace público de publicación aquí.";
                 }
-                alert(`Fallo en Sincronización:\n\n${errMsg}`);
+                alert(`Error detectado:\n\n${errMsg}`);
             });
     }
 
     function processGSheetsCSV(csvText) {
+        console.log("=== [DEPURACIÓN GS] PASO 6: Iniciando Parseo de Filas ===");
         const rows = [];
         let curRow = [];
         let curCell = '';
@@ -1800,30 +1831,57 @@ if (window.WMS_INITIALIZED) {
         }
         if (curCell || curRow.length > 0) { curRow.push(curCell.trim()); rows.push(curRow); }
 
-        if (rows.length < 2) return alert("La hoja parece estar vacía o no tiene el formato correcto.");
+        const validRows = rows.filter(r => r.length > 0 && r.some(cell => cell !== ''));
+        console.log("Total filas parseadas:", rows.length);
+        console.log("Filas válidas con contenido:", validRows.length);
 
-        const headers = rows[0].map(h => h.trim().toLowerCase());
-        const dataRows = rows.slice(1);
+        if (validRows.length < 2) {
+            console.error("[DEPURACIÓN GS] ERROR: La hoja no tiene suficientes filas para sincronizar.");
+            return alert("La hoja parece estar vacía o no tiene el formato correcto.");
+        }
 
-        const idxSku = headers.findIndex(h => h === 'sku' || h === 'codigo');
-        const idxName = headers.findIndex(h => h === 'nombre' || h === 'descripcion');
-        const idxQty = headers.findIndex(h => h === 'cantidad' || h === 'stock' || h === 'fisico');
-        const idxLoc = headers.findIndex(h => h === 'ubicacion');
+        console.log("=== [DEPURACIÓN GS] PASO 7: Mapeo de Encabezados (Unicode NFD Normalizado) ===");
+        const rawHeaders = validRows[0];
+        const headers = rawHeaders.map(h => normalizeHeader(h));
+        console.log("Encabezados Originales:", rawHeaders);
+        console.log("Encabezados Normalizados:", headers);
+
+        const idxSku = headers.findIndex(h => h === 'sku' || h === 'codigo' || h === 'codigosap');
+        const idxName = headers.findIndex(h => h === 'nombre' || h === 'descripcion' || h === 'vinos' || h === 'vino');
+        const idxQty = headers.findIndex(h => h === 'cantidad' || h === 'stock' || h === 'fisico' || h === 'real' || h === 'current');
+        const idxLoc = headers.findIndex(h => h === 'ubicacion' || h === 'posicion' || h === 'coordenada');
         const idxMin = headers.findIndex(h => h === 'minimo' || h === 'min');
         const idxMax = headers.findIndex(h => h === 'maximo' || h === 'max');
-        const idxProv = headers.findIndex(h => h === 'proveedor');
-        const idxLead = headers.findIndex(h => h === 'demora' || h === 'lead');
-        const idxW = headers.findIndex(h => h === 'ancho');
-        const idxH = headers.findIndex(h => h === 'alto');
-        const idxD = headers.findIndex(h => h === 'profundidad' || h === 'fondo');
+        const idxProv = headers.findIndex(h => h === 'proveedor' || h === 'supplier');
+        const idxLead = headers.findIndex(h => h === 'demora' || h === 'leadtime' || h === 'reposicion');
+        const idxW = headers.findIndex(h => h === 'ancho' || h === 'width');
+        const idxH = headers.findIndex(h => h === 'alto' || h === 'height');
+        const idxD = headers.findIndex(h => h === 'profundidad' || h === 'profundo' || h === 'depth' || h === 'fondo');
 
-        if (idxSku === -1) return alert("No se encontró la columna obligatoria 'SKU' en la hoja.");
+        console.log("Índices detectados:", { idxSku, idxName, idxQty, idxLoc, idxMin, idxMax, idxProv, idxLead });
+
+        if (idxSku === -1) {
+            console.error("[DEPURACIÓN GS] ERROR: No se localizó la columna de SKU.");
+            return alert("No se encontró la columna obligatoria 'SKU' o 'Código' en la hoja.");
+        }
 
         window.pendingSyncDiff = { new: [], modified: [] };
+        const dataRows = validRows.slice(1);
+        let recordsProcessed = 0;
+        let recordsValid = 0;
+        let recordsDiscarded = 0;
 
-        dataRows.forEach(cols => {
-            if (!cols[idxSku] || cols[idxSku] === "") return;
-            const sku = cols[idxSku];
+        dataRows.forEach((cols, idx) => {
+            recordsProcessed++;
+            const skuRaw = cols[idxSku];
+            if (!skuRaw || skuRaw.trim() === "") {
+                recordsDiscarded++;
+                console.warn(`[DEPURACIÓN GS] Fila ${idx + 2} descartada: SKU vacío.`);
+                return;
+            }
+
+            recordsValid++;
+            const sku = skuRaw.trim();
             const name = idxName !== -1 ? cols[idxName] : 'Producto Nuevo';
             const qty = idxQty !== -1 ? (parseInt(cols[idxQty]) || 0) : 0;
             const loc = idxLoc !== -1 ? cols[idxLoc] : '';
@@ -1868,6 +1926,13 @@ if (window.WMS_INITIALIZED) {
             }
         });
 
+        console.log("=== [DEPURACIÓN GS] PASO 8: Resumen del Análisis ===");
+        console.log("Procesados:", recordsProcessed);
+        console.log("Válidos para WMS:", recordsValid);
+        console.log("Descartados/Omitidos:", recordsDiscarded);
+        console.log("Nuevos detectados:", window.pendingSyncDiff.new.length);
+        console.log("Modificaciones detectadas:", window.pendingSyncDiff.modified.length);
+
         openSyncPreviewModal();
     }
 
@@ -1879,7 +1944,7 @@ if (window.WMS_INITIALIZED) {
         const tNew = document.getElementById('syncNewBody');
         tNew.innerHTML = '';
         if (window.pendingSyncDiff.new.length === 0) {
-            tNew.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--muted);">Sin nuevos productos.</td></tr>';
+            tNew.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--muted);">Sin nuevos productos.</td></tr>';
         } else {
             window.pendingSyncDiff.new.forEach(p => {
                 tNew.innerHTML += `<tr>
@@ -1894,7 +1959,7 @@ if (window.WMS_INITIALIZED) {
         const tMod = document.getElementById('syncModBody');
         tMod.innerHTML = '';
         if (window.pendingSyncDiff.modified.length === 0) {
-            tMod.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--muted);">Sin modificaciones detectadas.</td></tr>';
+            tMod.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:15px; color:var(--muted);">Sin modificaciones detectadas.</td></tr>';
         } else {
             window.pendingSyncDiff.modified.forEach(p => {
                 tMod.innerHTML += `<tr>
