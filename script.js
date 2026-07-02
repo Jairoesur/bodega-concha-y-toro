@@ -129,6 +129,87 @@ if (window.WMS_INITIALIZED) {
         });
     }
 
+    // CORRECCIÓN EXACTA: Filtro de sanitización segura para Firebase (Evita excepciones de lectura)
+    function safeStr(val) {
+        if (val === null || val === undefined) return '';
+        return String(val).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+
+    // RESOLUTOR INTELIGENTE DE UBICACIONES (Blindado contra fallos de objetos indefinidos y valores nulos)
+    function findLocationId(locStr) {
+        if (!locStr) return '';
+        const locClean = safeStr(locStr);
+        if (locClean === '') return '';
+
+        try {
+            // 1. Coincidencia directa con Filas
+            const matchedRow = ROWS.find(r => r && (safeStr(r.id) === locClean || safeStr(r.name) === locClean));
+            if (matchedRow) return matchedRow.id;
+
+            // 2. Coincidencia con Racks (Formato RK-123-C0-L1)
+            if (locClean.startsWith('rk-')) {
+                const parts = locClean.split('-'); 
+                if (parts.length >= 4) {
+                    const rackPart = parts[1]; 
+                    const matchedRack = RACKS.find(r => r && (
+                        safeStr(r.id) === rackPart || 
+                        safeStr(r.identifier) === rackPart ||
+                        safeStr(r.name) === rackPart
+                    ));
+                    if (matchedRack) {
+                        return `RK-${matchedRack.id}-${parts[2].toUpperCase()}-${parts[3].toUpperCase()}`;
+                    }
+                }
+            }
+
+            // 3. Nomenclatura Humana de Racks (Rack Principal - C1-N2)
+            const colMatch = locStr.match(/C(\d+)/i);
+            const lvlMatch = locStr.match(/[LN](\d+)/i); 
+            
+            if (colMatch && lvlMatch) {
+                const colIdx = parseInt(colMatch[1]) - 1; 
+                const lvlIdx = parseInt(lvlMatch[1]) - 1; 
+
+                const rackCleanName = safeStr(locStr.replace(/[-_()]/g, ' ').replace(/C\d+/i, '').replace(/[LN]\d+/i, ''));
+
+                const matchedRack = RACKS.find(r => {
+                    if (!r) return false;
+                    const rNameNorm = safeStr(r.name);
+                    const rIdenNorm = safeStr(r.identifier);
+                    const rIdNorm = safeStr(r.id);
+                    
+                    return (rNameNorm && rNameNorm === rackCleanName) || 
+                           (rIdenNorm && rIdenNorm === rackCleanName) || 
+                           (rIdNorm && rIdNorm === rackCleanName) ||
+                           (rNameNorm && rackCleanName && rNameNorm.includes(rackCleanName)) ||
+                           (rackCleanName && rNameNorm && rackCleanName.includes(rNameNorm));
+                });
+
+                if (matchedRack) {
+                    sanitizeRackStructure(matchedRack);
+                    if (matchedRack.cols[colIdx] && matchedRack.cols[colIdx].levels[lvlIdx]) {
+                        return `RK-${matchedRack.id}-C${colIdx}-L${lvlIdx}`;
+                    }
+                }
+            }
+
+            // 4. Fallback: Mapear a columna 0 nivel 0
+            const matchedRackDirect = RACKS.find(r => r && (
+                safeStr(r.id) === locClean || 
+                safeStr(r.identifier) === locClean ||
+                safeStr(r.name) === locClean
+            ));
+            if (matchedRackDirect) {
+                return `RK-${matchedRackDirect.id}-C0-L0`;
+            }
+
+            return ''; 
+        } catch (err) {
+            console.error("[WMS] Error interno al mapear ubicación. Protegiendo flujo:", err);
+            return '';
+        }
+    }
+
     auth.onAuthStateChanged(function(user) {
         if(user) {
             document.getElementById('loginScreen').style.display = 'none';
@@ -702,6 +783,7 @@ if (window.WMS_INITIALIZED) {
 
     function toggleSapSection() { const section = document.getElementById('sapImportSection'); section.style.display = section.style.display === 'none' ? 'block' : 'none'; }
 
+    // BLINDAJE EXTRA: Importación SAP segura (Envuelve en Try/Catch para nunca romper el render)
     function processSapPaste() {
         const inputData = document.getElementById('sapPasteInput').value.trim(); 
         if (!inputData) return alert("El cuadro de texto está vacío.");
@@ -709,65 +791,72 @@ if (window.WMS_INITIALIZED) {
         
         let pendingLogs = [];
 
-        lines.forEach(function(line) {
-            const cleanLine = line.replace(/\r/g, ''); 
-            const delimiter = cleanLine.includes('\t') ? '\t' : (cleanLine.includes(';') ? ';' : ',');
-            const cols = cleanLine.split(delimiter);
-            
-            if (cols.length >= 2) {
-                const sku = cols[0] ? String(cols[0]).trim() : ''; 
-                if (!sku) return; 
+        try {
+            lines.forEach(function(line) {
+                const cleanLine = line.replace(/\r/g, ''); 
+                const delimiter = cleanLine.includes('\t') ? '\t' : (cleanLine.includes(';') ? ';' : ',');
+                const cols = cleanLine.split(delimiter);
                 
-                const name = cols[1] ? String(cols[1]).trim() : "Vino Importado";
-                const qtyStr = cols[2] ? String(cols[2]).trim() : ''; const qty = qtyStr ? parseInt(qtyStr) : 0;
-                
-                const pIdx = PRODUCTS.findIndex(p => p.sku && String(p.sku).toLowerCase() === sku.toLowerCase());
-                
-                if (pIdx >= 0) {
-                    if (!isNaN(qty) && qtyStr !== "" && PRODUCTS[pIdx].current !== qty) { 
-                        pendingLogs.push({sku: sku, name: name, change: qty - PRODUCTS[pIdx].current, reason: "Importación SAP"});
-                        PRODUCTS[pIdx].current = qty; 
-                        updatedCount++; 
-                    }
-                    if (cols[1] && String(cols[1]).trim() !== '') PRODUCTS[pIdx].name = String(cols[1]).trim();
+                if (cols.length >= 2) {
+                    const sku = cols[0] ? String(cols[0]).trim() : ''; 
+                    if (!sku) return; 
+                    
+                    const name = cols[1] ? String(cols[1]).trim() : "Vino Importado";
+                    const qtyStr = cols[2] ? String(cols[2]).trim().replace(/\./g,'').replace(/,/g,'') : ''; 
+                    const qty = qtyStr ? parseInt(qtyStr) : 0;
+                    
+                    const pIdx = PRODUCTS.findIndex(p => p.sku && String(p.sku).toLowerCase() === sku.toLowerCase());
+                    
+                    let mappedLocationId = '';
                     if (cols[3] && String(cols[3]).trim() !== '') {
-                        const rowSearch = String(cols[3]).trim().toLowerCase();
-                        let matched = ROWS.find(r => r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch));
-                        if (matched) PRODUCTS[pIdx].rowId = matched.id;
+                        mappedLocationId = findLocationId(String(cols[3]).trim());
                     }
-                    if (cols[4] && String(cols[4]).trim() !== '') PRODUCTS[pIdx].masterQty = parseInt(cols[4]) || 0;
-                    if (cols[5] && String(cols[5]).trim() !== '') PRODUCTS[pIdx].innerQty = parseInt(cols[5]) || 0;
-                    if (cols[6] && String(cols[6]).trim() !== '') PRODUCTS[pIdx].min = parseInt(cols[6]) || 0;
-                    if (cols[7] && String(cols[7]).trim() !== '') PRODUCTS[pIdx].max = parseInt(cols[7]) || 0;
-                    if (cols[8] && String(cols[8]).trim() !== '') PRODUCTS[pIdx].supplier = String(cols[8]).trim();
-                    if (cols[9] && String(cols[9]).trim() !== '') PRODUCTS[pIdx].leadTime = parseInt(cols[9]) || 0;
-                } else {
-                    let targetRowId = ROWS.length > 0 ? ROWS[0].id : ''; 
-                    if (cols[3] && String(cols[3]).trim() !== '') {
-                        const rowSearch = String(cols[3]).trim().toLowerCase();
-                        let matched = ROWS.find(r => r && ((r.name||'').toLowerCase() === rowSearch || (r.id||'').toLowerCase() === rowSearch));
-                        if (matched) targetRowId = matched.id;
-                    }
-                    const newProd = { 
-                        sku: sku, name: name, widthM: 0.56, heightM: 0, depthM: 0, color: "#c8a84b", rowId: targetRowId, current: isNaN(qty) ? 0 : qty, 
-                        masterQty: parseInt(cols[4]) || 0, innerQty: parseInt(cols[5]) || 0, 
-                        min: parseInt(cols[6]) || 0, max: parseInt(cols[7]) || 0, 
-                        supplier: cols[8] ? String(cols[8]).trim() : "", leadTime: parseInt(cols[9]) || 0,
-                        hasPO: false, reservedStock: 0, photo: null 
-                    };
-                    PRODUCTS.push(newProd); 
-                    pendingLogs.push({sku: sku, name: name, change: newProd.current, reason: "Alta desde SAP/Excel"});
-                    createdCount++;
-                }
-            }
-        });
 
-        document.getElementById('sapPasteInput').value = '';
-        alert("Proceso finalizado.\nActualizados: " + updatedCount + "\nCreados: " + createdCount); 
-        
-        sync(); 
-        pendingLogs.forEach(log => logMovement(log.sku, log.name, log.change, log.reason));
-        filterDB('');
+                    if (pIdx >= 0) {
+                        if (!isNaN(qty) && qtyStr !== "" && PRODUCTS[pIdx].current !== qty) { 
+                            pendingLogs.push({sku: sku, name: name, change: qty - PRODUCTS[pIdx].current, reason: "Importación SAP"});
+                            PRODUCTS[pIdx].current = qty; 
+                            updatedCount++; 
+                        }
+                        if (cols[1] && String(cols[1]).trim() !== '') PRODUCTS[pIdx].name = String(cols[1]).trim();
+                        if (mappedLocationId) {
+                            PRODUCTS[pIdx].rowId = mappedLocationId;
+                        }
+                        if (cols[4] && String(cols[4]).trim() !== '') PRODUCTS[pIdx].masterQty = parseInt(cols[4]) || 0;
+                        if (cols[5] && String(cols[5]).trim() !== '') PRODUCTS[pIdx].innerQty = parseInt(cols[5]) || 0;
+                        if (cols[6] && String(cols[6]).trim() !== '') PRODUCTS[pIdx].min = parseInt(cols[6]) || 0;
+                        if (cols[7] && String(cols[7]).trim() !== '') PRODUCTS[pIdx].max = parseInt(cols[7]) || 0;
+                        if (cols[8] && String(cols[8]).trim() !== '') PRODUCTS[pIdx].supplier = String(cols[8]).trim();
+                        if (cols[9] && String(cols[9]).trim() !== '') PRODUCTS[pIdx].leadTime = parseInt(cols[9]) || 0;
+                    } else {
+                        let targetRowId = mappedLocationId || (ROWS.length > 0 ? ROWS[0].id : ''); 
+                        const newProd = { 
+                            sku: sku, name: name, widthM: 0.56, heightM: 0, depthM: 0, color: "#c8a84b", rowId: targetRowId, current: isNaN(qty) ? 0 : qty, 
+                            masterQty: cols[4] ? (parseInt(cols[4]) || 0) : 0, 
+                            innerQty: cols[5] ? (parseInt(cols[5]) || 0) : 0, 
+                            min: cols[6] ? (parseInt(cols[6]) || 0) : 0, 
+                            max: cols[7] ? (parseInt(cols[7]) || 0) : 0, 
+                            supplier: cols[8] ? String(cols[8]).trim() : "", 
+                            leadTime: cols[9] ? (parseInt(cols[9]) || 0) : 0,
+                            hasPO: false, reservedStock: 0, photo: null 
+                        };
+                        PRODUCTS.push(newProd); 
+                        pendingLogs.push({sku: sku, name: name, change: newProd.current, reason: "Alta desde SAP/Excel"});
+                        createdCount++;
+                    }
+                }
+            });
+
+            document.getElementById('sapPasteInput').value = '';
+            alert(`Proceso finalizado.\nActualizados: ${updatedCount}\nCreados: ${createdCount}`); 
+            
+            sync(); 
+            pendingLogs.forEach(log => logMovement(log.sku, log.name, log.change, log.reason));
+            filterDB('');
+        } catch (err) {
+            console.error("[WMS] Error crítico en importación SAP:", err);
+            alert("Ocurrió un error leyendo las filas pegadas. Revisa la consola.");
+        }
     }
 
     function openOrderModal() {
@@ -1722,18 +1811,16 @@ if (window.WMS_INITIALIZED) {
         alert("Configuración de Google Sheets guardada en Firebase.");
     }
 
-    // NORMALIZADOR COMPLETO DE ENCABEZADOS (Unicode NFD - Evita fallos por acentos/tildes en Sheets)
     function normalizeHeader(str) {
         if (!str) return '';
         return str.toString()
             .toLowerCase()
             .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Remueve acentos, tildes y diacríticos
-            .replace(/[^a-z0-9]/g, "") // Conserva únicamente letras y números (elimina espacios y guiones)
+            .replace(/[\u0300-\u036f]/g, "") 
+            .replace(/[^a-z0-9]/g, "") 
             .trim();
     }
 
-    // MOTOR DE DEPURACIÓN EN 8 PASOS (Auditoría profunda en Consola)
     function startGoogleSheetsSync() {
         const inputVal = document.getElementById('gsheetIdInput').value.trim();
         const tabName = document.getElementById('gsheetTabInput').value.trim() || 'Productos';
@@ -1798,7 +1885,7 @@ if (window.WMS_INITIALIZED) {
                 
                 let errMsg = err.message;
                 if (errMsg === 'Failed to fetch') {
-                    errMsg = "El navegador bloqueó la solicitud (Bloqueo de CORS).\n\nCausa real: Su cuenta Google Workspace tiene restricciones que impiden descargar la hoja mediante fetch.\n\nSOLUCIÓN:\nEn su Sheets vaya a 'Archivo' > 'Compartir' > 'Publicar en la web' > Elija pestaña 'Productos' > Formato 'CSV' y pegue ese enlace público de publicación aquí.";
+                    errMsg = "El navegador bloqueó la solicitud (Error de CORS).\n\nCausa real: Su cuenta Google Workspace tiene restricciones que impiden descargar la hoja mediante fetch.\n\nSOLUCIÓN:\nEn su Sheets vaya a 'Archivo' > 'Compartir' > 'Publicar en la web' > Elija pestaña 'Productos' > Formato 'CSV' y pegue ese enlace público de publicación aquí.";
                 }
                 alert(`Error detectado:\n\n${errMsg}`);
             });
@@ -1883,26 +1970,30 @@ if (window.WMS_INITIALIZED) {
             recordsValid++;
             const sku = skuRaw.trim();
             const name = idxName !== -1 ? cols[idxName] : 'Producto Nuevo';
-            const qty = idxQty !== -1 ? (parseInt(cols[idxQty]) || 0) : 0;
+            
+            const qtyStr = cols[idxQty] ? String(cols[idxQty]).replace(/\./g,'').replace(/,/g,'') : '';
+            const qty = qtyStr !== '' ? (parseInt(qtyStr) || 0) : 0;
+            
             const loc = idxLoc !== -1 ? cols[idxLoc] : '';
             const min = idxMin !== -1 ? (parseInt(cols[idxMin]) || 0) : 0;
             const max = idxMax !== -1 ? (parseInt(cols[idxMax]) || 0) : 0;
             const prov = idxProv !== -1 ? cols[idxProv] : '';
             const lead = idxLead !== -1 ? (parseInt(cols[idxLead]) || 0) : 0;
-            const w = idxW !== -1 ? (parseFloat(cols[idxW]) || 0.56) : 0.56;
-            const h = idxH !== -1 ? (parseFloat(cols[idxH]) || 0) : 0;
-            const d = idxD !== -1 ? (parseFloat(cols[idxD]) || 0) : 0;
+            
+            const wStr = idxW !== -1 && cols[idxW] ? String(cols[idxW]).replace(',', '.') : '';
+            const w = wStr !== '' ? (parseFloat(wStr) || 0.56) : 0.56;
+            
+            const hStr = idxH !== -1 && cols[idxH] ? String(cols[idxH]).replace(',', '.') : '';
+            const h = hStr !== '' ? (parseFloat(hStr) || 0) : 0;
+            
+            const dStr = idxD !== -1 && cols[idxD] ? String(cols[idxD]).replace(',', '.') : '';
+            const d = dStr !== '' ? (parseFloat(dStr) || 0) : 0;
 
             const existingIdx = PRODUCTS.findIndex(p => p.sku === sku);
             
             let mappedRowId = '';
             if (loc) {
-                if (loc.startsWith('RK-')) {
-                    mappedRowId = loc;
-                } else {
-                    const matchedRow = ROWS.find(r => r && (r.name.toLowerCase() === loc.toLowerCase() || r.id.toLowerCase() === loc.toLowerCase()));
-                    if (matchedRow) mappedRowId = matchedRow.id;
-                }
+                mappedRowId = findLocationId(loc);
             }
 
             if (existingIdx >= 0) {
@@ -2069,4 +2160,5 @@ if (window.WMS_INITIALIZED) {
     window.saveIntegrationsConfig = saveIntegrationsConfig;
     window.startGoogleSheetsSync = startGoogleSheetsSync;
     window.applyGoogleSheetsSync = applyGoogleSheetsSync;
+    window.findLocationId = findLocationId;
 }
