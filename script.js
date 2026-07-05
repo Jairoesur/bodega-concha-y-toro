@@ -2199,3 +2199,4 @@ if (window.WMS_INITIALIZED) {
     window.startGoogleSheetsSync = startGoogleSheetsSync;
     window.applyGoogleSheetsSync = applyGoogleSheetsSync;
     window.findLocationId = findLocationId;
+}
