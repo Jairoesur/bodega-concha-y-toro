@@ -129,24 +129,20 @@ if (window.WMS_INITIALIZED) {
         });
     }
 
-    // CORRECCIÓN EXACTA: Filtro de sanitización segura para Firebase (Evita excepciones de lectura)
     function safeStr(val) {
         if (val === null || val === undefined) return '';
         return String(val).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     }
 
-    // RESOLUTOR INTELIGENTE DE UBICACIONES (Blindado contra fallos de objetos indefinidos y valores nulos)
     function findLocationId(locStr) {
         if (!locStr) return '';
         const locClean = safeStr(locStr);
         if (locClean === '') return '';
 
         try {
-            // 1. Coincidencia directa con Filas
             const matchedRow = ROWS.find(r => r && (safeStr(r.id) === locClean || safeStr(r.name) === locClean));
             if (matchedRow) return matchedRow.id;
 
-            // 2. Coincidencia con Racks (Formato RK-123-C0-L1)
             if (locClean.startsWith('rk-')) {
                 const parts = locClean.split('-'); 
                 if (parts.length >= 4) {
@@ -162,7 +158,6 @@ if (window.WMS_INITIALIZED) {
                 }
             }
 
-            // 3. Nomenclatura Humana de Racks (Rack Principal - C1-N2)
             const colMatch = locStr.match(/C(\d+)/i);
             const lvlMatch = locStr.match(/[LN](\d+)/i); 
             
@@ -193,7 +188,6 @@ if (window.WMS_INITIALIZED) {
                 }
             }
 
-            // 4. Fallback: Mapear a columna 0 nivel 0
             const matchedRackDirect = RACKS.find(r => r && (
                 safeStr(r.id) === locClean || 
                 safeStr(r.identifier) === locClean ||
@@ -312,11 +306,12 @@ if (window.WMS_INITIALIZED) {
             pEl.style.borderTop = '6px solid ' + (p.color || '#c8a84b');
         }
 
-        let tooltipText = 'SKU: ' + (p.sku || 'N/A') + '\nProducto: ' + (p.name || 'N/A') + '\nStock Físico: ' + (p.current || 0) + ' (Mín: ' + (p.min || 0) + ' / Máx: ' + (p.max || 0) + ')';
+        let tooltipText = 'SKU: ' + (p.sku || 'N/A') + '\nProducto: ' + (p.name || 'N/A') + '\nStock Físico: ' + (p.current || 0) + ' (Crítico: ' + (p.min || 0) + ' / Alerta: ' + (p.minAlert || 0) + ' / Máx: ' + (p.max || 0) + ')';
         if (p.widthM || p.heightM || p.depthM) tooltipText += `\nDimensiones SKU: ${p.widthM||0}x${p.heightM||0}x${p.depthM||0} m`;
         if (p.hasPO) tooltipText += '\n📦 Prov. Reservado: ' + (p.reservedStock || 0);
         if (p.masterQty || p.innerQty) tooltipText += '\nEmpaque: Master: ' + (p.masterQty || 0) + ' u. | Interior: ' + (p.innerQty || 0) + ' u.';
         if (p.supplier) tooltipText += '\nProveedor: ' + p.supplier + ' (Demora: ' + (p.leadTime || 0) + ' días)';
+        if (p.poDate || p.poArrival) tooltipText += `\nÚltima OC: ${p.poDate || '-'} | Llegada Est: ${p.poArrival || '-'}`;
         if (isInActiveOrder) tooltipText += '\n\n📦 REQUERIDO EN PEDIDO (Luz Azul)';
 
         pEl.setAttribute('data-tooltip', tooltipText);
@@ -340,7 +335,8 @@ if (window.WMS_INITIALIZED) {
         
         let dotColor = 'var(--ok)';
         if(p.current < p.min) dotColor = 'var(--danger)';
-        else if (p.current <= p.min * 1.2) dotColor = 'var(--warn)';
+        else if (p.minAlert > 0 && p.current <= p.minAlert) dotColor = 'var(--warn)';
+        else if ((!p.minAlert || p.minAlert === 0) && p.current <= p.min * 1.2 && p.min > 0) dotColor = 'var(--warn)';
         else if (p.max > 0 && p.current > p.max) dotColor = 'var(--over)';
         
         const posLabel = isRack ? (idx => p.sku.substring(0,3))(idx) : safeName.split(' ').pop() + (idx + 1);
@@ -617,9 +613,13 @@ if (window.WMS_INITIALIZED) {
             document.getElementById('pHeight').value = p.heightM !== undefined ? p.heightM : '';
             document.getElementById('pDepth').value = p.depthM !== undefined ? p.depthM : '';
             document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
-            document.getElementById('pCurrent').value = p.current; document.getElementById('pMin').value = p.min;
-            document.getElementById('pMax').value = p.max || 0; document.getElementById('pMasterQty').value = p.masterQty !== undefined ? p.masterQty : '';
-            document.getElementById('pInnerQty').value = p.innerQty !== undefined ? p.innerQty : ''; document.getElementById('pSupplier').value = p.supplier || '';
+            document.getElementById('pCurrent').value = p.current; 
+            document.getElementById('pMin').value = p.min;
+            document.getElementById('pMinAlert').value = p.minAlert !== undefined ? p.minAlert : '';
+            document.getElementById('pMax').value = p.max || 0; 
+            document.getElementById('pMasterQty').value = p.masterQty !== undefined ? p.masterQty : '';
+            document.getElementById('pInnerQty').value = p.innerQty !== undefined ? p.innerQty : ''; 
+            document.getElementById('pSupplier').value = p.supplier || '';
             document.getElementById('pLeadTime').value = p.leadTime !== undefined ? p.leadTime : ''; 
             document.getElementById('pHasPO').checked = !!p.hasPO;
             document.getElementById('pReservedStock').value = p.reservedStock || 0;
@@ -630,7 +630,10 @@ if (window.WMS_INITIALIZED) {
         } else {
             document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false; document.getElementById('pName').value = ''; 
             document.getElementById('pWidth').value = '0.56'; document.getElementById('pHeight').value = ''; document.getElementById('pDepth').value = '';
-            document.getElementById('pCurrent').value = '0'; document.getElementById('pMin').value = '0'; document.getElementById('pMax').value = '0';
+            document.getElementById('pCurrent').value = '0'; 
+            document.getElementById('pMin').value = '0'; 
+            document.getElementById('pMinAlert').value = '';
+            document.getElementById('pMax').value = '0';
             document.getElementById('pMasterQty').value = ''; document.getElementById('pInnerQty').value = ''; document.getElementById('pSupplier').value = '';
             document.getElementById('pLeadTime').value = ''; document.getElementById('pHasPO').checked = false; document.getElementById('pReservedStock').value = '0';
             document.getElementById('pPoDate').value = ''; document.getElementById('pPoArrival').value = '';
@@ -660,7 +663,10 @@ if (window.WMS_INITIALIZED) {
             heightM: parseFloat(document.getElementById('pHeight').value) || 0,
             depthM: parseFloat(document.getElementById('pDepth').value) || 0,
             color: document.getElementById('pColor').value || "#c8a84b", rowId: selectedRowId,
-            current: newStock, min: parseInt(document.getElementById('pMin').value) || 0, max: parseInt(document.getElementById('pMax').value) || 0,
+            current: newStock, 
+            min: parseInt(document.getElementById('pMin').value) || 0, 
+            minAlert: parseInt(document.getElementById('pMinAlert').value) || 0,
+            max: parseInt(document.getElementById('pMax').value) || 0,
             masterQty: parseInt(document.getElementById('pMasterQty').value) || 0, innerQty: parseInt(document.getElementById('pInnerQty').value) || 0,
             supplier: document.getElementById('pSupplier').value || "", leadTime: parseInt(document.getElementById('pLeadTime').value) || 0,
             hasPO: document.getElementById('pHasPO').checked, reservedStock: parseInt(document.getElementById('pReservedStock').value) || 0,
@@ -739,7 +745,8 @@ if (window.WMS_INITIALIZED) {
             
             let rowStyle = ''; let statusLabel = '';
             if(p.current < p.min) { rowStyle = 'background: rgba(239, 68, 68, 0.05); border-left: 4px solid var(--danger);'; statusLabel = '<span class="status-badge" style="background:rgba(239,68,68,0.15); color:var(--danger);">Crítico</span>'; }
-            else if (p.current <= p.min * 1.2) { rowStyle = 'background: rgba(245, 158, 11, 0.05); border-left: 4px solid var(--warn);'; statusLabel = '<span class="status-badge" style="background:rgba(245,158,11,0.15); color:var(--warn);">Alerta</span>'; }
+            else if (p.minAlert > 0 && p.current <= p.minAlert) { rowStyle = 'background: rgba(245, 158, 11, 0.05); border-left: 4px solid var(--warn);'; statusLabel = '<span class="status-badge" style="background:rgba(245,158,11,0.15); color:var(--warn);">Alerta</span>'; }
+            else if ((!p.minAlert || p.minAlert === 0) && p.current <= p.min * 1.2 && p.min > 0) { rowStyle = 'background: rgba(245, 158, 11, 0.05); border-left: 4px solid var(--warn);'; statusLabel = '<span class="status-badge" style="background:rgba(245,158,11,0.15); color:var(--warn);">Alerta</span>'; }
             else if (p.max > 0 && p.current > p.max) { rowStyle = 'background: rgba(139, 92, 246, 0.05); border-left: 4px solid var(--over);'; statusLabel = '<span class="status-badge" style="background:rgba(139,92,246,0.15); color:var(--over);">Sobre Stock</span>'; }
             else { rowStyle = 'border-left: 4px solid transparent;'; statusLabel = '<span class="status-badge" style="background:rgba(16,185,129,0.1); color:var(--ok);">Saludable</span>'; }
 
@@ -783,7 +790,7 @@ if (window.WMS_INITIALIZED) {
 
     function toggleSapSection() { const section = document.getElementById('sapImportSection'); section.style.display = section.style.display === 'none' ? 'block' : 'none'; }
 
-    // BLINDAJE EXTRA: Importación SAP segura (Envuelve en Try/Catch para nunca romper el render)
+    // CORRECCIÓN EXACTA Y SEGURA: Importador SAP unificado con LocationFinder y 15 campos
     function processSapPaste() {
         const inputData = document.getElementById('sapPasteInput').value.trim(); 
         if (!inputData) return alert("El cuadro de texto está vacío.");
@@ -819,15 +826,21 @@ if (window.WMS_INITIALIZED) {
                             updatedCount++; 
                         }
                         if (cols[1] && String(cols[1]).trim() !== '') PRODUCTS[pIdx].name = String(cols[1]).trim();
-                        if (mappedLocationId) {
-                            PRODUCTS[pIdx].rowId = mappedLocationId;
-                        }
+                        if (mappedLocationId) PRODUCTS[pIdx].rowId = mappedLocationId;
                         if (cols[4] && String(cols[4]).trim() !== '') PRODUCTS[pIdx].masterQty = parseInt(cols[4]) || 0;
                         if (cols[5] && String(cols[5]).trim() !== '') PRODUCTS[pIdx].innerQty = parseInt(cols[5]) || 0;
                         if (cols[6] && String(cols[6]).trim() !== '') PRODUCTS[pIdx].min = parseInt(cols[6]) || 0;
-                        if (cols[7] && String(cols[7]).trim() !== '') PRODUCTS[pIdx].max = parseInt(cols[7]) || 0;
-                        if (cols[8] && String(cols[8]).trim() !== '') PRODUCTS[pIdx].supplier = String(cols[8]).trim();
-                        if (cols[9] && String(cols[9]).trim() !== '') PRODUCTS[pIdx].leadTime = parseInt(cols[9]) || 0;
+                        if (cols[7] && String(cols[7]).trim() !== '') PRODUCTS[pIdx].minAlert = parseInt(cols[7]) || 0;
+                        if (cols[8] && String(cols[8]).trim() !== '') PRODUCTS[pIdx].max = parseInt(cols[8]) || 0;
+                        if (cols[9] && String(cols[9]).trim() !== '') PRODUCTS[pIdx].supplier = String(cols[9]).trim();
+                        if (cols[10] && String(cols[10]).trim() !== '') PRODUCTS[pIdx].leadTime = parseInt(cols[10]) || 0;
+                        if (cols[11] && String(cols[11]).trim() !== '') {
+                            const poStr = String(cols[11]).trim().toLowerCase();
+                            PRODUCTS[pIdx].hasPO = (poStr === 'si' || poStr === 'true' || poStr === '1' || poStr === 'x');
+                        }
+                        if (cols[12] && String(cols[12]).trim() !== '') PRODUCTS[pIdx].reservedStock = parseInt(cols[12]) || 0;
+                        if (cols[13] && String(cols[13]).trim() !== '') PRODUCTS[pIdx].poDate = String(cols[13]).trim();
+                        if (cols[14] && String(cols[14]).trim() !== '') PRODUCTS[pIdx].poArrival = String(cols[14]).trim();
                     } else {
                         let targetRowId = mappedLocationId || (ROWS.length > 0 ? ROWS[0].id : ''); 
                         const newProd = { 
@@ -835,10 +848,15 @@ if (window.WMS_INITIALIZED) {
                             masterQty: cols[4] ? (parseInt(cols[4]) || 0) : 0, 
                             innerQty: cols[5] ? (parseInt(cols[5]) || 0) : 0, 
                             min: cols[6] ? (parseInt(cols[6]) || 0) : 0, 
-                            max: cols[7] ? (parseInt(cols[7]) || 0) : 0, 
-                            supplier: cols[8] ? String(cols[8]).trim() : "", 
-                            leadTime: cols[9] ? (parseInt(cols[9]) || 0) : 0,
-                            hasPO: false, reservedStock: 0, photo: null 
+                            minAlert: cols[7] ? (parseInt(cols[7]) || 0) : 0,
+                            max: cols[8] ? (parseInt(cols[8]) || 0) : 0, 
+                            supplier: cols[9] ? String(cols[9]).trim() : "", 
+                            leadTime: cols[10] ? (parseInt(cols[10]) || 0) : 0,
+                            hasPO: cols[11] ? (String(cols[11]).trim().toLowerCase() === 'si' || String(cols[11]).trim().toLowerCase() === 'true' || String(cols[11]).trim() === '1' || String(cols[11]).trim().toLowerCase() === 'x') : false,
+                            reservedStock: cols[12] ? (parseInt(cols[12]) || 0) : 0,
+                            poDate: cols[13] ? String(cols[13]).trim() : "",
+                            poArrival: cols[14] ? String(cols[14]).trim() : "",
+                            photo: null 
                         };
                         PRODUCTS.push(newProd); 
                         pendingLogs.push({sku: sku, name: name, change: newProd.current, reason: "Alta desde SAP/Excel"});
@@ -1018,7 +1036,6 @@ if (window.WMS_INITIALIZED) {
 
     function deleteRow() { const id = document.getElementById('rId').value; if(PRODUCTS.some(p => p.rowId === id)) return alert("Fila con productos. Mueve los productos antes."); if(confirm("¿Eliminar fila?")) { ROWS = ROWS.filter(r => r.id !== id); sync(); closeModals(); } }
     
-    // FUNCIONES ADMINISTRATIVAS DE RACKS
     function openRackModal(id) {
         let r = {id:'', identifier:'', name:'', widthM: 2, depthM: 1, cols: [] };
         if (id && typeof id === 'string') {
@@ -1064,9 +1081,9 @@ if (window.WMS_INITIALIZED) {
             col.levels.forEach((lvl, lIdx) => {
                 html += `<div style="display:flex; gap:10px; background:rgba(255,255,255,0.02); padding:10px; border-radius:4px; align-items:center; flex-wrap:wrap;">
                     <span style="color:var(--muted); font-size:0.75rem; font-weight:bold; width:40px;">N${lIdx+1}</span>
-                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Cap. Cajas</label><input type="number" id="rkCap_${cIdx}_${lIdx}" value="${lvl.cap}"></div>
-                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Ancho (M)</label><input type="number" step="0.1" id="rkW_${cIdx}_${lIdx}" value="${lvl.w}"></div>
-                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Alto (M)</label><input type="number" step="0.1" id="rkH_${cIdx}_${lIdx}" value="${lvl.h}"></div>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Cap. Cajas</label><input type="number" id="rkCap_${cIdx}_${lIdx}" value="${lvl.cap}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].cap=parseInt(this.value)||0"></div>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Ancho (M)</label><input type="number" step="0.1" id="rkW_${cIdx}_${lIdx}" value="${lvl.w}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].w=parseFloat(this.value)||0"></div>
+                    <div class="field small" style="margin:0; flex:1; min-width:80px;"><label>Alto (M)</label><input type="number" step="0.1" id="rkH_${cIdx}_${lIdx}" value="${lvl.h}" onchange="window.tempRackCols[${cIdx}].levels[${lIdx}].h=parseFloat(this.value)||0"></div>
                 </div>`;
             });
             html += `</div></div>`;
@@ -1367,7 +1384,7 @@ if (window.WMS_INITIALIZED) {
     }
 
     function resetAllRowsToTray() {
-        if(!activeWarehouseId) return;
+        if(!activeWarehouseId) return alert("Seleccione una bodega.");
         if(!confirm("¿Seguro que deseas devolver TODAS las estructuras de este plano a la bandeja de 'Por Asignar'? No perderás los productos.")) return;
 
         let recovered = 0;
@@ -1927,25 +1944,29 @@ if (window.WMS_INITIALIZED) {
             return alert("La hoja parece estar vacía o no tiene el formato correcto.");
         }
 
-        console.log("=== [DEPURACIÓN GS] PASO 7: Mapeo de Encabezados (Unicode NFD Normalizado) ===");
+        console.log("=== [DEPURACIÓN GS] PASO 7: Mapeo de Encabezados ===");
         const rawHeaders = validRows[0];
         const headers = rawHeaders.map(h => normalizeHeader(h));
-        console.log("Encabezados Originales:", rawHeaders);
-        console.log("Encabezados Normalizados:", headers);
 
         const idxSku = headers.findIndex(h => h === 'sku' || h === 'codigo' || h === 'codigosap');
         const idxName = headers.findIndex(h => h === 'nombre' || h === 'descripcion' || h === 'vinos' || h === 'vino');
         const idxQty = headers.findIndex(h => h === 'cantidad' || h === 'stock' || h === 'fisico' || h === 'real' || h === 'current');
         const idxLoc = headers.findIndex(h => h === 'ubicacion' || h === 'posicion' || h === 'coordenada');
         const idxMin = headers.findIndex(h => h === 'minimo' || h === 'min');
+        const idxMinAlert = headers.findIndex(h => h === 'minimoalerta' || h === 'minalerta' || h === 'alerta');
         const idxMax = headers.findIndex(h => h === 'maximo' || h === 'max');
         const idxProv = headers.findIndex(h => h === 'proveedor' || h === 'supplier');
-        const idxLead = headers.findIndex(h => h === 'demora' || h === 'leadtime' || h === 'reposicion');
+        const idxLead = headers.findIndex(h => h === 'demora' || h === 'leadtime' || h === 'reposicion' || h === 'diasdemora');
         const idxW = headers.findIndex(h => h === 'ancho' || h === 'width');
         const idxH = headers.findIndex(h => h === 'alto' || h === 'height');
         const idxD = headers.findIndex(h => h === 'profundidad' || h === 'profundo' || h === 'depth' || h === 'fondo');
-
-        console.log("Índices detectados:", { idxSku, idxName, idxQty, idxLoc, idxMin, idxMax, idxProv, idxLead });
+        
+        const idxMaster = headers.findIndex(h => h === 'cajamaster' || h === 'master');
+        const idxInner = headers.findIndex(h => h === 'cajaint' || h === 'interior');
+        const idxHasPO = headers.findIndex(h => h === 'ordenvigente' || h === 'po');
+        const idxResStock = headers.findIndex(h => h === 'stockreservaproveedor' || h === 'stockreserva' || h === 'reserva' || h === 'resprov');
+        const idxPoDate = headers.findIndex(h => h === 'ultimasolicitudoc' || h === 'fechaoc' || h === 'solicitudoc' || h === 'ultoc');
+        const idxPoArr = headers.findIndex(h => h === 'llegadaestimada' || h === 'llegada' || h === 'llegadaest');
 
         if (idxSku === -1) {
             console.error("[DEPURACIÓN GS] ERROR: No se localizó la columna de SKU.");
@@ -1956,28 +1977,24 @@ if (window.WMS_INITIALIZED) {
         const dataRows = validRows.slice(1);
         let recordsProcessed = 0;
         let recordsValid = 0;
-        let recordsDiscarded = 0;
 
         dataRows.forEach((cols, idx) => {
             recordsProcessed++;
             const skuRaw = cols[idxSku];
-            if (!skuRaw || skuRaw.trim() === "") {
-                recordsDiscarded++;
-                console.warn(`[DEPURACIÓN GS] Fila ${idx + 2} descartada: SKU vacío.`);
-                return;
-            }
+            if (!skuRaw || skuRaw.trim() === "") return;
 
             recordsValid++;
             const sku = skuRaw.trim();
-            const name = idxName !== -1 ? cols[idxName] : 'Producto Nuevo';
+            const name = idxName !== -1 && cols[idxName] ? cols[idxName] : 'Producto Nuevo';
             
-            const qtyStr = cols[idxQty] ? String(cols[idxQty]).replace(/\./g,'').replace(/,/g,'') : '';
+            const qtyStr = idxQty !== -1 && cols[idxQty] ? String(cols[idxQty]).replace(/\./g,'').replace(/,/g,'') : '';
             const qty = qtyStr !== '' ? (parseInt(qtyStr) || 0) : 0;
             
             const loc = idxLoc !== -1 ? cols[idxLoc] : '';
             const min = idxMin !== -1 ? (parseInt(cols[idxMin]) || 0) : 0;
+            const minAlert = idxMinAlert !== -1 ? (parseInt(cols[idxMinAlert]) || 0) : 0;
             const max = idxMax !== -1 ? (parseInt(cols[idxMax]) || 0) : 0;
-            const prov = idxProv !== -1 ? cols[idxProv] : '';
+            const prov = idxProv !== -1 && cols[idxProv] ? cols[idxProv] : '';
             const lead = idxLead !== -1 ? (parseInt(cols[idxLead]) || 0) : 0;
             
             const wStr = idxW !== -1 && cols[idxW] ? String(cols[idxW]).replace(',', '.') : '';
@@ -1988,6 +2005,14 @@ if (window.WMS_INITIALIZED) {
             
             const dStr = idxD !== -1 && cols[idxD] ? String(cols[idxD]).replace(',', '.') : '';
             const d = dStr !== '' ? (parseFloat(dStr) || 0) : 0;
+
+            const master = idxMaster !== -1 ? (parseInt(cols[idxMaster]) || 0) : 0;
+            const inner = idxInner !== -1 ? (parseInt(cols[idxInner]) || 0) : 0;
+            const hasPOStr = idxHasPO !== -1 && cols[idxHasPO] ? String(cols[idxHasPO]).trim().toLowerCase() : "";
+            const hasPO = (hasPOStr === 'si' || hasPOStr === 'true' || hasPOStr === '1' || hasPOStr === 'x');
+            const resStock = idxResStock !== -1 ? (parseInt(cols[idxResStock]) || 0) : 0;
+            const poDate = idxPoDate !== -1 && cols[idxPoDate] ? cols[idxPoDate].trim() : "";
+            const poArr = idxPoArr !== -1 && cols[idxPoArr] ? cols[idxPoArr].trim() : "";
 
             const existingIdx = PRODUCTS.findIndex(p => p.sku === sku);
             
@@ -2001,26 +2026,31 @@ if (window.WMS_INITIALIZED) {
                 let changed = false;
                 let changes = [];
                 
-                if (p.current !== qty) { changed = true; changes.push(`Stock: ${p.current} -> ${qty}`); }
-                if (p.name !== name) { changed = true; changes.push(`Nombre modificado`); }
-                if (p.min !== min) { changed = true; changes.push(`Mínimo: ${p.min} -> ${min}`); }
-                if (mappedRowId && p.rowId !== mappedRowId) { changed = true; changes.push(`Reubicado: ${mappedRowId}`); }
+                if (p.current !== qty) { changed = true; changes.push(`Stock: ${p.current||0} -> ${qty}`); }
+                if (p.name !== name) { changed = true; changes.push(`Nombre mod.`); }
+                if (p.min !== min) { changed = true; changes.push(`Mín: ${p.min||0} -> ${min}`); }
+                if (p.minAlert !== minAlert) { changed = true; changes.push(`Alerta: ${p.minAlert||0} -> ${minAlert}`); }
+                if (mappedRowId && p.rowId !== mappedRowId) { changed = true; changes.push(`Reub: ${mappedRowId}`); }
+                if (p.masterQty !== master) { changed = true; changes.push(`Master: ${p.masterQty||0} -> ${master}`); }
+                if (p.innerQty !== inner) { changed = true; changes.push(`Int: ${p.innerQty||0} -> ${inner}`); }
+                if (p.hasPO !== hasPO) { changed = true; changes.push(`Orden: ${p.hasPO?'Sí':'No'} -> ${hasPO?'Sí':'No'}`); }
+                if (p.reservedStock !== resStock) { changed = true; changes.push(`Res. Prov: ${p.reservedStock||0} -> ${resStock}`); }
 
                 if (changed) {
                     window.pendingSyncDiff.modified.push({
-                        sku, name, qty, min, max, prov, lead, w, h, d, loc: mappedRowId,
+                        sku, name, qty, min, minAlert, max, prov, lead, w, h, d, loc: mappedRowId,
+                        master, inner, hasPO, resStock, poDate, poArr,
                         oldQty: p.current, changes: changes.join(' | ')
                     });
                 }
             } else {
-                window.pendingSyncDiff.new.push({ sku, name, qty, min, max, prov, lead, w, h, d, loc: mappedRowId });
+                window.pendingSyncDiff.new.push({ sku, name, qty, min, minAlert, max, prov, lead, w, h, d, loc: mappedRowId, master, inner, hasPO, resStock, poDate, poArr });
             }
         });
 
         console.log("=== [DEPURACIÓN GS] PASO 8: Resumen del Análisis ===");
         console.log("Procesados:", recordsProcessed);
         console.log("Válidos para WMS:", recordsValid);
-        console.log("Descartados/Omitidos:", recordsDiscarded);
         console.log("Nuevos detectados:", window.pendingSyncDiff.new.length);
         console.log("Modificaciones detectadas:", window.pendingSyncDiff.modified.length);
 
@@ -2072,9 +2102,11 @@ if (window.WMS_INITIALIZED) {
         window.pendingSyncDiff.new.forEach(item => {
             PRODUCTS.push({
                 sku: item.sku, name: item.name, rowId: item.loc, current: item.qty,
-                min: item.min, max: item.max, supplier: item.prov, leadTime: item.lead,
+                min: item.min, minAlert: item.minAlert, max: item.max, supplier: item.prov, leadTime: item.lead,
                 widthM: item.w, heightM: item.h, depthM: item.d,
-                color: "#c8a84b", masterQty: 0, innerQty: 0, hasPO: false, reservedStock: 0, photo: null
+                masterQty: item.master, innerQty: item.inner, hasPO: item.hasPO, 
+                reservedStock: item.resStock, poDate: item.poDate, poArrival: item.poArr,
+                color: "#c8a84b", photo: null
             });
             pendingLogs.push({ sku: item.sku, name: item.name, change: item.qty, reason: "GSheets: Producto Creado" });
         });
@@ -2086,15 +2118,22 @@ if (window.WMS_INITIALIZED) {
                 PRODUCTS[idx].name = item.name;
                 PRODUCTS[idx].current = item.qty;
                 PRODUCTS[idx].min = item.min;
+                PRODUCTS[idx].minAlert = item.minAlert;
                 PRODUCTS[idx].max = item.max;
                 PRODUCTS[idx].supplier = item.prov;
                 PRODUCTS[idx].leadTime = item.lead;
                 PRODUCTS[idx].widthM = item.w;
                 PRODUCTS[idx].heightM = item.h;
                 PRODUCTS[idx].depthM = item.d;
+                PRODUCTS[idx].masterQty = item.master;
+                PRODUCTS[idx].innerQty = item.inner;
+                PRODUCTS[idx].hasPO = item.hasPO;
+                PRODUCTS[idx].reservedStock = item.resStock;
+                PRODUCTS[idx].poDate = item.poDate;
+                PRODUCTS[idx].poArrival = item.poArr;
                 if (item.loc) PRODUCTS[idx].rowId = item.loc;
                 
-                pendingLogs.push({ sku: item.sku, name: item.name, change: diffQty, reason: "GSheets: Actualización de Parámetros" });
+                pendingLogs.push({ sku: item.sku, name: item.name, change: diffQty, reason: "GSheets: Actualización" });
             }
         });
 
@@ -2155,10 +2194,8 @@ if (window.WMS_INITIALIZED) {
     window.saveZone = saveZone;
     window.deleteZone = deleteZone;
     
-    // EXPOSICIÓN MÓDULO GOOGLE SHEETS
     window.openIntegrationsModal = openIntegrationsModal;
     window.saveIntegrationsConfig = saveIntegrationsConfig;
     window.startGoogleSheetsSync = startGoogleSheetsSync;
     window.applyGoogleSheetsSync = applyGoogleSheetsSync;
     window.findLocationId = findLocationId;
-}
