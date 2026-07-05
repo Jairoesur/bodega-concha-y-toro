@@ -124,8 +124,9 @@
             <div class="field"><label>Ubicación Física en Bodega</label><select id="pRowSelect"></select></div>
             <div class="panel-box form-row" style="background: rgba(200, 168, 75, 0.05); border-color: rgba(200, 168, 75, 0.2);">
                 <div class="field" style="margin:0;"><label style="color:var(--accent)">Stock Físico Real</label><input id="pCurrent" type="number" style="font-weight:bold; color:var(--accent); font-size:1.2rem;"></div>
-                <div class="field" style="margin:0;"><label>Mínimo (Alerta)</label><input id="pMin" type="number"></div>
-                <div class="field" style="margin:0;"><label>Máximo (Límite)</label><input id="pMax" type="number"></div>
+                <div class="field" style="margin:0;"><label>Mín. (Crítico)</label><input id="pMin" type="number" placeholder="Ej: 10"></div>
+                <div class="field" style="margin:0;"><label>Mín. (Alerta)</label><input id="pMinAlert" type="number" placeholder="Ej: 25"></div>
+                <div class="field" style="margin:0;"><label>Máximo (Límite)</label><input id="pMax" type="number" placeholder="Ej: 100"></div>
             </div>
             <div class="panel-box">
                 <div class="panel-title"><span>📦</span> Datos Logísticos y Proveedor</div>
@@ -264,8 +265,8 @@
                 </div>
             </div>
             <div id="sapImportSection" style="display:none;" class="panel-box">
-                <p style="font-size:0.85rem; color:var(--text); margin-bottom:12px;">Orden de pegado desde Excel: <br><span style="font-family:'DM Mono', monospace; color:var(--muted); font-size: 0.8rem;">SKU | Nombre | Cantidad | Ubicación | Caja Master | Caja Int | Mínimo | Máximo | Proveedor | Días Demora</span></p>
-                <textarea id="sapPasteInput" style="height:120px; font-family:'DM Mono', monospace; font-size:0.85rem; background:rgba(0,0,0,0.4);" placeholder="Pega aquí las celdas copiadas..."></textarea>
+                <p style="font-size:0.85rem; color:var(--text); margin-bottom:12px;">Orden de pegado desde Excel: <br><span style="font-family:'DM Mono', monospace; color:var(--muted); font-size: 0.8rem;">SKU | Nombre | Cantidad | Ubicación | Caja Master | Caja Int | Mínimo Crítico | Mín. Alerta | Máximo | Proveedor | Días Demora | Orden Vigente | Res. Prov. | Últ. OC | Llegada Est.</span></p>
+                <textarea id="sapPasteInput" style="height:120px; font-family:'DM Mono', monospace; font-size:0.85rem; background:rgba(0,0,0,0.4);" placeholder="Pega aquí las celdas copiadas en el orden indicado..."></textarea>
                 <button class="btn btn-primary" style="margin-top:15px;" onclick="processSapPaste()">Procesar e Integrar Masivamente</button>
             </div>
             <div class="table-wrapper" style="flex:1;">
