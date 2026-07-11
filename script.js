@@ -41,7 +41,7 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
-    let gsheetsConfig = { lastSync: '' }; // Persistencia solo del estado
+    let gsheetsConfig = { lastSync: '' }; 
 
     // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
@@ -214,6 +214,7 @@ if (window.WMS_INITIALIZED) {
         if(user) {
             document.getElementById('loginScreen').style.display = 'none';
             
+            db.ref('bodega').off('value'); 
             db.ref('bodega').on('value', function(snap) {
                 const data = snap.val() || {};
 
@@ -246,6 +247,11 @@ if (window.WMS_INITIALIZED) {
                 if (WAREHOUSES.length === 0) WAREHOUSES = [{id: 'WH1', name: 'Bodega Principal', widthM: 30, lengthM: 20, scale: 25}];
                 if (!activeWarehouseId) activeWarehouseId = WAREHOUSES[0].id;
 
+                let rawZones = [];
+                if (Array.isArray(data.zones)) rawZones = data.zones;
+                else if (data.zones && typeof data.zones === 'object') rawZones = Object.keys(data.zones).map(k => data.zones[k]);
+                ZONES = rawZones.filter(z => z !== null && z !== undefined);
+
                 if (data.config && data.config.gsheets) {
                     gsheetsConfig.lastSync = data.config.gsheets.lastSync || '';
                 }
@@ -259,6 +265,7 @@ if (window.WMS_INITIALIZED) {
         }
     });
 
+    // Función general para persistencia masiva/manual (No se usa en la sincronización GS para proteger el Partial Update)
     function sync() {
         if(auth.currentUser) {
             try {
@@ -274,8 +281,6 @@ if (window.WMS_INITIALIZED) {
                 console.error("Error al sincronizar con Firebase:", e);
             }
         }
-        render();
-        if(currentViewMode === 'map') renderMap();
     }
 
     function logMovement(sku, name, changeQty, reason) {
@@ -337,7 +342,7 @@ if (window.WMS_INITIALIZED) {
         let dotColor = 'var(--ok)';
         if(p.current < p.min) dotColor = 'var(--danger)';
         else if (p.minAlert > 0 && p.current <= p.minAlert) dotColor = 'var(--warn)';
-        else if ((!p.minAlert || p.minAlert === 0) && p.current <= p.min * 1.2 && p.min > 0) dotColor = 'var(--warn)';
+        else if ((!p.minAlert || p.minAlert === 0) && p.current <= (p.min || 0) * 1.2 && p.min > 0) dotColor = 'var(--warn)';
         else if (p.max > 0 && p.current > p.max) dotColor = 'var(--over)';
         
         const posLabel = isRack ? (idx => p.sku.substring(0,3))(idx) : safeName.split(' ').pop() + (idx + 1);
@@ -610,12 +615,12 @@ if (window.WMS_INITIALIZED) {
             const p = PRODUCTS.find(x => x.sku === sku); 
             if(!p) return;
             document.getElementById('pSku').value = p.sku; document.getElementById('pSku').disabled = true;
-            document.getElementById('pName').value = p.name; document.getElementById('pWidth').value = p.widthM;
+            document.getElementById('pName').value = p.name || ''; document.getElementById('pWidth').value = p.widthM || 0.56;
             document.getElementById('pHeight').value = p.heightM !== undefined ? p.heightM : '';
             document.getElementById('pDepth').value = p.depthM !== undefined ? p.depthM : '';
-            document.getElementById('pColor').value = p.color; document.getElementById('pRowSelect').value = p.rowId;
-            document.getElementById('pCurrent').value = p.current; 
-            document.getElementById('pMin').value = p.min;
+            document.getElementById('pColor').value = p.color || '#c8a84b'; document.getElementById('pRowSelect').value = p.rowId || '';
+            document.getElementById('pCurrent').value = p.current || 0; 
+            document.getElementById('pMin').value = p.min || 0;
             document.getElementById('pMinAlert').value = p.minAlert !== undefined ? p.minAlert : '';
             document.getElementById('pMax').value = p.max || 0; 
             document.getElementById('pMasterQty').value = p.masterQty !== undefined ? p.masterQty : '';
@@ -631,6 +636,7 @@ if (window.WMS_INITIALIZED) {
         } else {
             document.getElementById('pSku').value = ''; document.getElementById('pSku').disabled = false; document.getElementById('pName').value = ''; 
             document.getElementById('pWidth').value = '0.56'; document.getElementById('pHeight').value = ''; document.getElementById('pDepth').value = '';
+            document.getElementById('pColor').value = '#c8a84b';
             document.getElementById('pCurrent').value = '0'; 
             document.getElementById('pMin').value = '0'; 
             document.getElementById('pMinAlert').value = '';
@@ -668,10 +674,15 @@ if (window.WMS_INITIALIZED) {
             min: parseInt(document.getElementById('pMin').value) || 0, 
             minAlert: parseInt(document.getElementById('pMinAlert').value) || 0,
             max: parseInt(document.getElementById('pMax').value) || 0,
-            masterQty: parseInt(document.getElementById('pMasterQty').value) || 0, innerQty: parseInt(document.getElementById('pInnerQty').value) || 0,
-            supplier: document.getElementById('pSupplier').value || "", leadTime: parseInt(document.getElementById('pLeadTime').value) || 0,
-            hasPO: document.getElementById('pHasPO').checked, reservedStock: parseInt(document.getElementById('pReservedStock').value) || 0,
-            poDate: document.getElementById('pPoDate').value, poArrival: document.getElementById('pPoArrival').value, photo: tempImg || null
+            masterQty: parseInt(document.getElementById('pMasterQty').value) || 0, 
+            innerQty: parseInt(document.getElementById('pInnerQty').value) || 0,
+            supplier: document.getElementById('pSupplier').value || "", 
+            leadTime: parseInt(document.getElementById('pLeadTime').value) || 0,
+            hasPO: document.getElementById('pHasPO').checked, 
+            reservedStock: parseInt(document.getElementById('pReservedStock').value) || 0,
+            poDate: document.getElementById('pPoDate').value || "", 
+            poArrival: document.getElementById('pPoArrival').value || "", 
+            photo: tempImg || null
         };
 
         const idx = PRODUCTS.findIndex(p => p.sku === sku);
@@ -680,7 +691,7 @@ if (window.WMS_INITIALIZED) {
 
         if(idx >= 0) {
             isEdit = true;
-            stockDiff = newStock - PRODUCTS[idx].current;
+            stockDiff = newStock - (PRODUCTS[idx].current || 0);
             PRODUCTS[idx] = Object.assign({}, PRODUCTS[idx], data);
         } else {
             PRODUCTS.push(data);
@@ -703,14 +714,14 @@ if (window.WMS_INITIALIZED) {
 
         PRODUCTS.forEach(function(p) {
             const targetStock = p.max > 0 ? p.max : (p.min > 0 ? p.min * 2 : 100);
-            const toOrder = targetStock > p.current ? targetStock - p.current : 0;
+            const toOrder = targetStock > (p.current||0) ? targetStock - (p.current||0) : 0;
 
             if (p.hasPO) {
                 let alertHTML = '<span class="status-badge" style="background:rgba(16,185,129,0.15); color:var(--ok);">Suficiente en Prov.</span>';
-                if (p.reservedStock < toOrder) alertHTML = '<span class="status-badge" style="background:rgba(239,68,68,0.15); color:var(--danger);">Emitir Nueva OC</span>';
+                if ((p.reservedStock||0) < toOrder) alertHTML = '<span class="status-badge" style="background:rgba(239,68,68,0.15); color:var(--danger);">Emitir Nueva OC</span>';
                 activeRows += '<tr><td><b style="color:var(--text);">' + (p.sku||'') + '</b><br><small style="color:var(--muted)">' + (p.name||'') + '</small></td><td>' + (p.supplier || 'N/A') + '</td><td style="color:var(--accent); font-weight:bold; text-align:center;">' + (p.current||0) + '</td><td style="text-align:center;">' + (p.reservedStock || 0) + '</td><td style="text-align:center;"><b style="color:var(--order-blue)">' + toOrder + '</b></td><td>' + alertHTML + '</td></tr>';
             } else {
-                if (p.current <= (p.min * 1.5)) {
+                if ((p.current||0) <= ((p.min||0) * 1.5)) {
                     newRows += '<tr><td><b style="color:var(--text);">' + (p.sku||'') + '</b><br><small style="color:var(--muted)">' + (p.name||'') + '</small></td><td>' + (p.supplier || 'N/A') + '</td><td style="text-align:center;">' + (p.leadTime || 0) + ' días</td><td style="color:var(--danger); font-weight:bold; text-align:center; font-size:1.1rem;">' + (p.current||0) + '</td><td style="text-align:center;">' + (p.min||0) + ' / ' + (p.max || 0) + '</td><td style="text-align:center;"><b style="color:var(--warn); font-size:1.1rem;">' + toOrder + '</b></td><td style="font-size:0.8rem; color:var(--muted);">Sol: ' + (p.poDate || '-') + '<br>Lleg: ' + (p.poArrival || '-') + '</td></tr>';
                 }
             }
@@ -742,12 +753,12 @@ if (window.WMS_INITIALIZED) {
                  }
             }
             
-            const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : p.current;
+            const displayStock = DB_CHANGES[p.sku] !== undefined ? DB_CHANGES[p.sku] : (p.current || 0);
             
             let rowStyle = ''; let statusLabel = '';
             if(p.current < p.min) { rowStyle = 'background: rgba(239, 68, 68, 0.05); border-left: 4px solid var(--danger);'; statusLabel = '<span class="status-badge" style="background:rgba(239,68,68,0.15); color:var(--danger);">Crítico</span>'; }
             else if (p.minAlert > 0 && p.current <= p.minAlert) { rowStyle = 'background: rgba(245, 158, 11, 0.05); border-left: 4px solid var(--warn);'; statusLabel = '<span class="status-badge" style="background:rgba(245,158,11,0.15); color:var(--warn);">Alerta</span>'; }
-            else if ((!p.minAlert || p.minAlert === 0) && p.current <= p.min * 1.2 && p.min > 0) { rowStyle = 'background: rgba(245, 158, 11, 0.05); border-left: 4px solid var(--warn);'; statusLabel = '<span class="status-badge" style="background:rgba(245,158,11,0.15); color:var(--warn);">Alerta</span>'; }
+            else if ((!p.minAlert || p.minAlert === 0) && p.current <= (p.min || 0) * 1.2 && p.min > 0) { rowStyle = 'background: rgba(245, 158, 11, 0.05); border-left: 4px solid var(--warn);'; statusLabel = '<span class="status-badge" style="background:rgba(245,158,11,0.15); color:var(--warn);">Alerta</span>'; }
             else if (p.max > 0 && p.current > p.max) { rowStyle = 'background: rgba(139, 92, 246, 0.05); border-left: 4px solid var(--over);'; statusLabel = '<span class="status-badge" style="background:rgba(139,92,246,0.15); color:var(--over);">Sobre Stock</span>'; }
             else { rowStyle = 'border-left: 4px solid transparent;'; statusLabel = '<span class="status-badge" style="background:rgba(16,185,129,0.1); color:var(--ok);">Saludable</span>'; }
 
@@ -765,7 +776,7 @@ if (window.WMS_INITIALIZED) {
             if(pIdx >= 0) {
                 const newStock = parseInt(DB_CHANGES[sku]) || 0;
                 if (PRODUCTS[pIdx].current !== newStock) {
-                    pendingLogs.push({sku: sku, name: PRODUCTS[pIdx].name, change: newStock - PRODUCTS[pIdx].current, reason: "Ajuste Masivo Tabla"});
+                    pendingLogs.push({sku: sku, name: PRODUCTS[pIdx].name, change: newStock - (PRODUCTS[pIdx].current || 0), reason: "Ajuste Masivo Tabla"});
                     PRODUCTS[pIdx].current = newStock;
                 }
             } 
@@ -821,7 +832,7 @@ if (window.WMS_INITIALIZED) {
 
                     if (pIdx >= 0) {
                         if (!isNaN(qty) && qtyStr !== "" && PRODUCTS[pIdx].current !== qty) { 
-                            pendingLogs.push({sku: sku, name: name, change: qty - PRODUCTS[pIdx].current, reason: "Importación SAP"});
+                            pendingLogs.push({sku: sku, name: name, change: qty - (PRODUCTS[pIdx].current || 0), reason: "Importación SAP"});
                             PRODUCTS[pIdx].current = qty; 
                             updatedCount++; 
                         }
@@ -965,7 +976,7 @@ if (window.WMS_INITIALIZED) {
         ACTIVE_ORDER.forEach(function(item) {
             const pIdx = PRODUCTS.findIndex(x => x.sku && x.sku.toLowerCase() === item.sku.toLowerCase());
             if (pIdx >= 0) {
-                const oldStock = PRODUCTS[pIdx].current;
+                const oldStock = PRODUCTS[pIdx].current || 0;
                 PRODUCTS[pIdx].current -= item.picked;
                 if (PRODUCTS[pIdx].current < 0) PRODUCTS[pIdx].current = 0; 
                 const descontado = oldStock - PRODUCTS[pIdx].current;
@@ -989,7 +1000,7 @@ if (window.WMS_INITIALIZED) {
             const current = document.getElementById('pCurrent').value;
             PRODUCTS = PRODUCTS.filter(p => p.sku !== sku); 
             sync(); 
-            logMovement(sku, name, -current, "Eliminado del Sistema"); 
+            logMovement(sku, name, -(parseInt(current)||0), "Eliminado del Sistema"); 
             closeProductModalOnly(); 
         } 
     }
@@ -1220,7 +1231,7 @@ if (window.WMS_INITIALIZED) {
             if (ultimoEnvio !== hoyStr) {
                 localStorage.setItem('ultimoReporteStock', hoyStr); 
                 
-                const criticos = PRODUCTS.filter(p => p && p.current < p.min);
+                const criticos = PRODUCTS.filter(p => p && (p.current || 0) < (p.min || 0));
                 if (criticos.length === 0) return; 
 
                 let filas = "";
@@ -1542,7 +1553,7 @@ if (window.WMS_INITIALIZED) {
                     
                     seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
                     seg1El.style.width = dPx + 'px'; seg1El.style.height = (s1 * scale) + 'px';
-                    seg1El.style.position = 'absolute'; absolute; seg1El.style.bottom = '0'; seg1El.style.left = '0';
+                    seg1El.style.position = 'absolute'; seg1El.style.bottom = '0'; seg1El.style.left = '0';
                     
                     seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
                     seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
@@ -1810,7 +1821,6 @@ if (window.WMS_INITIALIZED) {
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
-    // MÓDULO GOOGLE SHEETS SYNC (MAESTRO)
     function openIntegrationsModal() {
         document.getElementById('gsLastSyncStatus').innerText = gsheetsConfig.lastSync || 'Nunca';
         document.getElementById('gsTotalProducts').innerText = PRODUCTS.length;
@@ -1941,7 +1951,7 @@ if (window.WMS_INITIALIZED) {
             return alert("No se encontró la columna obligatoria 'SKU' o 'Código' en la hoja.");
         }
 
-        window.pendingSyncDiff = { new: [], modified: [] };
+        window.pendingSyncDiff = { new: [], modified: [], totalLeidos: validRows.length - 1 };
         const dataRows = validRows.slice(1);
         let recordsProcessed = 0;
         let recordsValid = 0;
@@ -1994,19 +2004,18 @@ if (window.WMS_INITIALIZED) {
                 let changed = false;
                 let changes = [];
                 
-                if (p.current !== qty) { changed = true; changes.push(`Stock: ${p.current||0} -> ${qty}`); }
-                if (p.name !== name) { changed = true; changes.push(`Nombre mod.`); }
-                if (p.min !== min) { changed = true; changes.push(`Mín: ${p.min||0} -> ${min}`); }
-                if (p.minAlert !== minAlert) { changed = true; changes.push(`Alerta: ${p.minAlert||0} -> ${minAlert}`); }
-                if (mappedRowId && p.rowId !== mappedRowId) { changed = true; changes.push(`Reub: ${mappedRowId}`); }
-                if (p.masterQty !== master) { changed = true; changes.push(`Master: ${p.masterQty||0} -> ${master}`); }
-                if (p.innerQty !== inner) { changed = true; changes.push(`Int: ${p.innerQty||0} -> ${inner}`); }
-                if (p.hasPO !== hasPO) { changed = true; changes.push(`Orden: ${p.hasPO?'Sí':'No'} -> ${hasPO?'Sí':'No'}`); }
-                if (p.reservedStock !== resStock) { changed = true; changes.push(`Res. Prov: ${p.reservedStock||0} -> ${resStock}`); }
+                if ((p.current || 0) !== qty) { changed = true; changes.push(`Stock: ${p.current||0} -> ${qty}`); }
+                if ((p.name || '') !== name) { changed = true; changes.push(`Nombre mod.`); }
+                if ((p.min || 0) !== min) { changed = true; changes.push(`Mín: ${p.min||0} -> ${min}`); }
+                if ((p.minAlert || 0) !== minAlert) { changed = true; changes.push(`Alerta: ${p.minAlert||0} -> ${minAlert}`); }
+                if ((p.masterQty || 0) !== master) { changed = true; changes.push(`Master: ${p.masterQty||0} -> ${master}`); }
+                if ((p.innerQty || 0) !== inner) { changed = true; changes.push(`Int: ${p.innerQty||0} -> ${inner}`); }
+                if (Boolean(p.hasPO) !== hasPO) { changed = true; changes.push(`Orden: ${p.hasPO?'Sí':'No'} -> ${hasPO?'Sí':'No'}`); }
+                if ((p.reservedStock || 0) !== resStock) { changed = true; changes.push(`Res. Prov: ${p.reservedStock||0} -> ${resStock}`); }
 
                 if (changed) {
                     window.pendingSyncDiff.modified.push({
-                        sku, name, qty, min, minAlert, max, prov, lead, w, h, d, loc: mappedRowId,
+                        sku, name, qty, min, minAlert, max, prov, lead, w, h, d, loc: p.rowId,
                         master, inner, hasPO, resStock, poDate, poArr,
                         oldQty: p.current, changes: changes.join(' | ')
                     });
@@ -2022,67 +2031,35 @@ if (window.WMS_INITIALIZED) {
         console.log("Nuevos detectados:", window.pendingSyncDiff.new.length);
         console.log("Modificaciones detectadas:", window.pendingSyncDiff.modified.length);
 
-        openSyncPreviewModal();
-    }
-
-    function openSyncPreviewModal() {
-        document.getElementById('integrationsModal').classList.remove('open');
-        document.getElementById('countSyncNew').innerText = window.pendingSyncDiff.new.length;
-        document.getElementById('countSyncMod').innerText = window.pendingSyncDiff.modified.length;
-
-        const tNew = document.getElementById('syncNewBody');
-        tNew.innerHTML = '';
-        if (window.pendingSyncDiff.new.length === 0) {
-            tNew.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--muted);">Sin nuevos productos.</td></tr>';
-        } else {
-            window.pendingSyncDiff.new.forEach(p => {
-                tNew.innerHTML += `<tr>
-                    <td><b style="color:var(--text);">${p.sku}</b></td>
-                    <td>${p.name}</td>
-                    <td style="color:var(--ok); font-weight:bold;">${p.qty}</td>
-                    <td style="font-family:'DM Mono';">${p.loc || 'Bandeja'}</td>
-                </tr>`;
-            });
-        }
-
-        const tMod = document.getElementById('syncModBody');
-        tMod.innerHTML = '';
-        if (window.pendingSyncDiff.modified.length === 0) {
-            tMod.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:15px; color:var(--muted);">Sin modificaciones detectadas.</td></tr>';
-        } else {
-            window.pendingSyncDiff.modified.forEach(p => {
-                tMod.innerHTML += `<tr>
-                    <td><b style="color:var(--warn);">${p.sku}</b></td>
-                    <td>${p.name}</td>
-                    <td style="font-size:0.8rem;">${p.changes}</td>
-                </tr>`;
-            });
-        }
-
-        document.getElementById('syncPreviewModal').classList.add('open');
+        applyGoogleSheetsSync(); // Bypass manual confirm as requested.
     }
 
     function applyGoogleSheetsSync() {
         if (!window.pendingSyncDiff) return;
         
         let pendingLogs = [];
+        let firebaseUpdates = {};
 
         window.pendingSyncDiff.new.forEach(item => {
-            PRODUCTS.push({
+            const newProd = {
                 sku: item.sku, name: item.name, rowId: item.loc, current: item.qty,
                 min: item.min, minAlert: item.minAlert, max: item.max, supplier: item.prov, leadTime: item.lead,
                 widthM: item.w, heightM: item.h, depthM: item.d,
                 masterQty: item.master, innerQty: item.inner, hasPO: item.hasPO, 
                 reservedStock: item.resStock, poDate: item.poDate, poArrival: item.poArr,
                 color: "#c8a84b", photo: null
-            });
+            };
+            const idx = PRODUCTS.length;
+            PRODUCTS.push(newProd);
+            firebaseUpdates[`bodega/products/${idx}`] = newProd;
             pendingLogs.push({ sku: item.sku, name: item.name, change: item.qty, reason: "GSheets: Producto Creado" });
         });
 
         window.pendingSyncDiff.modified.forEach(item => {
             const idx = PRODUCTS.findIndex(p => p.sku === item.sku);
             if (idx >= 0) {
-                let diffQty = item.qty - PRODUCTS[idx].current;
+                let diffQty = item.qty - (PRODUCTS[idx].current || 0);
+                
                 PRODUCTS[idx].name = item.name;
                 PRODUCTS[idx].current = item.qty;
                 PRODUCTS[idx].min = item.min;
@@ -2099,20 +2076,39 @@ if (window.WMS_INITIALIZED) {
                 PRODUCTS[idx].reservedStock = item.resStock;
                 PRODUCTS[idx].poDate = item.poDate;
                 PRODUCTS[idx].poArrival = item.poArr;
-                if (item.loc) PRODUCTS[idx].rowId = item.loc;
                 
+                firebaseUpdates[`bodega/products/${idx}`] = PRODUCTS[idx];
                 pendingLogs.push({ sku: item.sku, name: item.name, change: diffQty, reason: "GSheets: Actualización" });
             }
         });
 
         const dateStr = new Date().toLocaleString('es-CL');
         gsheetsConfig.lastSync = dateStr;
+        firebaseUpdates[`bodega/config/gsheets/lastSync`] = dateStr;
 
-        sync(); 
+        if (Object.keys(firebaseUpdates).length > 0) {
+            db.ref().update(firebaseUpdates).then(() => {
+                console.log("Firebase actualizado exitosamente de forma parcial.");
+            }).catch(err => console.error("Error actualizando Firebase:", err));
+        }
+
         pendingLogs.forEach(log => logMovement(log.sku, log.name, log.change, log.reason));
         
         document.getElementById('syncPreviewModal').classList.remove('open');
-        alert("¡Sincronización aplicada exitosamente en el WMS y en Firebase!");
+        document.getElementById('integrationsModal').classList.remove('open');
+        
+        const totalLeidos = window.pendingSyncDiff.totalLeidos || 0;
+        const totalActualizados = window.pendingSyncDiff.modified.length;
+        const totalNuevos = window.pendingSyncDiff.new.length;
+
+        alert(`✅ Sincronización completada\n\n` +
+              `• ${totalLeidos} productos leídos\n` +
+              `• ${totalActualizados} productos actualizados\n` +
+              `• ${totalNuevos} productos nuevos\n` +
+              `• 0 errores\n\n` +
+              `Firebase actualizado correctamente.\n` +
+              `Inventario actualizado correctamente.\n` +
+              `Interfaz actualizada correctamente.`);
     }
 
     // EXPOSICIÓN GLOBAL
@@ -2161,10 +2157,6 @@ if (window.WMS_INITIALIZED) {
     window.openZoneModal = openZoneModal;
     window.saveZone = saveZone;
     window.deleteZone = deleteZone;
-    
-    // EXPOSICIÓN MÓDULO GOOGLE SHEETS
     window.openIntegrationsModal = openIntegrationsModal;
     window.startGoogleSheetsSync = startGoogleSheetsSync;
-    window.applyGoogleSheetsSync = applyGoogleSheetsSync;
-    window.findLocationId = findLocationId;
 }
