@@ -18,6 +18,12 @@ if (window.WMS_INITIALIZED) {
     const db = firebase.database();
     const auth = firebase.auth();
 
+    // CONFIGURACIÓN MAESTRA DE GOOGLE SHEETS CENTRALIZADA
+    const GOOGLE_SHEETS_CONFIG = {
+        spreadsheetId: "1aTYUvP5fAbAB95oyFqLZ6mySuzj6y61KlKHgQMKRXEI",
+        sheetName: "Productos_WMS"
+    };
+
     let ROWS = [];
     let RACKS = []; 
     let PRODUCTS = [];
@@ -35,7 +41,7 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
-    let gsheetsConfig = { sheetId: '', tabName: 'Productos', lastSync: '' };
+    let gsheetsConfig = { lastSync: '' }; // Persistencia solo del estado
 
     // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
@@ -240,13 +246,8 @@ if (window.WMS_INITIALIZED) {
                 if (WAREHOUSES.length === 0) WAREHOUSES = [{id: 'WH1', name: 'Bodega Principal', widthM: 30, lengthM: 20, scale: 25}];
                 if (!activeWarehouseId) activeWarehouseId = WAREHOUSES[0].id;
 
-                let rawZones = [];
-                if (Array.isArray(data.zones)) rawZones = data.zones;
-                else if (data.zones && typeof data.zones === 'object') rawZones = Object.keys(data.zones).map(k => data.zones[k]);
-                ZONES = rawZones.filter(z => z !== null && z !== undefined);
-
                 if (data.config && data.config.gsheets) {
-                    gsheetsConfig = data.config.gsheets;
+                    gsheetsConfig.lastSync = data.config.gsheets.lastSync || '';
                 }
 
                 render();
@@ -790,7 +791,6 @@ if (window.WMS_INITIALIZED) {
 
     function toggleSapSection() { const section = document.getElementById('sapImportSection'); section.style.display = section.style.display === 'none' ? 'block' : 'none'; }
 
-    // CORRECCIÓN EXACTA Y SEGURA: Importador SAP unificado con LocationFinder y 15 campos
     function processSapPaste() {
         const inputData = document.getElementById('sapPasteInput').value.trim(); 
         if (!inputData) return alert("El cuadro de texto está vacío.");
@@ -1542,7 +1542,7 @@ if (window.WMS_INITIALIZED) {
                     
                     seg1El = document.createElement('div'); seg1El.className = 'map-segment map-segment-v';
                     seg1El.style.width = dPx + 'px'; seg1El.style.height = (s1 * scale) + 'px';
-                    seg1El.style.position = 'absolute'; seg1El.style.bottom = '0'; seg1El.style.left = '0';
+                    seg1El.style.position = 'absolute'; absolute; seg1El.style.bottom = '0'; seg1El.style.left = '0';
                     
                     seg2El = document.createElement('div'); seg2El.className = 'map-segment map-segment-h';
                     seg2El.style.height = dPx + 'px'; seg2El.style.width = (s2 * scale) + 'px';
@@ -1810,22 +1810,11 @@ if (window.WMS_INITIALIZED) {
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
-    // MÓDULO GOOGLE SHEETS SYNC
+    // MÓDULO GOOGLE SHEETS SYNC (MAESTRO)
     function openIntegrationsModal() {
-        document.getElementById('gsheetIdInput').value = gsheetsConfig.sheetId || '';
-        document.getElementById('gsheetTabInput').value = gsheetsConfig.tabName || 'Productos';
-        document.getElementById('lastSyncLabel').innerText = gsheetsConfig.lastSync ? 'Última Sincronización: ' + gsheetsConfig.lastSync : 'Última Sincronización: Nunca';
+        document.getElementById('gsLastSyncStatus').innerText = gsheetsConfig.lastSync || 'Nunca';
+        document.getElementById('gsTotalProducts').innerText = PRODUCTS.length;
         document.getElementById('integrationsModal').classList.add('open');
-    }
-
-    function saveIntegrationsConfig() {
-        gsheetsConfig.sheetId = document.getElementById('gsheetIdInput').value.trim();
-        gsheetsConfig.tabName = document.getElementById('gsheetTabInput').value.trim() || 'Productos';
-        
-        if (!gsheetsConfig.sheetId) return alert("Debe ingresar un ID de hoja válido o una URL de Publicación.");
-        
-        sync();
-        alert("Configuración de Google Sheets guardada en Firebase.");
     }
 
     function normalizeHeader(str) {
@@ -1839,37 +1828,16 @@ if (window.WMS_INITIALIZED) {
     }
 
     function startGoogleSheetsSync() {
-        const inputVal = document.getElementById('gsheetIdInput').value.trim();
-        const tabName = document.getElementById('gsheetTabInput').value.trim() || 'Productos';
-        
         console.clear();
-        console.log("=== [DEPURACIÓN GS] PASO 1: Captura de Entrada ===");
-        console.log("Entrada del Operador:", inputVal);
-
-        if (!inputVal) {
-            console.error("[DEPURACIÓN GS] ERROR: URL o ID vacío.");
-            return alert("Ingrese la URL de publicación CSV o el ID de la hoja de Google Sheets.");
-        }
-
+        console.log("=== [DEPURACIÓN GS] PASO 1: Iniciando Sincronización Automática ===");
+        
         const btn = document.getElementById('btnSyncGs');
         btn.innerText = "⏳ Descargando y Analizando...";
         btn.disabled = true;
 
-        let url = '';
-        if (inputVal.startsWith('http') && inputVal.includes('pub')) {
-            url = inputVal;
-        } else if (inputVal.startsWith('http')) {
-            const match = inputVal.match(/\/d\/([a-zA-Z0-9-_]+)/);
-            if (match && match[1]) {
-                url = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&sheet=${encodeURIComponent(tabName)}`;
-            } else {
-                url = inputVal;
-            }
-        } else {
-            url = `https://docs.google.com/spreadsheets/d/${inputVal}/export?format=csv&sheet=${encodeURIComponent(tabName)}`;
-        }
+        const url = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_CONFIG.spreadsheetId}/export?format=csv&sheet=${encodeURIComponent(GOOGLE_SHEETS_CONFIG.sheetName)}`;
 
-        console.log("=== [DEPURACIÓN GS] PASO 2: URL de Conexión Generada ===");
+        console.log("=== [DEPURACIÓN GS] PASO 2: URL de Conexión ===");
         console.log("Target API URL:", url);
 
         console.log("=== [DEPURACIÓN GS] PASO 3: Ejecutando fetch()...");
@@ -1888,7 +1856,7 @@ if (window.WMS_INITIALIZED) {
 
                 if (csv.trim().startsWith("<!DOCTYPE") || csv.trim().toLowerCase().startsWith("<html")) {
                     console.error("[DEPURACIÓN GS] ERROR: Respuesta devuelta es HTML (Google pide autenticación).");
-                    throw new Error("Google bloqueó la solicitud o solicitó inicio de sesión por redirección web. Asegúrese de usar 'Publicar en la web' > Formato 'CSV'!");
+                    throw new Error("Google bloqueó la solicitud o solicitó inicio de sesión por redirección web. El Google Sheets debe estar configurado como 'Cualquier persona con el enlace' y publicado.");
                 }
                 
                 btn.innerText = "🔄 Sincronizar Ahora";
@@ -1902,7 +1870,7 @@ if (window.WMS_INITIALIZED) {
                 
                 let errMsg = err.message;
                 if (errMsg === 'Failed to fetch') {
-                    errMsg = "El navegador bloqueó la solicitud (Error de CORS).\n\nCausa real: Su cuenta Google Workspace tiene restricciones que impiden descargar la hoja mediante fetch.\n\nSOLUCIÓN:\nEn su Sheets vaya a 'Archivo' > 'Compartir' > 'Publicar en la web' > Elija pestaña 'Productos' > Formato 'CSV' y pegue ese enlace público de publicación aquí.";
+                    errMsg = "El navegador bloqueó la solicitud (Error de CORS).\n\nCausa real: Su cuenta Google Workspace tiene restricciones que impiden descargar la hoja mediante fetch.\n\nSOLUCIÓN:\nEn su Sheets vaya a 'Archivo' > 'Compartir' > 'Publicar en la web' para que el enlace sea accesible directamente.";
                 }
                 alert(`Error detectado:\n\n${errMsg}`);
             });
@@ -2194,8 +2162,8 @@ if (window.WMS_INITIALIZED) {
     window.saveZone = saveZone;
     window.deleteZone = deleteZone;
     
+    // EXPOSICIÓN MÓDULO GOOGLE SHEETS
     window.openIntegrationsModal = openIntegrationsModal;
-    window.saveIntegrationsConfig = saveIntegrationsConfig;
     window.startGoogleSheetsSync = startGoogleSheetsSync;
     window.applyGoogleSheetsSync = applyGoogleSheetsSync;
     window.findLocationId = findLocationId;
