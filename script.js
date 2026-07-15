@@ -19,9 +19,11 @@ if (window.WMS_INITIALIZED) {
     const auth = firebase.auth();
 
     // CONFIGURACIÓN MAESTRA DE GOOGLE SHEETS CENTRALIZADA
-    const GOOGLE_SHEETS_CONFIG = {
-        spreadsheetId: "1aTYUvP5fAbAB95oyFqLZ6mySuzj6y61KlKHgQMKRXEI",
-        sheetName: "Productos_WMS"
+    let GOOGLE_SHEETS_CONFIG = {
+        spreadsheetId: "",
+        spreadsheetUrl: "",
+        sheetName: "Productos_WMS",
+        spreadsheetName: "Sin Conectar"
     };
 
     let ROWS = [];
@@ -41,7 +43,7 @@ if (window.WMS_INITIALIZED) {
     let draggingMapItem = null;
     let dragOffsetX = 0, dragOffsetY = 0;
 
-    let gsheetsConfig = { lastSync: '' }; 
+    let gsheetsConfig = { url: '', lastSync: '' }; 
 
     // DRAG NATIVO PERMITIENDO SCROLL DEL MOUSE
     document.addEventListener("dragover", function(e) {
@@ -210,6 +212,17 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
+    // MONITOREO DE CONEXIÓN FIREBASE EN VIVO
+    db.ref(".info/connected").on("value", function(snap) {
+        const isConnected = snap.val() === true;
+        const statusEl = document.getElementById("fbConnectionStatus");
+        if (statusEl) {
+            statusEl.innerHTML = isConnected 
+                ? `<span style="width:10px; height:10px; background:var(--ok); border-radius:50%; display:inline-block; margin-right:8px; box-shadow:0 0 8px var(--ok);"></span> <b style="color:var(--text); font-size:1rem;">En Línea</b>`
+                : `<span style="width:10px; height:10px; background:var(--danger); border-radius:50%; display:inline-block; margin-right:8px; box-shadow:0 0 8px var(--danger);"></span> <b style="color:var(--danger); font-size:1rem;">Desconectado</b>`;
+        }
+    });
+
     auth.onAuthStateChanged(function(user) {
         if(user) {
             document.getElementById('loginScreen').style.display = 'none';
@@ -252,8 +265,15 @@ if (window.WMS_INITIALIZED) {
                 else if (data.zones && typeof data.zones === 'object') rawZones = Object.keys(data.zones).map(k => data.zones[k]);
                 ZONES = rawZones.filter(z => z !== null && z !== undefined);
 
+                // CARGA AUTOMÁTICA DEL GOOGLE SHEETS DESDE FIREBASE
                 if (data.config && data.config.gsheets) {
-                    gsheetsConfig.lastSync = data.config.gsheets.lastSync || '';
+                    gsheetsConfig = data.config.gsheets;
+                    if (gsheetsConfig.url) {
+                        const extractedId = extractSpreadsheetId(gsheetsConfig.url);
+                        GOOGLE_SHEETS_CONFIG.spreadsheetId = extractedId;
+                        GOOGLE_SHEETS_CONFIG.spreadsheetUrl = gsheetsConfig.url;
+                        autoVerifyGSheetsOnLoad(extractedId, gsheetsConfig.url);
+                    }
                 }
 
                 render();
@@ -265,7 +285,6 @@ if (window.WMS_INITIALIZED) {
         }
     });
 
-    // Función general para persistencia masiva/manual (No se usa en la sincronización GS para proteger el Partial Update)
     function sync() {
         if(auth.currentUser) {
             try {
@@ -965,6 +984,13 @@ if (window.WMS_INITIALIZED) {
         renderOrderPrepTable(); render(); 
         if(currentViewMode === 'map') renderMap();
         sync(); 
+    }
+
+    function extractSpreadsheetId(url) {
+        if (!url) return "";
+        const cleanUrl = url.trim();
+        const match = cleanUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        return match ? match[1] : cleanUrl;
     }
 
     function updateOrderPickedQty(index, value) { ACTIVE_ORDER[index].picked = parseInt(value) || 0; }
@@ -2008,6 +2034,7 @@ if (window.WMS_INITIALIZED) {
                 if ((p.name || '') !== name) { changed = true; changes.push(`Nombre mod.`); }
                 if ((p.min || 0) !== min) { changed = true; changes.push(`Mín: ${p.min||0} -> ${min}`); }
                 if ((p.minAlert || 0) !== minAlert) { changed = true; changes.push(`Alerta: ${p.minAlert||0} -> ${minAlert}`); }
+                if (mappedRowId && p.rowId !== mappedRowId) { changed = true; changes.push(`Reub: ${mappedRowId}`); }
                 if ((p.masterQty || 0) !== master) { changed = true; changes.push(`Master: ${p.masterQty||0} -> ${master}`); }
                 if ((p.innerQty || 0) !== inner) { changed = true; changes.push(`Int: ${p.innerQty||0} -> ${inner}`); }
                 if (Boolean(p.hasPO) !== hasPO) { changed = true; changes.push(`Orden: ${p.hasPO?'Sí':'No'} -> ${hasPO?'Sí':'No'}`); }
@@ -2015,7 +2042,7 @@ if (window.WMS_INITIALIZED) {
 
                 if (changed) {
                     window.pendingSyncDiff.modified.push({
-                        sku, name, qty, min, minAlert, max, prov, lead, w, h, d, loc: p.rowId,
+                        sku, name, qty, min, minAlert, max, prov, lead, w, h, d, loc: p.rowId, // Mantiene loc original
                         master, inner, hasPO, resStock, poDate, poArr,
                         oldQty: p.current, changes: changes.join(' | ')
                     });
@@ -2031,7 +2058,7 @@ if (window.WMS_INITIALIZED) {
         console.log("Nuevos detectados:", window.pendingSyncDiff.new.length);
         console.log("Modificaciones detectadas:", window.pendingSyncDiff.modified.length);
 
-        applyGoogleSheetsSync(); // Bypass manual confirm as requested.
+        applyGoogleSheetsSync(); 
     }
 
     function applyGoogleSheetsSync() {
@@ -2076,6 +2103,7 @@ if (window.WMS_INITIALIZED) {
                 PRODUCTS[idx].reservedStock = item.resStock;
                 PRODUCTS[idx].poDate = item.poDate;
                 PRODUCTS[idx].poArrival = item.poArr;
+                if (item.loc) PRODUCTS[idx].rowId = item.loc;
                 
                 firebaseUpdates[`bodega/products/${idx}`] = PRODUCTS[idx];
                 pendingLogs.push({ sku: item.sku, name: item.name, change: diffQty, reason: "GSheets: Actualización" });
@@ -2159,4 +2187,6 @@ if (window.WMS_INITIALIZED) {
     window.deleteZone = deleteZone;
     window.openIntegrationsModal = openIntegrationsModal;
     window.startGoogleSheetsSync = startGoogleSheetsSync;
+    window.applyGoogleSheetsSync = applyGoogleSheetsSync;
+    window.findLocationId = findLocationId;
 }
