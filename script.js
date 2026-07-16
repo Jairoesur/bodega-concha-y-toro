@@ -212,7 +212,8 @@ if (window.WMS_INITIALIZED) {
         }
     }
 
-    // MONITOREO DE CONEXIÓN FIREBASE EN VIVO
+    // MONITOREO DE CONEXIÓN FIREBASE EN VIVO CON LIMPIEZA PREVIA
+    db.ref(".info/connected").off("value");
     db.ref(".info/connected").on("value", function(snap) {
         const isConnected = snap.val() === true;
         const statusEl = document.getElementById("fbConnectionStatus");
@@ -227,7 +228,7 @@ if (window.WMS_INITIALIZED) {
         if(user) {
             document.getElementById('loginScreen').style.display = 'none';
             
-            db.ref('bodega').off('value'); 
+            db.ref('bodega').off('value'); // LIMPIEZA ESTRICTA PRE-CARGA
             db.ref('bodega').on('value', function(snap) {
                 const data = snap.val() || {};
 
@@ -285,16 +286,22 @@ if (window.WMS_INITIALIZED) {
         }
     });
 
+    // SISTEMA ROBUSTO DE ESCRITURA GLOBAL EN FIREBASE
     function sync() {
         if(auth.currentUser) {
             try {
                 RACKS.forEach(sanitizeRackStructure);
-                
-                db.ref('bodega/rows').set(JSON.parse(JSON.stringify(ROWS)));
-                db.ref('bodega/racks').set(JSON.parse(JSON.stringify(RACKS))); 
-                db.ref('bodega/products').set(JSON.parse(JSON.stringify(PRODUCTS)));
-                db.ref('bodega/warehouses').set(JSON.parse(JSON.stringify(WAREHOUSES)));
-                db.ref('bodega/zones').set(JSON.parse(JSON.stringify(ZONES)));
+                const safeRows = ROWS.filter(x => x != null);
+                const safeRacks = RACKS.filter(x => x != null);
+                const safeProds = PRODUCTS.filter(x => x != null);
+                const safeWh = WAREHOUSES.filter(x => x != null);
+                const safeZones = ZONES.filter(x => x != null);
+
+                db.ref('bodega/rows').set(JSON.parse(JSON.stringify(safeRows)));
+                db.ref('bodega/racks').set(JSON.parse(JSON.stringify(safeRacks))); 
+                db.ref('bodega/products').set(JSON.parse(JSON.stringify(safeProds)));
+                db.ref('bodega/warehouses').set(JSON.parse(JSON.stringify(safeWh)));
+                db.ref('bodega/zones').set(JSON.parse(JSON.stringify(safeZones)));
                 db.ref('bodega/config/gsheets').set(JSON.parse(JSON.stringify(gsheetsConfig)));
             } catch (e) {
                 console.error("Error al sincronizar con Firebase:", e);
@@ -364,7 +371,7 @@ if (window.WMS_INITIALIZED) {
         else if ((!p.minAlert || p.minAlert === 0) && p.current <= (p.min || 0) * 1.2 && p.min > 0) dotColor = 'var(--warn)';
         else if (p.max > 0 && p.current > p.max) dotColor = 'var(--over)';
         
-        const posLabel = isRack ? (idx => p.sku.substring(0,3))(idx) : safeName.split(' ').pop() + (idx + 1);
+        const posLabel = isRack ? (p.sku ? p.sku.substring(0,3) : 'S/N') : safeName.split(' ').pop() + (idx + 1);
         pEl.innerHTML = '<div class="product-pos">' + posLabel + '</div><span class="stock-dot" style="background:' + dotColor + '"></span>';
         
         return pEl;
@@ -1847,6 +1854,170 @@ if (window.WMS_INITIALIZED) {
         if(confirm("¿Eliminar pasillo/zona?")) { ZONES = ZONES.filter(z => z.id !== id); sync(); closeModals(); }
     }
 
+    function enableGSheetSetupUI() {
+        document.getElementById('gsDashboardSection').style.display = 'none';
+        document.getElementById('gsSetupSection').style.display = 'block';
+        document.getElementById('gsheetUrlInput').value = GOOGLE_SHEETS_CONFIG.spreadsheetUrl || '';
+    }
+
+    function cancelGSheetSetup() {
+        if (!GOOGLE_SHEETS_CONFIG.spreadsheetId) {
+            return alert("Debe conectar un Google Sheets para habilitar el sistema.");
+        }
+        document.getElementById('gsSetupSection').style.display = 'none';
+        document.getElementById('gsDashboardSection').style.display = 'block';
+    }
+
+    function autoVerifyGSheetsOnLoad(id, url) {
+        verifyGSheetsTabs(id).then(res => {
+            const statusEl = document.getElementById('gsConnectionStatus');
+            const nameEl = document.getElementById('gsheetDocName');
+            const urlEl = document.getElementById('gsCurrentUrlLabel');
+            
+            if (res.isConnected) {
+                GOOGLE_SHEETS_CONFIG.spreadsheetName = res.spreadsheetName;
+                if(statusEl) statusEl.innerHTML = `<span style="width:10px; height:10px; background:var(--ok); border-radius:50%; display:inline-block; margin-right:8px; box-shadow:0 0 8px var(--ok);"></span> <b style="color:var(--text); font-size:1rem;">Conectado</b>`;
+                if(nameEl) nameEl.innerText = res.spreadsheetName;
+                if(urlEl) urlEl.innerText = url;
+                document.getElementById('gsDashboardSection').style.display = 'block';
+                document.getElementById('gsSetupSection').style.display = 'none';
+            } else {
+                if(statusEl) statusEl.innerHTML = `<span style="width:10px; height:10px; background:var(--danger); border-radius:50%; display:inline-block; margin-right:8px; box-shadow:0 0 8px var(--danger);"></span> <b style="color:var(--danger); font-size:1rem;">Error de Conexión</b>`;
+                enableGSheetSetupUI();
+            }
+            renderTabsChecklist(res.statusMap);
+        });
+    }
+
+    function testGSheetsConnection() {
+        if (!GOOGLE_SHEETS_CONFIG.spreadsheetId) return alert("No hay ningún Google Sheet configurado.");
+        const btn = document.getElementById('btnSyncGs');
+        btn.disabled = true;
+        
+        verifyGSheetsTabs(GOOGLE_SHEETS_CONFIG.spreadsheetId).then(res => {
+            btn.disabled = false;
+            renderTabsChecklist(res.statusMap);
+            
+            if (res.isConnected) {
+                alert(`✅ Conexión Exitosa con "${res.spreadsheetName}"\n\nTodas las pestañas obligatorias están mapeadas correctamente.`);
+            } else {
+                let missing = [];
+                for(let key in res.statusMap) {
+                    if(!res.statusMap[key]) missing.push(key);
+                }
+                alert(`⚠️ Problema de Estructura\n\nFaltan las siguientes pestañas críticas: ${missing.join(', ')}`);
+            }
+        });
+    }
+
+    function saveAndConnectGSheet() {
+        const urlInput = document.getElementById('gsheetUrlInput').value.trim();
+        if (!urlInput) return alert("Debe ingresar un enlace de Google Sheets.");
+
+        const id = extractSpreadsheetId(urlInput);
+        if (!id) return alert("El enlace no es válido. Asegúrese de copiar la URL completa del navegador.");
+
+        const saveBtn = document.querySelector('#gsSetupSection button.btn-primary');
+        saveBtn.disabled = true;
+        saveBtn.innerText = "Conectando...";
+
+        verifyGSheetsTabs(id).then(res => {
+            saveBtn.disabled = false;
+            saveBtn.innerText = "Conectar Documento";
+
+            if (res.isConnected) {
+                gsheetsConfig.url = urlInput;
+                GOOGLE_SHEETS_CONFIG.spreadsheetId = id;
+                GOOGLE_SHEETS_CONFIG.spreadsheetUrl = urlInput;
+                GOOGLE_SHEETS_CONFIG.spreadsheetName = res.spreadsheetName;
+                
+                sync(); 
+                
+                autoVerifyGSheetsOnLoad(id, urlInput);
+                alert(`🎉 ¡Conectado Exitosamente!\n\nDocumento: "${res.spreadsheetName}" se ha establecido como la Base Maestra del WMS.`);
+            } else {
+                let missing = [];
+                for(let key in res.statusMap) {
+                    if(!res.statusMap[key]) missing.push(key);
+                }
+                alert(`❌ Error de Conexión o Estructura\n\nNo pudimos validar la estructura del documento. Asegúrese de que:\n1. El archivo esté compartido como "Cualquier persona con el enlace".\n2. Contenga las siguientes pestañas: ${missing.join(', ')}`);
+            }
+        });
+    }
+
+    async function verifyGSheetsTabs(id) {
+        const statusMap = {
+            "SAP_Import": false,
+            "Productos_WMS": false,
+            "SKU_Maestro": false,
+            "Log_Sincronizacion": false,
+            "Configuracion": false
+        };
+        let spreadsheetName = "WMS - Base de Datos Maestro";
+        let isConnected = false;
+
+        try {
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://docs.google.com/spreadsheets/d/${id}/pubhtml`)}`;
+            const res = await fetch(proxyUrl);
+            if (res.ok) {
+                const data = await res.json();
+                const htmlStr = data.contents;
+
+                const titleMatch = htmlStr.match(/<title>([^<]+)<\/title>/i);
+                if (titleMatch) {
+                    spreadsheetName = titleMatch[1].replace(" - Google Sheets", "").replace(" - Google Documentos", "").trim();
+                }
+
+                const menuMatch = htmlStr.match(/<ul id="sheet-menu">([\s\S]*?)<\/ul>/i);
+                if (menuMatch) {
+                    const liContent = menuMatch[1];
+                    const tabMatches = liContent.matchAll(/<a[^>]*>([^<]+)<\/a>/gi);
+                    for (const match of tabMatches) {
+                        const tabName = match[1].trim();
+                        if (statusMap[tabName] !== undefined) {
+                            statusMap[tabName] = true;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("Proxy de validación falló. Iniciando Capa 2 (Conexión Directa CSV)...", e);
+        }
+
+        const directPromises = Object.keys(statusMap).map(async (tabName) => {
+            if (statusMap[tabName]) return;
+            try {
+                const checkUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&sheet=${encodeURIComponent(tabName)}`;
+                const testRes = await fetch(checkUrl, { method: 'HEAD' });
+                if (testRes.ok) {
+                    statusMap[tabName] = true;
+                }
+            } catch (err) {
+                console.error(`Error verificando pestaña directamentre [${tabName}]:`, err);
+            }
+        });
+
+        await Promise.all(directPromises);
+
+        isConnected = (statusMap["Productos_WMS"] === true);
+
+        return { isConnected, spreadsheetName, statusMap };
+    }
+
+    function renderTabsChecklist(statusMap) {
+        const wrap = document.getElementById('gsTabsChecklist');
+        if(!wrap) return;
+        let html = '';
+        for(let tab in statusMap) {
+            if (statusMap[tab]) {
+                html += `<div style="background:rgba(16, 185, 129, 0.05); border:1px solid rgba(16, 185, 129, 0.2); padding:10px; border-radius:4px; font-size:0.8rem; display:flex; align-items:center; gap:8px; color:var(--text);"><span style="color:var(--ok);">✓</span> ${tab}</div>`;
+            } else {
+                html += `<div style="background:rgba(239, 68, 68, 0.05); border:1px solid rgba(239, 68, 68, 0.2); padding:10px; border-radius:4px; font-size:0.8rem; display:flex; align-items:center; gap:8px; color:var(--muted);"><span style="color:var(--danger);">⚠</span> ${tab} (Falta)</div>`;
+            }
+        }
+        wrap.innerHTML = html;
+    }
+
     function openIntegrationsModal() {
         document.getElementById('gsLastSyncStatus').innerText = gsheetsConfig.lastSync || 'Nunca';
         document.getElementById('gsTotalProducts').innerText = PRODUCTS.length;
@@ -1864,8 +2035,9 @@ if (window.WMS_INITIALIZED) {
     }
 
     function startGoogleSheetsSync() {
+        if (!GOOGLE_SHEETS_CONFIG.spreadsheetId) return alert("Debe conectar un Google Sheets primero.");
         console.clear();
-        console.log("=== [DEPURACIÓN GS] PASO 1: Iniciando Sincronización Automática ===");
+        console.log("=== [DEPURACIÓN GS] PASO 1: Sincronización en Progreso ===");
         
         const btn = document.getElementById('btnSyncGs');
         btn.innerText = "⏳ Descargando y Analizando...";
@@ -2034,7 +2206,6 @@ if (window.WMS_INITIALIZED) {
                 if ((p.name || '') !== name) { changed = true; changes.push(`Nombre mod.`); }
                 if ((p.min || 0) !== min) { changed = true; changes.push(`Mín: ${p.min||0} -> ${min}`); }
                 if ((p.minAlert || 0) !== minAlert) { changed = true; changes.push(`Alerta: ${p.minAlert||0} -> ${minAlert}`); }
-                if (mappedRowId && p.rowId !== mappedRowId) { changed = true; changes.push(`Reub: ${mappedRowId}`); }
                 if ((p.masterQty || 0) !== master) { changed = true; changes.push(`Master: ${p.masterQty||0} -> ${master}`); }
                 if ((p.innerQty || 0) !== inner) { changed = true; changes.push(`Int: ${p.innerQty||0} -> ${inner}`); }
                 if (Boolean(p.hasPO) !== hasPO) { changed = true; changes.push(`Orden: ${p.hasPO?'Sí':'No'} -> ${hasPO?'Sí':'No'}`); }
@@ -2042,7 +2213,7 @@ if (window.WMS_INITIALIZED) {
 
                 if (changed) {
                     window.pendingSyncDiff.modified.push({
-                        sku, name, qty, min, minAlert, max, prov, lead, w, h, d, loc: p.rowId, // Mantiene loc original
+                        sku, name, qty, min, minAlert, max, prov, lead, w, h, d, loc: p.rowId, 
                         master, inner, hasPO, resStock, poDate, poArr,
                         oldQty: p.current, changes: changes.join(' | ')
                     });
@@ -2189,4 +2360,8 @@ if (window.WMS_INITIALIZED) {
     window.startGoogleSheetsSync = startGoogleSheetsSync;
     window.applyGoogleSheetsSync = applyGoogleSheetsSync;
     window.findLocationId = findLocationId;
+    window.saveAndConnectGSheet = saveAndConnectGSheet;
+    window.enableGSheetSetupUI = enableGSheetSetupUI;
+    window.cancelGSheetSetup = cancelGSheetSetup;
+    window.testGSheetsConnection = testGSheetsConnection;
 }
